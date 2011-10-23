@@ -9,10 +9,11 @@ namespace tornet {
       class channel_private {
         public:
           channel_private( const detail::connection::ptr& c )
-          :con(c){}
+          :con(c),closed(false){}
 
-          detail::connection::ptr con;   
+          detail::connection::wptr con;   
           channel::recv_handler rc;
+          bool     closed;
           uint16_t rport;
           uint16_t lport;
           boost::cmt::mutex mtx;
@@ -30,14 +31,23 @@ namespace tornet {
   channel::~channel() { }
 
   void channel::close() {
-    if( my ) 
-      my->con->close_channel(*this);
+    if( my ) {
+      detail::connection::ptr c(my->con);
+      if( c )
+        c->close_channel(*this);
+    }
     my.reset();
+  }
+  void channel::reset() {
+    my->con.reset(); 
   }
 
   channel::node_id  channel::remote_node()const { 
     BOOST_ASSERT(my);
-    return my->con->get_remote_id(); 
+    detail::connection::ptr c(my->con);
+    if( c )
+      return c->get_remote_id();
+    TORNET_THROW( "Channel Closed" );  
   } 
   uint16_t channel::local_channel_num() const {
     BOOST_ASSERT(my);
@@ -49,26 +59,43 @@ namespace tornet {
   }
 
   void channel::on_recv( const recv_handler& rc ) {
-    boost::unique_lock<boost::cmt::mutex> lock( my->mtx );
     BOOST_ASSERT(my);
+    boost::unique_lock<boost::cmt::mutex> lock( my->mtx );
     my->rc = rc;
   }
 
-  void channel::recv( const tornet::buffer& b ) {
+  void channel::recv( const tornet::buffer& b, channel::error_code ec ) {
+    BOOST_ASSERT(my);
     // race condition between on_recv and recv both accessing
     // the receive callback
     boost::unique_lock<boost::cmt::mutex> lock( my->mtx );
-    slog( "" );
-    BOOST_ASSERT(my);
     if( my->rc )  {
-      slog( " rhandler " );
-      my->rc(b);
+      my->rc(b,ec);
     }
+    // note, if recv callback calls close() my could be NULL now
+    
   }
 
   void channel::send( const tornet::buffer& b ) {
     BOOST_ASSERT(my);
-    my->con->send( *this, b );
+    detail::connection::ptr c(my->con);
+    if( c )
+      c->send(*this,b);
+    else
+      TORNET_THROW( "Channel Closed" );  
+  }
+
+  channel::operator bool()const {
+    if( my ) {
+      if( detail::connection::ptr(my->con) ) 
+        return true;
+      // connection is gone! This channel is bogus!
+      const_cast<channel*>(this)->my.reset();
+    }
+    return false;
+  }
+  bool channel::operator==(const channel& c )const {
+    return my == c.my;
   }
 
 } // namespace tornet

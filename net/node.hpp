@@ -19,6 +19,7 @@ namespace tornet {
       ~node();
 
       void init( const boost::filesystem::path& ddir, uint16_t port );
+      void close();
 
       /**
        *  Connect to the endpoint and return the ID of the node or throw on error.

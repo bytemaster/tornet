@@ -49,6 +49,7 @@ class node_private {
     node_private( node& n, boost::cmt::thread& t );
     ~node_private();
     void    init( const boost::filesystem::path& ddir, uint16_t port );
+    void    close();
 
     void    send( const char* data, uint32_t s, const endpoint& ep );
     void    sign( const scrypt::sha1& digest, scrypt::signature_t& );

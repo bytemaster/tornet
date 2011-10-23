@@ -20,7 +20,8 @@ namespace tornet { namespace service {
       m_thread->async<void>( boost::bind( &chat::add_channel, this, c ) ).wait();
     else {
       m_channels.push_back( c );
-      m_channels.back().on_recv( boost::bind( &chat::on_recv, this, _1 ) );
+      m_channels.back().on_recv( boost::bind( &chat::on_recv, this, _1, _2 ) );
+      slog( "connected channels.size %1%", m_channels.size() );
     }
   }
 
@@ -38,8 +39,12 @@ namespace tornet { namespace service {
     }
   }
 
-  void chat::on_recv( const tornet::buffer& b ) {
-    slog( "recv '%1%'", std::string(b.data(),b.size() ) );
+  void chat::on_recv( const tornet::buffer& b, channel::error_code ec ) {
+    if( !ec )
+        slog( "recv '%1%'", std::string(b.data(),b.size() ) );
+    else {
+        elog( "connection closed!" );
+    }
   }
 
   /*

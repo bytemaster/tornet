@@ -72,6 +72,10 @@ int main( int argc, char** argv ) {
 
       QApplication app(argc, argv);
       app.exec();
+
+      slog( "gracefully shutdown node." );
+      node->close();
+
       slog( "Application quit... closing databases" );
   } catch ( const boost::exception& e ) {
     elog( "%1%", boost::diagnostic_information(e)  );

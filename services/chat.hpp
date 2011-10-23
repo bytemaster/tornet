@@ -23,7 +23,7 @@ namespace tornet { namespace service {
 
       void add_channel( const channel& c );
     private:
-      void on_recv( const tornet::buffer& b );
+      void on_recv( const tornet::buffer& b, channel::error_code ec );
 
       node::ptr           m_node;
       boost::cmt::thread* m_thread;

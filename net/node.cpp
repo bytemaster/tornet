@@ -12,6 +12,13 @@ namespace tornet {
   node::~node() {
     delete my;
   }
+
+  void node::close() {
+    if( &boost::cmt::thread::current() != &my->get_thread() )
+       my->get_thread().async<void>( boost::bind( &node_private::close, my ) ).wait();
+    else
+       my->close();
+  }
   void node::init( const boost::filesystem::path& ddir, uint16_t port ) {
     if( &boost::cmt::thread::current() != &my->get_thread() )
        my->get_thread().async<void>( boost::bind( &node_private::init, my, ddir, port ) ).wait();

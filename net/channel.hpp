@@ -39,13 +39,18 @@ namespace tornet {
    */
   class channel {
     public:
+      enum error_code {
+        ok     = 0,
+        closed = 1
+      };
       typedef scrypt::sha1                                 node_id;
-      typedef boost::function<void(const tornet::buffer&)> recv_handler;
+      typedef boost::function<void(const tornet::buffer&,error_code)> recv_handler;
 
       channel();
       ~channel();
 
-      operator bool()const { return my; }
+      bool operator==(const channel& c )const;
+      operator bool()const;
 
       node_id  remote_node()const;
       uint16_t local_channel_num()const;
@@ -62,7 +67,8 @@ namespace tornet {
       friend class detail::connection;
       // called from connection when a packet comes it, 
       // this method will call the method provided to on_recv() if any.
-      void recv( const tornet::buffer& b );
+      void recv( const tornet::buffer& b, error_code ec = channel::ok );
+      void reset();
 
       boost::shared_ptr<detail::channel_private> my;
   };

@@ -23,7 +23,11 @@ namespace tornet { namespace detail {
   }
 
   node_private::~node_private() {
+    slog( "cleaning up node" );
     try {
+       // for each connection, send close message
+       close();
+
         m_done = true;
         // todo:  close all connections
         if( m_sock )
@@ -35,6 +39,14 @@ namespace tornet { namespace detail {
       slog( "Expected exception %1%", boost::diagnostic_information(e) );
     } catch ( const std::exception& e ) {
       wlog( "Unexpected exception %1%", boost::diagnostic_information(e) );
+    }
+  }
+
+  void node_private::close() {
+    ep_to_con_map::iterator itr = m_ep_to_con.begin();
+    while( itr != m_ep_to_con.end() ) {
+      itr->second->close();
+      ++itr;
     }
   }
 

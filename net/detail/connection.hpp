@@ -52,7 +52,8 @@ namespace tornet {
             };
 
 
-            typedef boost::shared_ptr<connection>  ptr;
+            typedef boost::shared_ptr<connection> ptr;
+            typedef boost::weak_ptr<connection>   wptr;
             typedef boost::asio::ip::udp::endpoint endpoint;
             typedef scrypt::sha1                   node_id;
 
@@ -69,6 +70,9 @@ namespace tornet {
             bool       auto_advance();
             void       advance();
             void       close();
+            void       close_channels();
+
+            void       reset();
 
             // multiplex based upon state
             void handle_packet( const tornet::buffer& b );

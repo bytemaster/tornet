@@ -116,12 +116,12 @@ void connection::handle_authenticated( const tornet::buffer& b ) {
   if( 0 == b.size() % 8 ) { // not dh pub key
     if( !decode_packet( b ) ) {
       slog("faield to decode packet... " );
-      goto_state( uninit );
+      reset();
       handle_uninit(b);
       return;
     }
   } else if( b.size() > 56 ) { // dh pub key 
-    goto_state( uninit );
+    reset();
     handle_uninit(b);
   }
   wlog( "ignoring malformed packet, less than 56 and not multiple of 8" );
@@ -136,9 +136,7 @@ void connection::handle_connected( const tornet::buffer& b ) {
     return; // sucess
 
   slog("faield to decode packet... " );
-  m_node.update_dist_index( m_remote_id, 0 );
-  m_remote_id = node_id();
-  goto_state( uninit );
+  reset();
   handle_uninit(b);
 }
 bool connection::handle_auth_resp_msg( const tornet::buffer& b ) {
@@ -147,21 +145,30 @@ bool connection::handle_auth_resp_msg( const tornet::buffer& b ) {
     goto_state( connected ); 
     return true; 
   }
-  goto_state(uninit); 
+  reset();
   return false;
 }
 
 bool connection::handle_close_msg( const tornet::buffer& b ) {
   wlog("closed msg" );
-  goto_state(uninit); 
+  reset();
   return true;
 }
 
+void connection::reset() {
+  close_channels();
+  m_node.update_dist_index( m_remote_id, 0 );
+  goto_state(uninit); 
+}
+
 void connection::send_close() {
-  wlog( "not implemented" );
+  slog( "" );
+  char resp = 1;
+  send( &resp, sizeof(resp), close_msg );
 }
 void connection::send_auth_response(bool r ) {
-  wlog( "not implemented" );
+  char resp = r;
+  send( &resp, sizeof(resp), auth_resp_msg );
 }
 
 bool connection::decode_packet( const tornet::buffer& b ) {
@@ -427,8 +434,18 @@ void connection::send_auth() {
     }
   }
   void connection::close() {
-    m_remote_id = node_id();
-    goto_state( uninit );
+    send_close();
+    reset();
+  }
+  void connection::close_channels() {
+    boost::unordered_map<uint32_t,channel>::iterator itr = m_channels.begin();
+    tornet::buffer b; b.resize(0);
+    while( itr != m_channels.end() ) {
+      itr->second.reset();
+      itr->second.recv( b, channel::closed );
+      ++itr;
+    }
+    m_channels.clear();
   }
 
   void connection::add_channel( const channel& ch ) {
