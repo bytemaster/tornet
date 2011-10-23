@@ -1,0 +1,10 @@
+CMakeFiles
+CMakeCache.txt
+net/back
+nodeA
+nodeB
+*/moc_*
+Makefile
+cmake_install.cmake
+tornet.app
+out

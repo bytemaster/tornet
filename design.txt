@@ -1,0 +1,30 @@
+Each packet is of the form:
+
+char[3]  super_fast_hash(data)
+char:4   pad bytes
+char:4   flags; // stream vs udp
+if( stream ) uint32_t seq num
+u16      sid; // port
+char[]   data
+
+Overhead per packet: 20 + 8 + 4 + 4 + 2   38 bytes
+
+
+When received, it passed to the proper connection object which decrypts it.
+  If flag is 'datagram' then it is sent to the proper service's dgram port
+  If flag is 'stream' then the data gets put in the proper service's stream inbuf.
+
+
+Service registered's a port with the node, 
+  when a connection receives data on unknown port, it asks the node to open
+    a new stream on that port... the node creates the stream and notifies the service
+    about the new connection from the remote node id and it starts a read loop parsing
+    messages.  
+
+                      Registered Ports
+Node -> Connection -> DGRAM                    <--- Service Register's port with Node
+                      STREAM
+
+
+
+

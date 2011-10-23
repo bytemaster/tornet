@@ -1,0 +1,82 @@
+Node multi-plexes packets to the proper channel.
+
+Each node maintains a set of endpoints.
+
+
+Endpoint
+  ip
+  port
+  dh_pub
+  dh_shared
+  blowfish
+  id
+  map<src_dst,channel> 
+  state
+
+
+Endpoint can be in the following states:
+
+ [0 uninit ] 
+    - On Remote DH key (non multiple of 8 message, > 56 bytes)
+      - Create DH public key, send it.
+      - Goto Known Remote DH Key
+    - Anything else
+      - Generate Local DH Key
+      - Send DH key
+      - goto [1]
+
+ [1 Generated Local DH Key]
+    - On Remote DH key (non multiple of 8 message, > 56 bytes)
+      - Update blowfish
+      - Send DH public key
+      - Send Auth
+      - Goto 2
+    - Anything else
+      - Send DH key
+
+ [2 Known Remote DH Key]
+    - On Remote DH key
+      - Update blowfish
+      - Send DH public key
+      - Send Auth   
+    - On Auth 
+        - validate
+        - update id to ep index
+        - send auth response
+        - goto 3, authenticated
+
+ [3 Authenticated Identity]
+    - On Auth
+        - validate
+        - if id changed... update id to ep index
+        - send auth response
+    - On DH Key
+        - remove id to ep index (closing all channels)
+        - Create DH pub
+        - Send DH pub key
+        - Send Auth
+        - Goto 2 Known Remote DH Key
+    - On Decrypt Failure
+        - remove id to ep index (closing all channels)
+        - Create DH pub key
+        - Send DH pub key
+        - Goto 1
+
+ [4 Peer Authenticated Our Identity]
+    - On Auth
+        - validate
+        - if id changed... update id to ep index
+        - send auth response
+    - On DH Key
+        - remove id to ep index (closing all channels)
+        - Create DH pub
+        - Send DH pub key
+        - Send Auth
+        - Goto 2 Known Remote DH Key
+    - On Decrypt Failure
+        - remove id to ep index (closing all channels)
+        - Create DH pub key
+        - Send DH pub key
+        - Goto 1
+
+  At all times both clients attempt to
