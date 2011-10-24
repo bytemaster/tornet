@@ -7,6 +7,8 @@
 #include <boost/cmt/signals.hpp>
 
 namespace tornet {
+  typedef sequence::number<uint16_t> seq_num;
+  
   struct packet {
     enum types {
       data = 0,
@@ -21,19 +23,19 @@ namespace tornet {
     data_packet( const tornet::buffer& b )
     :data(b),flags(packet::data){}
     uint8_t        flags;
-    uint16_t       rx_win_start; // the seq of the rx window
-    uint16_t       seq;
-    tornet::buffer data;
+    seq_num rx_win_start; // the seq of the rx window
+    seq_num seq;
+    tornet::buffer   data;
   };
 
   struct ack_packet {
-    uint8_t       flags;
-    uint16_t      rx_win_start; // last data packet read
-    uint16_t      rx_win_size;  // the size of the rx window
-    uint16_t      rx_win_end;   // last packet received
-    uint16_t      ack_seq;
-    uint64_t      utc_time;
-    miss_list     missed_seq;  // any missing seq between
+    uint8_t    flags;
+    seq_num    rx_win_start; // last data packet read
+    uint16_t   rx_win_size;  // the size of the rx window
+    seq_num    rx_win_end;   // last packet received
+    seq_num    ack_seq;
+    uint64_t   utc_time;
+    miss_list  missed_seq;  // any missing seq between
 
     template<typename Stream>
     friend Stream& operator << ( Stream& s, const ack_packet& n ) {
@@ -59,9 +61,9 @@ namespace tornet {
 
   struct nack_packet {
     uint8_t   flags;
-    uint16_t  rx_win_start;
-    uint16_t  start_seq;
-    uint16_t  end_seq;
+    seq_num   rx_win_start;
+    seq_num   start_seq;
+    seq_num   end_seq;
 
     template<typename Stream>
     friend Stream& operator << ( Stream& s, const nack_packet& n ) {
@@ -84,8 +86,8 @@ namespace tornet {
 
   class udt_channel_private {
     public:
-      uint16_t               last_rx_seq;    // last rx seq  (received from sender)
-      uint16_t               next_tx_seq;
+      seq_num               last_rx_seq;    // last rx seq  (received from sender)
+      seq_num               next_tx_seq;
       uint16_t               remote_rx_win;  // the maximum amount the remote host can receive
       uint16_t               tx_win_size;    // our max tx window...varies with network
       boost::signal<void()>  tx_win_avail;   // trx buffer can take new inputs
@@ -145,16 +147,16 @@ namespace tornet {
 
         advance_tx( dp.rx_win_start );
 
-        if( dp.seq == (last_rx_seq+1) ) { // most common case
+        if( dp.seq == seq_num(last_rx_seq+1) ) { // most common case
             rx_win.push_back(dp);
             last_rx_seq = dp.seq;
-        } else if( dp.seq > (last_rx_seq+1) ) { // dropped some TODO: Handle Wrap
+        } else if( dp.seq > seq_num(last_rx_seq+1) ) { // dropped some TODO: Handle Wrap
             if( dp.seq > (rx_ack_pack.rx_win_start+rx_ack_pack.rx_win_size) ) {
                 wlog( "Window not big enough for this packet: %1%", dp.seq );
                 return;
             } else {
                rx_win.push_back(dp); 
-               uint16_t sr = last_rx_seq+1;
+               seq_num sr = last_rx_seq+1;
                last_rx_seq = dp.seq;
                rx_ack_pack.missed_seq.add(sr, dp.seq -1);
                

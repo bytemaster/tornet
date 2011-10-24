@@ -2,19 +2,21 @@
 #define _TORNET_UDT_MISS_LIST_HPP_
 #include <list>
 #include <stdint.h>
+#include <tornet/net/detail/sequence_number.hpp>
 
 namespace tornet {
   class miss_list {
     public:
-      void add( uint16_t start, uint16_t end );
-      void remove( uint16_t seq );
-      bool contains( uint16_t seq )const;
+      typedef sequence::number<uint16_t> seq_num;
+      void add( seq_num start, seq_num end );
+      void remove( seq_num seq );
+      bool contains( seq_num seq )const;
       void print()const;
       void clear();
 
       template<typename Stream>
       friend Stream& operator << ( Stream& s, const miss_list& n ) {
-        uint8_t len = (std::min)(uint16_t(128),uint16_t(n.m_ml.size())); 
+        uint8_t len = (std::min)(seq_num(128),seq_num(n.m_ml.size())); 
         s.write( (char*)&len, sizeof(len) );
         mlist::const_iterator itr = n.m_ml.begin();
         while( itr != n.m_ml.end() && len ) {
@@ -42,7 +44,7 @@ namespace tornet {
       }
 
     private:
-      typedef std::list<std::pair<uint16_t,uint16_t> > mlist;
+      typedef std::list<std::pair<seq_num,seq_num> > mlist;
       mlist m_ml;
   };
 

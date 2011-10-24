@@ -5,9 +5,9 @@ namespace tornet {
 
 void miss_list::clear() { m_ml.clear(); }
 
-void miss_list::add( uint16_t start, uint16_t end ) {
+void miss_list::add( seq_num start, seq_num end ) {
   mlist::iterator itr = m_ml.begin();
-  while( itr != m_ml.end() && (itr->second+1) < start ) { // TODO Handle WRAP!
+  while( itr != m_ml.end() && (itr->second+1) < start ) { 
     ++itr;
   }
   if( itr == m_ml.end() ) {
@@ -29,10 +29,10 @@ void miss_list::add( uint16_t start, uint16_t end ) {
   }
 }
 
-void miss_list::remove( uint16_t seq ) {
+void miss_list::remove( seq_num seq ) {
   mlist::iterator itr = m_ml.begin();
   while( itr != m_ml.end() ) {
-    if( itr->first <= seq && seq <= itr->second ) { // TODO Handle WRAP 
+    if( itr->first <= seq && seq <= itr->second ) { 
       if( itr->first == seq && itr->second == seq ) {
         m_ml.erase(itr);
       } else if( itr->first == seq ) {
@@ -41,7 +41,7 @@ void miss_list::remove( uint16_t seq ) {
       } else if( itr->second == seq ) {
         itr->second--;
         return;
-      } else if( itr->first < seq && seq < itr->second  ) { // TODO Handle Wrap
+      } else if( itr->first < seq && seq < itr->second  ) {
         m_ml.insert( itr, std::make_pair( itr->first, seq-1 ) );
         itr->first = seq+1;
       }
@@ -53,10 +53,10 @@ void miss_list::remove( uint16_t seq ) {
   }
 }
 
-bool miss_list::contains( uint16_t seq )const {
+bool miss_list::contains( seq_num seq )const {
   mlist::const_iterator itr = m_ml.begin();
   while( itr != m_ml.end() ) {
-    if( itr->first <= seq && itr->second >= seq ) {  // TODO Handle WRAP 
+    if( itr->first <= seq && itr->second >= seq ) { 
       return true;
     }
     ++itr;
@@ -67,7 +67,7 @@ bool miss_list::contains( uint16_t seq )const {
 void miss_list::print()const {
   mlist::const_iterator itr = m_ml.begin();
   while( itr != m_ml.end() ) {
-    std::cerr<<"["<<itr->first<<", "<<itr->second<<"]";
+    std::cerr<<"["<<std::string(itr->first)<<", "<<std::string(itr->second)<<"]";
     ++itr;
   }
 
