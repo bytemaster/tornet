@@ -3,6 +3,8 @@
 
 namespace tornet {
 
+void miss_list::clear() { m_ml.clear(); }
+
 void miss_list::add( uint32_t start, uint32_t end ) {
   mlist::iterator itr = m_ml.begin();
   while( itr != m_ml.end() && (itr->second+1) < start ) { // TODO Handle WRAP!

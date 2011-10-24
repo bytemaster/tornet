@@ -10,6 +10,7 @@ namespace tornet {
       void remove( uint32_t seq );
       bool contains( uint32_t seq )const;
       void print()const;
+      void clear();
 
       template<typename Stream>
       friend Stream& operator << ( Stream& s, const miss_list& n ) {
