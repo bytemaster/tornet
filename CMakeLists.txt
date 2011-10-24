@@ -26,7 +26,10 @@ SET( sources
     net/node.cpp
     net/detail/connection.cpp
     net/detail/node_private.cpp
+    rpc/connection.cpp
+    rpc/service.cpp
     services/chat.cpp
+    services/calc.cpp
     db/peer.cpp
     db/chunk.cpp 
    )

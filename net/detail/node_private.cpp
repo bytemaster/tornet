@@ -23,7 +23,7 @@ namespace tornet { namespace detail {
   }
 
   node_private::~node_private() {
-    slog( "cleaning up node" );
+    wlog( "cleaning up node" );
     try {
        // for each connection, send close message
        close();
@@ -43,6 +43,11 @@ namespace tornet { namespace detail {
   }
 
   void node_private::close() {
+    wlog( "" );
+    if( &boost::cmt::thread::current() != &m_thread ) {
+      m_thread.async<void>( boost::bind(&node_private::close, this  ) ).wait();
+      return;
+    }
     ep_to_con_map::iterator itr = m_ep_to_con.begin();
     while( itr != m_ep_to_con.end() ) {
       itr->second->close();

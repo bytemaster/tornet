@@ -56,6 +56,7 @@ namespace tornet {
       uint16_t local_channel_num()const;
       uint16_t remote_channel_num()const;
 
+      /// after calling this the receive handler will no longer be called
       void     close();
       void     send( const tornet::buffer& buf );
       void     on_recv( const recv_handler& cb );

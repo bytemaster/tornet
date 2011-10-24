@@ -10,10 +10,13 @@ namespace tornet {
   }
 
   node::~node() {
+    wlog( "" );
     delete my;
   }
+  boost::cmt::thread& node::get_thread()const { return my->get_thread(); }
 
   void node::close() {
+    wlog( "closing.... " );
     if( &boost::cmt::thread::current() != &my->get_thread() )
        my->get_thread().async<void>( boost::bind( &node_private::close, my ) ).wait();
     else

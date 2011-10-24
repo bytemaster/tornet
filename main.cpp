@@ -6,9 +6,13 @@
 #include <tornet/db/peer.hpp>
 #include <boost/cmt/asio.hpp>
 #include <tornet/net/node.hpp>
+#include <tornet/services/calc.hpp>
 #include <tornet/services/chat.hpp>
 
+
 #include <boost/cmt/thread.hpp>
+#include <boost/cmt/signals.hpp>
+#include <tornet/rpc/service.hpp>
 
 void handle_sigint( int si );
 
@@ -23,10 +27,8 @@ boost::asio::ip::udp::endpoint to_endpoint( const std::string& str ) {
       return eps.front();
 }
 
-int main( int argc, char** argv ) {
-  signal( SIGINT, handle_sigint );
-  boost::cmt::thread::current().set_name("main");
-  try { 
+void start_services( int argc, char** argv ) {
+  slog( "starting services..." );
       std::string data_dir;
       uint16_t    node_port = 0;
       std::vector<std::string> init_connections;
@@ -45,13 +47,16 @@ int main( int argc, char** argv ) {
 
       if( vm.count("help") ) {
           std::cout << desc << std::endl;
-          return -1;
+          exit(1);
       }
       
       tornet::node::ptr node(new tornet::node() );
+  try {
       node->init( data_dir, node_port );
-
-      tornet::service::chat::ptr cs( new tornet::service::chat( node, 100 ) );
+      
+      tornet::rpc::service::ptr srv( new tornet::service::calc_service( node, "rpc", 101 ) );
+     
+      //tornet::service::chat::ptr cs( new tornet::service::chat( node, 100 ) );
 
       for( uint32_t i = 0; i < init_connections.size(); ++i ) {
         try {
@@ -59,23 +64,52 @@ int main( int argc, char** argv ) {
             scrypt::sha1 id = node->connect_to( to_endpoint(init_connections[i]) );
             slog( "Connected to %1%", id );
 
-            tornet::channel c = node->open_channel( id, 100 );
-            const char* hw = "Hello World";
-            c.send( tornet::buffer(hw, strlen(hw)) );
+            tornet::channel c = node->open_channel( id, 101 );
+            tornet::rpc::connection con(c);
+            int r = con.call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
+            r = con.call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
+            r = con.call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
+            r = con.call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
         } catch ( const boost::exception& e ) {
             wlog( "Unable to connect to node %1%, %2%", init_connections[i], boost::diagnostic_information(e) ) ;
         }
       }
 
+    //  boost::cmt::wait( quit_signal );
+    wlog( "exec... " );
+      boost::cmt::exec();
+      //boost::cmt::usleep(1000*1000*1000);
+    wlog( "done exec..." );
+  } catch ( const boost::exception& e ) {
+    elog( "%1%", boost::diagnostic_information(e) );
+  } catch ( const std::exception& e ) {
+    elog( "%1%", boost::diagnostic_information(e) );
+  } catch ( ... ) {
+    elog( "unhandled exceptioN!" );
+  }
+  elog( "gracefully shutdown node." );
+  node->close();
+  wlog( "\n\nexiting services!\n\n" );
+}
+
+
+
+int main( int argc, char** argv ) {
+  signal( SIGINT, handle_sigint );
+  boost::cmt::thread::current().set_name("main");
+  try { 
       //boost::shared_ptr<tornet::db::chunk> c( new tornet::db::chunk( scrypt::sha1(), boost::filesystem::path(data_dir)/"chunks" ) );
       //c->init();
+      boost::cmt::thread* sthread = boost::cmt::thread::create("service");
+      sthread->async( boost::bind(&start_services,argc,argv) );
 
       QApplication app(argc, argv);
       app.exec();
-
-      slog( "gracefully shutdown node." );
-      node->close();
-
+      //quit_signal();
+      slog( "wating for services to clean up" );
+      sthread->quit();
+//      wlog( "wait for services..." );
+//      usleep(1000*1000);
       slog( "Application quit... closing databases" );
   } catch ( const boost::exception& e ) {
     elog( "%1%", boost::diagnostic_information(e)  );

@@ -1,0 +1,21 @@
+uitn32_t src_ip
+uint32_t dst_ip
+
+uint16_t src_prt
+uint16_t dst_port
+uint16_t len;
+uint16_t check
+
+uint32_t encryption_header
+uint16_t src port
+uint16_t dst port
+
+uint8_t  ctrl
+uint16_t seq
+
+uint16_t id
+uint8_t type
+uint8_t meth
+uint16_t data_len
+
+data

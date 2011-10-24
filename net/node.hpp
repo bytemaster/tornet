@@ -18,6 +18,8 @@ namespace tornet {
       node();
       ~node();
 
+      boost::cmt::thread& get_thread()const;
+
       void init( const boost::filesystem::path& ddir, uint16_t port );
       void close();
 
@@ -31,7 +33,8 @@ namespace tornet {
        *  the coresponding local_port for return messages.  
        *
        *  @param node_id     - the ID of the node that we wish to connect to.
-       *  @param remote_port - the port the remote host is listening for incoming connections.  @ref listen
+       *  @param remote_port - the port the remote host is listening for incoming 
+       *                       connections.  @ref listen
        *
        *  Throws if unable to resolve or connect to node_id
        */
@@ -41,7 +44,8 @@ namespace tornet {
        *  Every time a new channel is created to this node_chan_num, @param on_new_channel is called.
        *  @param service_chan_num - the port accepting new channels
        *  @param service_name - the name of the service running on port (http,chunk,chat,dns,etc)
-       *  @param on_new_channel - called from the node's thread when a new channel is created on service_chan_num
+       *  @param on_new_channel - called from the node's thread when a new channel 
+       *                          is created on service_chan_num
        *
        *  @return true if node_chan_num is unused, otherwise false;
        */

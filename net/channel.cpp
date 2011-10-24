@@ -32,11 +32,15 @@ namespace tornet {
 
   void channel::close() {
     if( my ) {
-      detail::connection::ptr c(my->con);
-      if( c )
-        c->close_channel(*this);
+      boost::unique_lock<boost::cmt::mutex> lock( my->mtx );
+        if( !my->con.expired() ) {
+            detail::connection::ptr c(my->con);
+            if( c )
+              c->close_channel(*this);
+        }
+      my->rc = channel::recv_handler();
+      my.reset();
     }
-    my.reset();
   }
   void channel::reset() {
     my->con.reset(); 

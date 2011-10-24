@@ -162,7 +162,7 @@ void connection::reset() {
 }
 
 void connection::send_close() {
-  slog( "" );
+  slog( "sending close" );
   char resp = 1;
   send( &resp, sizeof(resp), close_msg );
 }
@@ -183,6 +183,8 @@ bool connection::decode_packet( const tornet::buffer& b ) {
     }
     uint8_t pad = b[3] & 0x07;
     uint8_t msg_type = b[3] >> 3;
+
+    slog( "%1% bytes type %2%", b.size(), int(msg_type) );
 
     switch( msg_type ) {
       case data_msg:       return handle_data_msg( b.subbuf(4,b.size()-4-pad) );  
@@ -389,7 +391,8 @@ void connection::send_auth() {
    */
   void connection::send( const channel& c, const tornet::buffer& b  ) {
     if( &boost::cmt::thread::current() != &m_node.get_thread() )
-      m_node.get_thread().async<void>( boost::bind( &connection::send, this, boost::ref(c), boost::ref(b) ) ).wait();
+      m_node.get_thread().async<void>( boost::bind( &connection::send, this, 
+                                                    boost::ref(c), boost::ref(b) ) ).wait();
     else {
         wlog("send from %1% to %2%", c.local_channel_num(), c.remote_channel_num() );
         char buf[2048];
@@ -434,7 +437,8 @@ void connection::send_auth() {
     }
   }
   void connection::close() {
-    send_close();
+    if( m_cur_state >= received_dh )
+        send_close();
     reset();
   }
   void connection::close_channels() {
