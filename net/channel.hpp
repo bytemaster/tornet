@@ -5,6 +5,8 @@
 #include <tornet/net/buffer.hpp>
 #include <boost/function.hpp>
 
+namespace boost { namespace cmt { class thread; }}
+
 namespace tornet { 
   namespace detail {
       class connection;
@@ -60,6 +62,8 @@ namespace tornet {
       void     close();
       void     send( const tornet::buffer& buf );
       void     on_recv( const recv_handler& cb );
+
+      boost::cmt::thread* get_thread()const;
 
     private:
       friend class detail::node_private; // the only one with permission to create channels

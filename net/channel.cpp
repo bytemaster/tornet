@@ -30,6 +30,11 @@ namespace tornet {
 
   channel::~channel() { }
 
+  boost::cmt::thread* channel::get_thread()const {
+    if( !my ) return 0;
+    detail::connection::ptr c(my->con);
+    return &c->get_thread();
+  }
   void channel::close() {
     if( my ) {
       boost::unique_lock<boost::cmt::mutex> lock( my->mtx );

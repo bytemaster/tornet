@@ -61,6 +61,8 @@ namespace tornet {
             connection( detail::node_private& np, const endpoint& ep, 
                         const node_id& auth_id, state_enum init_state = connected );
             ~connection();
+            
+            boost::cmt::thread& get_thread()const;
 
             endpoint   get_endpoint()const;
             node_id    get_remote_id()const;

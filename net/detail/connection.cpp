@@ -385,6 +385,10 @@ void connection::send_auth() {
 
   connection::node_id connection::get_remote_id()const { return m_remote_id; }
 
+  boost::cmt::thread& connection::get_thread()const {
+    return m_node.get_thread();
+  }
+
   /**
    *  @todo - find a way to preallocate the header info and the just fill in
    *  before the start of buffer... 
