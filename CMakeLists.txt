@@ -24,6 +24,7 @@ SET( sources
     gui/QBind.cpp
     net/channel.cpp
     net/node.cpp
+    net/detail/miss_list.cpp
     net/detail/connection.cpp
     net/detail/node_private.cpp
     rpc/connection.cpp
