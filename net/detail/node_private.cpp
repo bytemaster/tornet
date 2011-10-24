@@ -197,7 +197,6 @@ namespace tornet { namespace detail {
     if( itr == m_ep_to_con.end() ) {
       connection::ptr c(new connection( *this, ep ));
       m_ep_to_con[ep] = c;
-      c->advance();
       itr = m_ep_to_con.find(ep);
     }
     while ( true ) { // keep waiting for the state to change
@@ -206,8 +205,12 @@ namespace tornet { namespace detail {
             TORNET_THROW( "Attempt to connect to %1%:%2% failed", %ep.address().to_string() %ep.port() );
           case connection::connected:
             return itr->second->get_remote_id(); 
-          default:
-              boost::cmt::wait<connection::state_enum>( itr->second->state_changed );
+          default: try {
+              itr->second->advance();
+              boost::cmt::wait<connection::state_enum>( itr->second->state_changed, boost::chrono::milliseconds(250) );
+           } catch ( boost::cmt::error::future_wait_timeout& e ) {
+            //  slog( "timeout... advance! %1%", boost::diagnostic_information(e) );
+           }
         }
     }
   }
