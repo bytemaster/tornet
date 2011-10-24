@@ -60,9 +60,9 @@ void start_services( int argc, char** argv ) {
 
       for( uint32_t i = 0; i < init_connections.size(); ++i ) {
         try {
-            slog( "Attempting to connect to %1%", init_connections[i] );
+            wlog( "Attempting to connect to %1%", init_connections[i] );
             scrypt::sha1 id = node->connect_to( to_endpoint(init_connections[i]) );
-            slog( "Connected to %1%", id );
+            wlog( "Connected to %1%", id );
 
             tornet::channel c = node->open_channel( id, 101 );
             tornet::rpc::connection con(c);

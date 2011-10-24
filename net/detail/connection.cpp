@@ -268,8 +268,10 @@ void connection::set_remote_id( const connection::node_id& nid ) {
 }
 
 void connection::goto_state( state_enum s ) {
-  if( m_cur_state != s )
+  if( m_cur_state != s ) {
+    slog( "goto %1% from %2%", int(s), int(m_cur_state) );
     state_changed( m_cur_state = s );
+  }
 }
 
 void connection::generate_dh() {
@@ -281,15 +283,15 @@ void connection::generate_dh() {
   m_dh->g = 5;
   m_dh->p.insert( m_dh->p.begin(), decode_param.begin(), decode_param.end() );
   m_dh->pub_key.reserve(63);
-  m_dh->generate_pub_key();
+  do { m_dh->generate_pub_key(); } while ( m_dh->pub_key.size() != 56 );
 }
+
 
 void connection::send_dh() {
   slog("");
   BOOST_ASSERT( m_dh );
   int init_size = m_dh->pub_key.size();
-  if( m_dh->pub_key.size() % 8 == 0 )
-      m_dh->pub_key.resize(m_dh->pub_key.size()+ rand()%7+1 );
+  m_dh->pub_key.resize(m_dh->pub_key.size()+ rand()%7+1 );
   m_node.send( &m_dh->pub_key.front(), m_dh->pub_key.size(), m_remote_ep );
   m_dh->pub_key.resize(init_size);
 }

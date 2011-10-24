@@ -200,18 +200,20 @@ namespace tornet { namespace detail {
       itr = m_ep_to_con.find(ep);
     }
     while ( true ) { // keep waiting for the state to change
-        switch( itr->second->get_state() ) {
-          case connection::failed:
-            TORNET_THROW( "Attempt to connect to %1%:%2% failed", %ep.address().to_string() %ep.port() );
-          case connection::connected:
-            return itr->second->get_remote_id(); 
-          default: try {
-              itr->second->advance();
-              boost::cmt::wait<connection::state_enum>( itr->second->state_changed, boost::chrono::milliseconds(250) );
-           } catch ( boost::cmt::error::future_wait_timeout& e ) {
-            //  slog( "timeout... advance! %1%", boost::diagnostic_information(e) );
-           }
+      switch( itr->second->get_state() ) {
+        case connection::failed:
+          TORNET_THROW( "Attempt to connect to %1%:%2% failed", %ep.address().to_string() %ep.port() );
+        case connection::connected:
+          slog( "returning %1%", itr->second->get_remote_id() );
+          return itr->second->get_remote_id(); 
+        default: try {
+          itr->second->advance();
+          // as long as we are advancing on our own, keep waiting for connected.   
+          while( boost::cmt::wait<connection::state_enum>( itr->second->state_changed, boost::chrono::milliseconds(250) ) != connection::connected ) ;
+        } catch ( boost::cmt::error::future_wait_timeout& e ) {
+          slog( "timeout... advance! %1%", boost::diagnostic_information(e) );
         }
+      }
     }
   }
 
