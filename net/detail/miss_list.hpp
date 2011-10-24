@@ -6,15 +6,15 @@
 namespace tornet {
   class miss_list {
     public:
-      void add( uint32_t start, uint32_t end );
-      void remove( uint32_t seq );
-      bool contains( uint32_t seq )const;
+      void add( uint16_t start, uint16_t end );
+      void remove( uint16_t seq );
+      bool contains( uint16_t seq )const;
       void print()const;
       void clear();
 
       template<typename Stream>
       friend Stream& operator << ( Stream& s, const miss_list& n ) {
-        uint8_t len = (std::min)(uint32_t(128),uint32_t(n.m_ml.size())); 
+        uint8_t len = (std::min)(uint16_t(128),uint16_t(n.m_ml.size())); 
         s.write( (char*)&len, sizeof(len) );
         mlist::const_iterator itr = n.m_ml.begin();
         while( itr != n.m_ml.end() && len ) {
@@ -42,7 +42,7 @@ namespace tornet {
       }
 
     private:
-      typedef std::list<std::pair<uint32_t,uint32_t> > mlist;
+      typedef std::list<std::pair<uint16_t,uint16_t> > mlist;
       mlist m_ml;
   };
 

@@ -5,7 +5,7 @@ namespace tornet {
 
 void miss_list::clear() { m_ml.clear(); }
 
-void miss_list::add( uint32_t start, uint32_t end ) {
+void miss_list::add( uint16_t start, uint16_t end ) {
   mlist::iterator itr = m_ml.begin();
   while( itr != m_ml.end() && (itr->second+1) < start ) { // TODO Handle WRAP!
     ++itr;
@@ -29,7 +29,7 @@ void miss_list::add( uint32_t start, uint32_t end ) {
   }
 }
 
-void miss_list::remove( uint32_t seq ) {
+void miss_list::remove( uint16_t seq ) {
   mlist::iterator itr = m_ml.begin();
   while( itr != m_ml.end() ) {
     if( itr->first <= seq && seq <= itr->second ) { // TODO Handle WRAP 
@@ -53,7 +53,7 @@ void miss_list::remove( uint32_t seq ) {
   }
 }
 
-bool miss_list::contains( uint32_t seq )const {
+bool miss_list::contains( uint16_t seq )const {
   mlist::const_iterator itr = m_ml.begin();
   while( itr != m_ml.end() ) {
     if( itr->first <= seq && itr->second >= seq ) {  // TODO Handle WRAP 
