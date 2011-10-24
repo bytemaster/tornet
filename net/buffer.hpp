@@ -46,9 +46,10 @@ namespace tornet {
     buffer( const buffer& b )
     :start(b.start),len(b.len),shared_data(b.shared_data){}
 
-    buffer subbuf( uint32_t s, uint32_t l = -1 )const {
+    buffer subbuf( int32_t s, uint32_t l = -1 )const {
       buffer b(*this);
       b.start = start + s;
+      assert( b.start >= shared_data->c_array() );
       if( len == -1 ) {
           assert( s < len );
           b.len   = len-s;
@@ -56,6 +57,13 @@ namespace tornet {
       else
           assert( s+l < len );
       return b;
+    }
+    void move_start( int32_t sdif ) {
+      start += sdif;
+      if( sdif > len ) len = 0;
+      else len -= sdif;
+      assert( start >= shared_data->c_array() );
+      assert( start <= shared_data->c_array() + shared_data->size() );
     }
     void resize( uint32_t s ) {
       if( s <= len ) 
