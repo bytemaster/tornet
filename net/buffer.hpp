@@ -7,10 +7,8 @@
 
 namespace tornet {
 
-
   typedef boost::array<char,2048> buffer_data;
   typedef boost::shared_ptr<buffer_data> shared_data_ptr;
-
 
   /**
    *  To prevent copying data around, the buffer object
@@ -28,6 +26,13 @@ namespace tornet {
         start = shared_data->c_array(); 
         memcpy( start, d.c_str(), d.size() );
         len   = d.size();
+    }
+    
+    buffer( uint32_t len )
+    :shared_data( boost::make_shared<buffer_data>() ){
+        BOOST_ASSERT( len <= sizeof(buffer_data) );
+        start = shared_data->c_array(); 
+        len   = len;
     }
 
     buffer( const char* d, uint32_t dl )
