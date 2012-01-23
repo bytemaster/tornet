@@ -48,14 +48,14 @@ namespace tornet {
 
     buffer subbuf( int32_t s, uint32_t l = -1 )const {
       buffer b(*this);
-      b.start = start + s;
-      assert( b.start >= shared_data->c_array() );
-      if( len == -1 ) {
-          assert( s < len );
-          b.len   = len-s;
-      }
+      b.start += s;
+      if( l == -1 ) 
+        b.len -= s;
       else
-          assert( s+l < len );
+        b.len = l;
+
+      BOOST_ASSERT( b.start >= b.shared_data->c_array() );
+      BOOST_ASSERT( b.start + b.len <= b.shared_data->c_array() + b.shared_data->size() );
       return b;
     }
     void move_start( int32_t sdif ) {

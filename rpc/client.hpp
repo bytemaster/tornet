@@ -1,5 +1,5 @@
-#ifndef _P2P_CLIENT_HPP_
-#define _P2P_CLIENT_HPP_
+#ifndef _TORNET_CLIENT_HPP_
+#define _TORNET_CLIENT_HPP_
 #include <boost/reflect/any_ptr.hpp>
 #include <tornet/rpc/client_interface.hpp>
 #include <tornet/rpc/client_base.hpp>
@@ -15,7 +15,7 @@ namespace tornet { namespace rpc {
    *          connection object without having to iterate over the methods again.
    */
   template<typename InterfaceType>
-  class client : public boost::reflect::any_ptr<InterfaceType, p2p::client_interface>, public client_base {
+  class client : public boost::reflect::any_ptr<InterfaceType, tornet::rpc::client_interface>, public client_base {
     public:
       typedef boost::shared_ptr<client>   ptr;
 

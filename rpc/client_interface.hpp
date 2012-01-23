@@ -13,7 +13,8 @@
   #include <boost/signals.hpp>
   #include <boost/reflect/vtable.hpp>
 
-  #include <tornet/connection.hpp>
+  #include <tornet/rpc/connection.hpp>
+  #include <tornet/rpc/client_base.hpp>
 
   namespace tornet { namespace rpc {
     /**
@@ -82,7 +83,7 @@
       template<typename ClientType>
       static void set( ClientType& cl ) {
         uint16_t mid = 0;
-        boost::reflect::visit( cl, detail::client_interface::set_visitor<typename ClientType::vtable_type>( *cl, mid, &cl ) );
+        boost::reflect::visit( cl, detail::client_interface::set_visitor<typename ClientType::vtable_type>( *cl, &cl, mid ) );
       }
     };
 

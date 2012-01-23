@@ -6,13 +6,18 @@
 #include <tornet/db/peer.hpp>
 #include <boost/cmt/asio.hpp>
 #include <tornet/net/node.hpp>
+#include <tornet/net/udt_channel.hpp>
 #include <tornet/services/calc.hpp>
 #include <tornet/services/chat.hpp>
+#include <tornet/rpc/client.hpp>
 
 
 #include <boost/cmt/thread.hpp>
 #include <boost/cmt/signals.hpp>
 #include <tornet/rpc/service.hpp>
+#include <tornet/services/accounting.hpp>
+
+#include <ltl/rpc/reflect.hpp>
 
 void handle_sigint( int si );
 
@@ -55,8 +60,9 @@ void start_services( int argc, char** argv ) {
       node->init( data_dir, node_port );
       
       tornet::rpc::service::ptr srv( new tornet::service::calc_service( node, "rpc", 101 ) );
-     
-      //tornet::service::chat::ptr cs( new tornet::service::chat( node, 100 ) );
+      tornet::service::chat::ptr cs( new tornet::service::chat( node, 100 ) );
+
+      tornet::service::accounting::ptr as( new tornet::service::accounting( data_dir + "/accounting", node, "accounting", 69 ) );
 
       for( uint32_t i = 0; i < init_connections.size(); ++i ) {
         try {
@@ -65,15 +71,42 @@ void start_services( int argc, char** argv ) {
             wlog( "Connected to %1%", id );
 
             tornet::channel c = node->open_channel( id, 101 );
-            tornet::rpc::connection con(c);
-            int r = con.call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
-            r = con.call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
-            r = con.call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
-            r = con.call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
+            tornet::rpc::connection::ptr  con( new tornet::rpc::connection(c));
+            int r = con->call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
+            r = con->call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
+            r = con->call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
+            r = con->call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
+
+            tornet::rpc::client<tornet::service::calc_connection>   calc_client(con);
+            r = calc_client->add( 9 );
+            slog( "r: %1%", r );
+
+
+
+            tornet::channel ac = node->open_channel( id, 69 );
+            tornet::rpc::connection::ptr  acon( new tornet::rpc::connection(ac));
+            tornet::rpc::client<ltl::rpc::session>   acnt(acon);
+            slog( " create asset: %1%", acnt->create_asset( ltl::rpc::asset( "gold grams", ".999 pure" ) ).wait() );
+
+
+
+            slog( "creating test data" );
+            std::string test = "hello world.";
+            for( uint32_t y = 0; y < 16;++y ) test += test;
+
+            tornet::channel cc = node->open_channel( id, 100 );
+
+           
+            tornet::udt_channel uc(cc,1024);
+            for( uint32_t x = 0; x < 1000*10; ++x ) {
+              uc.write( boost::asio::buffer( test.c_str(),test.size() ) );
+            }
         } catch ( const boost::exception& e ) {
             wlog( "Unable to connect to node %1%, %2%", init_connections[i], boost::diagnostic_information(e) ) ;
         }
       }
+
+
 
     //  boost::cmt::wait( quit_signal );
     wlog( "exec... " );

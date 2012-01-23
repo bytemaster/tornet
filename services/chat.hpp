@@ -2,6 +2,7 @@
 #define _TORNET_CHAT_HPP_
 #include <tornet/net/node.hpp>
 #include <boost/cmt/thread.hpp>
+#include <tornet/net/udt_channel.hpp>
 
 namespace tornet { namespace service {
 
@@ -24,10 +25,11 @@ namespace tornet { namespace service {
       void add_channel( const channel& c );
     private:
       void on_recv( const tornet::buffer& b, channel::error_code ec );
+      void recv_loop( udt_channel* c );
 
-      node::ptr           m_node;
-      boost::cmt::thread* m_thread;
-      std::list<channel>  m_channels;
+      node::ptr               m_node;
+      boost::cmt::thread*     m_thread;
+      std::list<udt_channel>  m_channels;
   };
 
 } }

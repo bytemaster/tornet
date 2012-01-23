@@ -8,6 +8,9 @@ namespace tornet {
   class miss_list {
     public:
       typedef sequence::number<uint16_t> seq_num;
+      bool pop_front( seq_num& seq );
+      uint32_t size()const;
+
       void add( seq_num start, seq_num end );
       void remove( seq_num seq );
       bool contains( seq_num seq )const;

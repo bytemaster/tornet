@@ -16,9 +16,9 @@ namespace tornet { namespace rpc {
     :m_func(f){}
     std::vector<char> operator()( const std::vector<char>& param ) {
       Seq paramv;
-      boost::rpc::raw::unpack_vec( param, paramv );
+      raw::unpack_vec( param, paramv );
       std::vector<char> rtn;
-      boost::rpc::raw::pack_vec( rtn, m_func(paramv) );
+      raw::pack_vec( rtn, m_func(paramv) );
       return rtn;
     }
     Functor m_func;

@@ -19,21 +19,30 @@ namespace tornet { namespace service {
     if( m_thread != &boost::cmt::thread::current() ) 
       m_thread->async<void>( boost::bind( &chat::add_channel, this, c ) ).wait();
     else {
-      m_channels.push_back( c );
-      m_channels.back().on_recv( boost::bind( &chat::on_recv, this, _1, _2 ) );
+    slog("");
+      m_channels.push_back( tornet::udt_channel(c,8096) );
+      boost::cmt::async<void>( boost::bind( &chat::recv_loop, this, &m_channels.back() ) );
+  //    m_channels.back().on_recv( boost::bind( &chat::on_recv, this, _1, _2 ) );
       slog( "connected channels.size %1%", m_channels.size() );
     }
   }
+  void chat::recv_loop( udt_channel* c ) {
+      std::vector<char> tmp(1024*640);
+      while( true ) {
+        size_t s = c->read( boost::asio::buffer(&tmp.front(),tmp.size() )  );
+       // slog( "read %1%", s );
+      }
+  }
+
 
   void chat::send( const std::string& txt ) {
     slog("");
     if( m_thread != &boost::cmt::thread::current() ) {
       m_thread->async<void>( boost::bind( &chat::send, this, txt ) ).wait();
     } else {
-      tornet::buffer buf(txt);
-      std::list<channel>::iterator itr = m_channels.begin();
+      std::list<udt_channel>::iterator itr = m_channels.begin();
       while( itr != m_channels.end() ) {
-        itr->send( buf );    
+        itr->write( boost::asio::buffer(txt.c_str(), txt.size()) );
         ++itr;
       }
     }

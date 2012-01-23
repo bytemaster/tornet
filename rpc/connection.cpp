@@ -1,6 +1,7 @@
 #include <tornet/rpc/connection.hpp>
 #include <boost/unordered_map.hpp>
-#include <boost/rpc/json/value_io.hpp>
+#include <json/value.hpp>
+#include <json/value_io.hpp>
 
 
 namespace tornet { namespace rpc {
@@ -27,12 +28,12 @@ namespace tornet { namespace rpc {
         slog( "%1% bytes  ec %2%", b.size(), int(ec) );
 
         if( !ec ) {
-          boost::rpc::datastream<const char*> ds(b.data(),b.size());
+          tornet::rpc::datastream<const char*> ds(b.data(),b.size());
           tornet::rpc::message msg;
-          boost::rpc::raw::unpack(ds,msg);
+          tornet::rpc::raw::unpack(ds,msg);
         
         
-          slog("Recv: %1%", boost::rpc::json::to_string(msg));
+          slog("Recv: %1%", json::io::to_string(msg));
 
           switch( msg.type ) {
             case message::notice: handle_notice(msg); return;
@@ -59,14 +60,14 @@ namespace tornet { namespace rpc {
               reply.data = itr->second(m.data);
               reply.type = message::result;
           } catch ( const boost::exception& e ) {
-              boost::rpc::raw::pack_vec( reply.data, std::string(boost::diagnostic_information(e)) );
+              tornet::rpc::raw::pack_vec( reply.data, std::string(boost::diagnostic_information(e)) );
               reply.type = message::error;
           } catch ( const std::exception& e ) {
-              boost::rpc::raw::pack_vec( reply.data, std::string(boost::diagnostic_information(e)) );
+              tornet::rpc::raw::pack_vec( reply.data, std::string(boost::diagnostic_information(e)) );
               reply.type = message::error;
           }
         } else {
-              boost::rpc::raw::pack_vec( reply.data, std::string("Invalid Method ID") );
+              tornet::rpc::raw::pack_vec( reply.data, std::string("Invalid Method ID") );
               reply.type = message::error;
         }
         send( reply );
@@ -100,7 +101,7 @@ namespace tornet { namespace rpc {
         pending_result_map::iterator itr = pending_results.find(m.id);
         if( itr != pending_results.end() ) {
            std::string emsg;
-           boost::rpc::raw::unpack_vec(m.data,emsg);
+           tornet::rpc::raw::unpack_vec(m.data,emsg);
            itr->second->handle_error( boost::copy_exception( tornet_exception() << err_msg(emsg) ));
            pending_results.erase(itr);
         } else {
@@ -118,8 +119,8 @@ namespace tornet { namespace rpc {
 
       void send( const tornet::rpc::message& msg ) {
         tornet::buffer b;
-        boost::rpc::datastream<char*> ds(b.data(),b.size());
-        boost::rpc::raw::pack( ds, msg );
+        tornet::rpc::datastream<char*> ds(b.data(),b.size());
+        tornet::rpc::raw::pack( ds, msg );
         b.resize( ds.tellp() ); 
         slog( "rpc con send %1%", b.size() );
         chan.send( b ); // posts to node thread if necessary

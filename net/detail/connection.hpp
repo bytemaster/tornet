@@ -51,7 +51,6 @@ namespace tornet {
               close_msg     = 3
             };
 
-
             typedef boost::shared_ptr<connection> ptr;
             typedef boost::weak_ptr<connection>   wptr;
             typedef boost::asio::ip::udp::endpoint endpoint;

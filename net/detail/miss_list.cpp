@@ -29,6 +29,26 @@ void miss_list::add( seq_num start, seq_num end ) {
   }
 }
 
+uint32_t miss_list::size()const {
+  uint32_t s = 0;
+  mlist::const_iterator itr = m_ml.begin();
+  while( itr != m_ml.end() ) {
+    s += itr->second - itr->first + 1;
+    ++itr;
+  }
+  return s;
+}
+bool miss_list::pop_front( seq_num& seq ) {
+  if( !m_ml.size() ) 
+    return false;
+  seq = m_ml.front().first;
+  if( m_ml.front().first == m_ml.front().second )
+    m_ml.pop_front();
+  else
+    ++m_ml.front().first;
+  return true;
+}
+
 void miss_list::remove( seq_num seq ) {
   mlist::iterator itr = m_ml.begin();
   while( itr != m_ml.end() ) {

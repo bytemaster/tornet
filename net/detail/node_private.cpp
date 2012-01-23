@@ -94,7 +94,7 @@ namespace tornet { namespace detail {
   void node_private::listen( uint16_t port ) {
     m_sock = boost::shared_ptr<udp::socket>( new udp::socket( boost::cmt::asio::default_io_service() ) );
     m_sock->open( udp::v4() );
-    m_sock->set_option(boost::asio::socket_base::receive_buffer_size(1024*1024) );
+    m_sock->set_option(boost::asio::socket_base::receive_buffer_size(3*1024*1024) );
     m_sock->bind( udp::endpoint(boost::asio::ip::address(), port ) );
     slog( "Starting node %2% listening on port: %1%", m_sock->local_endpoint().port(), m_id );
     m_rl_complete = m_thread.async<void>( boost::bind( &node_private::read_loop, this ) );
@@ -105,14 +105,14 @@ namespace tornet { namespace detail {
     try {
       uint32_t count;
       while( !m_done ) {
-         if( count % 3 == 0 )  // avoid an infinate loop flooding us!
-            boost::cmt::usleep(100);
+         if( count % 60 == 0 )  // avoid an infinate loop flooding us!
+            boost::cmt::usleep(400);
 
          // allocate a new buffer for each packet... we have no idea how long it may be around
          tornet::buffer b;
          boost::asio::ip::udp::endpoint from;
          size_t s = boost::cmt::asio::udp::receive_from( *m_sock, b.data(), b.size(), from );
-         slog( "%1% from %2%:%3%", s, from.address().to_string(), from.port() );
+         //slog( "%1% from %2%:%3%", s, from.address().to_string(), from.port() );
 
          if( s ) {
             b.resize( s );
@@ -126,7 +126,7 @@ namespace tornet { namespace detail {
   void node_private::handle_packet( const tornet::buffer& b, const udp::endpoint& ep ) {
     boost::unordered_map<endpoint,connection::ptr>::iterator itr = m_ep_to_con.find(ep);
     if( itr == m_ep_to_con.end() ) {
-      // attempt to load archived connection data
+      // TODO: attempt to load archived connection data
       
       slog( "creating new connection" );
       // failing that, create
@@ -167,7 +167,6 @@ namespace tornet { namespace detail {
   }
 
   void node_private::send( const char* data, uint32_t s, const endpoint& ep ) {
-      wlog( "send %1%", s );
       boost::cmt::asio::udp::send_to(*m_sock, data, s, ep );
   }
 
@@ -186,30 +185,35 @@ namespace tornet { namespace detail {
       itr->second->add_channel(ch);
       return ch;
     } 
+    // TODO: Start KAD search for the proper node.
+
     TORNET_THROW( "No known connections to %1%", %nid );
     return channel();
   }
 
-
-
   node_private::node_id node_private::connect_to( const node::endpoint& ep ) {
     ep_to_con_map::iterator itr = m_ep_to_con.find(ep);
+    connection::ptr con;
     if( itr == m_ep_to_con.end() ) {
+      // TODO: attempt to load archived connection data
+
       connection::ptr c(new connection( *this, ep ));
       m_ep_to_con[ep] = c;
       itr = m_ep_to_con.find(ep);
     }
+    con = itr->second;
     while ( true ) { // keep waiting for the state to change
-      switch( itr->second->get_state() ) {
+      switch( con->get_state() ) {
         case connection::failed:
           TORNET_THROW( "Attempt to connect to %1%:%2% failed", %ep.address().to_string() %ep.port() );
         case connection::connected:
-          slog( "returning %1%", itr->second->get_remote_id() );
-          return itr->second->get_remote_id(); 
+          slog( "returning %1%", con->get_remote_id() );
+          return con->get_remote_id(); 
         default: try {
-          itr->second->advance();
+          con->advance();
           // as long as we are advancing on our own, keep waiting for connected.   
-          while( boost::cmt::wait<connection::state_enum>( itr->second->state_changed, boost::chrono::milliseconds(250) ) != connection::connected ) ;
+          while( boost::cmt::wait<connection::state_enum>( con->state_changed, 
+                                        boost::chrono::milliseconds(250) ) != connection::connected ) ;
         } catch ( boost::cmt::error::future_wait_timeout& e ) {
           slog( "timeout... advance! %1%", boost::diagnostic_information(e) );
         }

@@ -2,9 +2,9 @@
 #include <boost/cmt/log/log.hpp>
 #include <scrypt/super_fast_hash.hpp>
 #include <scrypt/scrypt.hpp>
-#include <boost/rpc/base64.hpp>
+#include <scrypt/base64.hpp>
 #include <tornet/net/detail/node_private.hpp>
-#include <boost/rpc/datastream.hpp>
+#include <tornet/rpc/datastream.hpp>
 #include <boost/chrono.hpp>
 
 namespace tornet { namespace detail {
@@ -129,13 +129,12 @@ void connection::handle_authenticated( const tornet::buffer& b ) {
 
 // same as authenticated state...
 void connection::handle_connected( const tornet::buffer& b ) {
-  slog("");
   BOOST_ASSERT( m_cur_state == connected );
 
   if( 0 == b.size() % 8 && decode_packet(b) ) 
     return; // sucess
 
-  slog("faield to decode packet... " );
+  slog("failed to decode packet... " );
   reset();
   handle_uninit(b);
 }
@@ -172,7 +171,6 @@ void connection::send_auth_response(bool r ) {
 }
 
 bool connection::decode_packet( const tornet::buffer& b ) {
-    slog("");
     m_bf->reset_chain();
     m_bf->decrypt( (unsigned char*)b.data(), b.size(), scrypt::blowfish::CBC );
 
@@ -184,7 +182,7 @@ bool connection::decode_packet( const tornet::buffer& b ) {
     uint8_t pad = b[3] & 0x07;
     uint8_t msg_type = b[3] >> 3;
 
-    slog( "%1% bytes type %2%", b.size(), int(msg_type) );
+//    slog( "%1% bytes type %2%  pad %3%", b.size(), int(msg_type), int(pad) );
 
     switch( msg_type ) {
       case data_msg:       return handle_data_msg( b.subbuf(4,b.size()-4-pad) );  
@@ -204,7 +202,7 @@ bool connection::handle_data_msg( const tornet::buffer& b ) {
     return false;
   }
   uint16_t src, dst;
-  boost::rpc::datastream<const char*> ds(b.data(), b.size() );
+  tornet::rpc::datastream<const char*> ds(b.data(), b.size() );
   ds >> src >> dst;
 
   // locally channels are indexed by 'local' << 'remote'
@@ -237,7 +235,7 @@ bool connection::handle_auth_msg( const tornet::buffer& b ) {
     uint64_t             utc_us;
     uint64_t             nonce[2];
 
-    boost::rpc::datastream<const char*> ds( b.data(), b.size() );
+    tornet::rpc::datastream<const char*> ds( b.data(), b.size() );
     ds >> sig >> pubk >> utc_us >> nonce[0] >> nonce[1];
 
     scrypt::sha1_encoder  sha;
@@ -278,7 +276,7 @@ void connection::generate_dh() {
   slog("");
   m_dh.reset( new scrypt::diffie_hellman() );
   static std::string decode_param = 
-        boost::rpc::base64_decode( "lyIvBWa2SzbSeqb4HgBASJEj3SJrYFAIaErwx5GMt71CtFE4FYXDrVw1bPTBaRX4GTDAIBQM8Rs=" );
+        scrypt::base64_decode( "lyIvBWa2SzbSeqb4HgBASJEj3SJrYFAIaErwx5GMt71CtFE4FYXDrVw1bPTBaRX4GTDAIBQM8Rs=" );
   m_dh->p.clear();
   m_dh->g = 5;
   m_dh->p.insert( m_dh->p.begin(), decode_param.begin(), decode_param.end() );
@@ -315,7 +313,7 @@ void connection::send_auth() {
     char buf[sizeof(s)+sizeof(m_node.pub_key())+sizeof(utc_us)+16];
     //BOOST_ASSERT( sizeof(tmp) == ps.tellp() );
 
-    boost::rpc::datastream<char*> ds(buf,sizeof(buf));
+    tornet::rpc::datastream<char*> ds(buf,sizeof(buf));
 
     // allocate buffer with unused space in front for header info and back for padding, send() will then use
     // the extra space to put the encryption, pad, and type info.
@@ -344,6 +342,7 @@ void connection::send_auth() {
       unsigned char  buffer[2048];
       unsigned char* data = buffer+4;
       uint8_t  pad = 8 - ((size + 4) % 8);
+      if( pad == 8 ) pad = 0;
 
       memcpy( data,buf,size);
       if( pad )
@@ -351,8 +350,7 @@ void connection::send_auth() {
       uint32_t check = scrypt::super_fast_hash( (char*)data, size + pad );
       uint32_t size_pad = size+pad;
       memcpy( buffer, (char*)&check, 3 );
-      pad |= uint8_t(t) << 3;
-      buffer[3] = pad;
+      buffer[3] = pad | (uint8_t(t)<<3);
       //slog( "%1%", scrypt::to_hex( (char*)buffer, size_pad+4 ) );
 
       uint32_t buf_len = size_pad+4;
@@ -361,7 +359,7 @@ void connection::send_auth() {
 
       /// TODO: Throttle Connection if we are sending faster than connection priority allows 
 
-      slog( "Sending %1% bytes", buf_len );
+      //slog( "Sending %1% bytes: pad %2%  type: %3%", buf_len, int(pad), int(t) );
       m_node.send( (char*)buffer, buf_len, m_remote_ep );
   }
 
@@ -372,7 +370,7 @@ void connection::send_auth() {
     while( m_dh->shared_key.size() < 56 ) 
       m_dh->shared_key.push_back('\0');
     wlog( "shared key: %1%", 
-            boost::rpc::base64_encode( (const unsigned char*)&m_dh->shared_key.front(), m_dh->shared_key.size() ) ); 
+            scrypt::base64_encode( (const unsigned char*)&m_dh->shared_key.front(), m_dh->shared_key.size() ) ); 
 
     // make sure shared key make sense!
 
@@ -400,9 +398,9 @@ void connection::send_auth() {
       m_node.get_thread().async<void>( boost::bind( &connection::send, this, 
                                                     boost::ref(c), boost::ref(b) ) ).wait();
     else {
-        wlog("send from %1% to %2%", c.local_channel_num(), c.remote_channel_num() );
+        //wlog("send from %1% to %2%", c.local_channel_num(), c.remote_channel_num() );
         char buf[2048];
-        boost::rpc::datastream<char*> ds(buf,sizeof(buf));
+        tornet::rpc::datastream<char*> ds(buf,sizeof(buf));
         ds << c.local_channel_num() << c.remote_channel_num(); 
         ds.write( b.data(), b.size() );
         send( buf, ds.tellp(), data_msg );

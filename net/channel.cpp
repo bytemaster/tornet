@@ -31,13 +31,15 @@ namespace tornet {
   channel::~channel() { }
 
   boost::cmt::thread* channel::get_thread()const {
-    if( !my ) return 0;
+    if( !my ) {wlog("my==0"); return 0;}
+    if( my->con.expired() ) elog( "my->con expired" );
     detail::connection::ptr c(my->con);
     return &c->get_thread();
   }
   void channel::close() {
+    slog("close!!" );
     if( my ) {
-      boost::unique_lock<boost::cmt::mutex> lock( my->mtx );
+    //  boost::unique_lock<boost::cmt::mutex> lock( my->mtx );
         if( !my->con.expired() ) {
             detail::connection::ptr c(my->con);
             if( c )
@@ -48,6 +50,7 @@ namespace tornet {
     }
   }
   void channel::reset() {
+    slog( "reset!" );
     my->con.reset(); 
   }
 
@@ -86,7 +89,8 @@ namespace tornet {
   }
 
   void channel::send( const tornet::buffer& b ) {
-    BOOST_ASSERT(my);
+    if( !my ) 
+      TORNET_THROW( "Channel freed!" );
     detail::connection::ptr c(my->con);
     if( c )
       c->send(*this,b);
@@ -96,7 +100,7 @@ namespace tornet {
 
   channel::operator bool()const {
     if( my ) {
-      if( detail::connection::ptr(my->con) ) 
+      if( !my->con.expired() ) 
         return true;
       // connection is gone! This channel is bogus!
       const_cast<channel*>(this)->my.reset();

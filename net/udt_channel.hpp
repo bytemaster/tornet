@@ -37,7 +37,7 @@ namespace tornet {
       size_t read( const boost::asio::mutable_buffer& b );
 
     private:
-      class udt_channel_private* my;
+      boost::shared_ptr<class udt_channel_private> my;
   };
 
 }

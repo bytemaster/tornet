@@ -1,4 +1,5 @@
-
+FIND_PACKAGE( Wt REQUIRED )
+INCLUDE_DIRECTORIES( ${Wt_INCLUDE_DIR} )
 find_package( Qt4 REQUIRED )
 add_definitions( -DQT_NO_KEYWORDS )
 
@@ -8,8 +9,8 @@ add_definitions( -DQT_NO_KEYWORDS )
 include_directories( ${QT_QTCORE_INCLUDE_DIR} )
 include_directories( ${QT_QTGUI_INCLUDE_DIR} )
 include_directories( ../cmt/include )
-include_directories( ../rpc/include )
 include_directories( ../reflect/include )
+#include_directories( ../rpc/include )
 include_directories( ../context/include )
 include_directories( ../atomic/include )
 include_directories( ../ )
@@ -30,6 +31,7 @@ SET( sources
     net/detail/node_private.cpp
     rpc/connection.cpp
     rpc/service.cpp
+    services/accounting.cpp
     services/chat.cpp
     services/calc.cpp
     db/peer.cpp
@@ -48,8 +50,9 @@ SET( CXX_FLAGS -Wall )
 
 SET( libraries 
     boost_cmt
+    json
     boost_context 
-    boost_rpc
+    ltl
     scrypt
     ${BerkeleyDB_LIBRARY}
     ${Boost_THREAD_LIBRARY} 

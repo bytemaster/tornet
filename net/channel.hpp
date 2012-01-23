@@ -19,7 +19,7 @@ namespace tornet {
    *
    *  Manages a stream of communication between two nodes.  Multiple
    *  channels are multi-plexed over a single encrypted connection between
-   *  two nodes. Message order and deliver are not gauranteed as everything
+   *  two nodes. Message order and delivery are not gauranteed as everything
    *  is sent over UDP.  If you want gauranteeed delivery then wrap the
    *  channel with a udt_channel which implements the UDT protocol. 
    *

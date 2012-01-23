@@ -1,9 +1,9 @@
 #include <boost/reflect/any_ptr.hpp>
 #include "calc.hpp"
 
-BOOST_REFLECT_ANY( tornet::service::calc_connection,
-  (add)
-)
+//BOOST_REFLECT_ANY( tornet::service::calc_connection,
+//  (add)
+//)
 
 namespace tornet { namespace service {
 

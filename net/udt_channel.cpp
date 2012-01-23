@@ -2,12 +2,13 @@
 #include "detail/miss_list.hpp"
 #include <boost/cmt/log/log.hpp>
 #include <boost/bind.hpp>
-#include <boost/rpc/datastream.hpp>
+#include <tornet/rpc/datastream.hpp>
 #include <boost/chrono.hpp>
 #include <boost/cmt/signals.hpp>
 
 namespace tornet {
   typedef sequence::number<uint16_t> seq_num;
+  using namespace boost::chrono;
   
   struct packet {
     enum types {
@@ -22,13 +23,15 @@ namespace tornet {
     data_packet():flags(packet::data){}
     data_packet( const tornet::buffer& b )
     :data(b),flags(packet::data){}
-    uint8_t        flags;
-    seq_num rx_win_start; // the seq of the rx window
-    seq_num seq;
+    uint8_t          flags;
+    seq_num          rx_win_start; // the seq of the rx window
+    seq_num          seq;
     tornet::buffer   data;
+    seq_num          last_sent_ack_seq;
   };
 
   struct ack_packet {
+    ack_packet():flags(packet::ack){}
     uint8_t    flags;
     seq_num    rx_win_start; // last data packet read
     uint16_t   rx_win_size;  // the size of the rx window
@@ -42,6 +45,7 @@ namespace tornet {
       s.write( (char*)&n.flags,        sizeof(n.flags) );
       s.write( (char*)&n.rx_win_start, sizeof(n.rx_win_start) );
       s.write( (char*)&n.rx_win_size,  sizeof(n.rx_win_size) );
+      s.write( (char*)&n.rx_win_end,  sizeof(n.rx_win_end) );
       s.write( (char*)&n.ack_seq,      sizeof(n.ack_seq) );
       s.write( (char*)&n.utc_time,     sizeof(n.utc_time) );
       s << n.missed_seq;
@@ -52,6 +56,7 @@ namespace tornet {
       s.read( (char*)&n.flags,        sizeof(n.flags) );
       s.read( (char*)&n.rx_win_start, sizeof(n.rx_win_start) );
       s.read( (char*)&n.rx_win_size,  sizeof(n.rx_win_size) );
+      s.read( (char*)&n.rx_win_end,   sizeof(n.rx_win_end) );
       s.read( (char*)&n.ack_seq,      sizeof(n.ack_seq) );
       s.read( (char*)&n.utc_time,     sizeof(n.utc_time) );
       s >> n.missed_seq;
@@ -86,15 +91,27 @@ namespace tornet {
 
   class udt_channel_private {
     public:
-      seq_num               last_rx_seq;    // last rx seq  (received from sender)
-      seq_num               next_tx_seq;
+   //   seq_num               last_rx_seq;    // last rx seq  (received from sender)
+      seq_num                next_tx_seq;
       uint16_t               remote_rx_win;  // the maximum amount the remote host can receive
       uint16_t               tx_win_size;    // our max tx window...varies with network
       boost::signal<void()>  tx_win_avail;   // trx buffer can take new inputs
       boost::signal<void()>  rx_win_avail;   // data ready to be read
 
+      miss_list              tx_miss_list;   // packets that have been nacked
+
       ack_packet             rx_ack_pack;
       ack_packet             tx_ack2_pack;
+
+      bool                      start_up;
+      bool                      dec_on_nack;
+      bool                      started_retran;
+      bool                      retransmitting;
+
+
+      bool                      syn_timer_running;
+      bool                      stop_syn_timer;
+      system_clock::time_point  next_syn_time;
 
       typedef std::list<data_packet> dp_list;
       dp_list rx_win;
@@ -103,10 +120,19 @@ namespace tornet {
       channel                chan;
 
       udt_channel_private( const channel& c, uint16_t mwp )
-      :chan(c) {
-        rx_ack_pack.rx_win_size = mwp;
-        tx_win_size             = 1;
-        remote_rx_win           = 1;
+      :chan(c),syn_timer_running(false),next_tx_seq(0) {
+        start_up                 = true;
+        dec_on_nack              = true;
+        started_retran           = false;
+        retransmitting           = false;
+
+        rx_ack_pack.flags        = packet::ack;
+        rx_ack_pack.rx_win_start = 1;
+        rx_ack_pack.rx_win_end   = 0;
+        rx_ack_pack.rx_win_size  = mwp;
+        tx_ack2_pack.rx_win_start = 1;
+        tx_win_size              = 1;
+        remote_rx_win            = 1;
         chan.on_recv( boost::bind(&udt_channel_private::on_recv, this, _1, _2 ) );
       }
       
@@ -119,6 +145,65 @@ namespace tornet {
         rx_win.clear();
         tx_win.clear();
         rx_ack_pack.missed_seq.clear();
+      }
+      bool can_send() {
+        return next_tx_seq < (tx_ack2_pack.rx_win_start + tx_win_size);
+      }
+
+      void start_syn_timer() {
+        stop_syn_timer = false;
+        if( !syn_timer_running ) {
+          next_syn_time = system_clock::now() + milliseconds(100);
+          chan.get_thread()->schedule( boost::bind(&udt_channel_private::on_syn,this),next_syn_time);
+          syn_timer_running = true;
+        }
+      }
+      void retransmit( bool do_it = false ) {
+        if( !do_it ) {
+            if( !retransmitting ) {
+              if( !started_retran ) { 
+                //elog( "\n\nstart retransmit!\n\n" );
+                started_retran = true; 
+                boost::cmt::thread::current().async<void>( boost::bind( &udt_channel_private::retransmit, this, true ), boost::cmt::priority(2) );
+                return;
+              } else
+                  return;
+            } else { slog( "already retan!" ); return; }
+            return;
+        }
+        retransmitting = true;
+        started_retran = false;
+        //elog( "\n\nretransmitting!\n\n" );
+        seq_num sq;
+        while( tx_miss_list.pop_front(sq) ) {
+         //   elog( "retransmitting       %1%", sq.value() );
+          
+           dp_list::iterator i = tx_win.begin();
+           dp_list::iterator e = tx_win.end();
+           while( i != e && i->seq != sq ) {++i;}
+           if( i != e && i->seq == sq ) {
+          //    elog( "       retransmit %1%", sq.value() );
+              if( i->last_sent_ack_seq + 2 < tx_ack2_pack.ack_seq ) {
+                  i->last_sent_ack_seq = tx_ack2_pack.ack_seq+1;
+                  send( i->data.subbuf( -5 ) );
+              }
+           } else {
+              elog( "unable to retransmit packet %1%, not in tx queue", sq.value() );
+              exit(1);
+           }
+        }
+       // elog( "done retransmitting!" );
+        retransmitting = false;
+      }
+
+
+      void on_syn() {
+         // slog("");
+          send_ack();
+          if( !stop_syn_timer ) {
+             next_syn_time += milliseconds(100);
+             chan.get_thread()->schedule( boost::bind(&udt_channel_private::on_syn,this),next_syn_time);
+          } else { syn_timer_running = false; stop_syn_timer = false; }
       }
       
       // called from node thread
@@ -134,122 +219,159 @@ namespace tornet {
            case packet::nack: handle_nack(b); return;
            case packet::ack2: handle_ack2(b); return;
            default:
-             elog( "Unknown packet type" );
+             elog( "Unknown packet type (%1%)", int(b[0]) );
              return;
          }
       }
 
       void handle_data( const tornet::buffer& b ) {
-        boost::rpc::datastream<const char*> ds(b.data(),b.size());
+        start_syn_timer();
+        tornet::rpc::datastream<const char*> ds(b.data(),b.size());
 
         data_packet dp(b.subbuf(5));
-        ds >> dp.flags >> dp.seq >> dp.rx_win_start;
+        ds >> dp.flags >> dp.rx_win_start >> dp.seq;
+
+        //slog( "seq %1%  rx win %2%   len %3% rx window: %4%->%5% ", std::string(dp.seq), dp.rx_win_start.value(), dp.data.size(), rx_ack_pack.rx_win_start.value(), rx_ack_pack.rx_win_end.value() );
 
         advance_tx( dp.rx_win_start );
 
-        if( dp.seq == seq_num(last_rx_seq+1) ) { // most common case
-            rx_win.push_back(dp);
-            last_rx_seq = dp.seq;
-        } else if( dp.seq > seq_num(last_rx_seq+1) ) { // dropped some TODO: Handle Wrap
+        rx_ack_pack.missed_seq.remove( dp.seq );
+        if( dp.seq == seq_num(rx_ack_pack.rx_win_end+1) ) { // most common case
             if( dp.seq > (rx_ack_pack.rx_win_start+rx_ack_pack.rx_win_size) ) {
-                wlog( "Window not big enough for this packet: %1%", dp.seq );
+                wlog( "Window not big enough for this packet: %1%,  start %2%  size %3%", dp.seq.value(), rx_ack_pack.rx_win_start.value(), rx_ack_pack.rx_win_size );
+                return;
+             }
+            rx_win.push_back(dp);
+            rx_ack_pack.rx_win_end = dp.seq;
+        } else if( dp.seq > seq_num(rx_ack_pack.rx_win_end+1) ) { // dropped some 
+            if( dp.seq > (rx_ack_pack.rx_win_start+rx_ack_pack.rx_win_size) ) {
+                wlog( "Window not big enough for this packet: %1%,  start %2%  size %3%", dp.seq.value(), rx_ack_pack.rx_win_start.value(), rx_ack_pack.rx_win_size );
                 return;
             } else {
                rx_win.push_back(dp); 
-               seq_num sr = last_rx_seq+1;
-               last_rx_seq = dp.seq;
+               seq_num sr = rx_ack_pack.rx_win_end+1;
+               rx_ack_pack.rx_win_end = dp.seq;
                rx_ack_pack.missed_seq.add(sr, dp.seq -1);
                
                // immidately notify sender of the loss
                send_nack( sr, dp.seq-1 );
             }
-        } if( dp.seq <= rx_ack_pack.rx_win_start ) { // TODO: Handle Wrap
-            wlog( "already received %1% ignoring", dp.seq );
+        } else if( dp.seq < rx_ack_pack.rx_win_start ) { 
+            //wlog( "already received %1%, before rx_win-start %2% ignoring", dp.seq.value(), rx_ack_pack.rx_win_start.value() );
             return;
         } else {
             // insert the packet into the rx win
             dp_list::iterator i = rx_win.begin();
             dp_list::iterator e = rx_win.end();
-            while( i != e && i->seq < dp.seq ) { ++i; }
+            while( i != e && i->seq < dp.seq ) {  ++i; }
             if( i != e && i->seq == dp.seq ) {
-               wlog( "duplicate packet, ignoring" );
+               wlog( "duplicate packet %1%, ignoring", dp.seq.value() );
                return;
             }
             rx_win.insert(i,dp);
+            i = rx_win.begin();
+            e = rx_win.end();
+
             rx_ack_pack.missed_seq.remove( dp.seq );
         }
         if( rx_win.size() && dp.seq == (rx_ack_pack.rx_win_start) ) {
+            //elog( "-----------------------  rx win avail  dp.seq %1%   rx_ack_pack.rx_win_start %2%", dp.seq.value(), rx_ack_pack.rx_win_start.value() );
             rx_win_avail();
         }
       }
 
       void handle_ack( const tornet::buffer& b ) {
+         dec_on_nack              = true;
          ack_packet ap;
-         boost::rpc::datastream<const char*> ds(b.data(),b.size());
+         tornet::rpc::datastream<const char*> ds(b.data(),b.size());
          ds >> ap;
 
+         tx_miss_list    = ap.missed_seq;
+         bool could_send = can_send();
+
+         //slog( "rx_win [ %1% -> %2% of %3% ]", ap.rx_win_start.value(), ap.rx_win_end.value(), ap.rx_win_size );
+         //slog( "missing %1%", ap.missed_seq.size() );
+         // slog( "next_tx_seq %1%   rx_win_start %2%  rx_win_end %3%", next_tx_seq.value(), 
+         //       tx_ack2_pack.rx_win_start.value(), (tx_ack2_pack.rx_win_start + tx_win_size).value() );
+         if( ap.missed_seq.size() )
+             retransmit();
+       //  ap.missed_seq.print();
          remote_rx_win = ap.rx_win_size;
 
          // increase tx window incrementally
-         if( remote_rx_win > tx_win_size ) 
+         if( start_up ) { 
+            tx_win_size = (std::min)(uint16_t(tx_win_size*1.5 + 1), remote_rx_win );
+         }
+         else if( remote_rx_win > tx_win_size ) 
             ++tx_win_size;
 
          advance_tx( ap.rx_win_start );
 
+          /*
          dp_list::iterator i = tx_win.begin();
          dp_list::iterator e = tx_win.end();
          while( i != e && i->seq <= ap.rx_win_end ) {
            if( !ap.missed_seq.contains(i->seq) )  {
              tx_ack2_pack.missed_seq.remove(i->seq);
              i = tx_win.erase(i);
+             continue;
            }
+           ++i;
          }
+         */
 
          tx_ack2_pack.flags        = packet::ack2;
-         tx_ack2_pack.rx_win_start = next_tx_seq-1;
+         tx_ack2_pack.rx_win_start = next_tx_seq;
          tx_ack2_pack.utc_time     = ap.utc_time;
          tx_ack2_pack.ack_seq      = ap.ack_seq;
         
          // send ack2 if our tx buffer is not full
-         if( tx_win.size() != tx_win_size ) {
+         if( could_send ) {
             using namespace boost::chrono;
             tornet::buffer b;
-            boost::rpc::datastream<char*> ds(b.data(),b.size());
+            tornet::rpc::datastream<char*> ds(b.data(),b.size());
             ds << tx_ack2_pack;
             b.resize(ds.tellp());
             send(b);
          }
       }
       void advance_tx( uint16_t rx_win_start ) {
-         while( tx_win.size() && tx_win.front().seq < rx_win_start ) {
+         tx_ack2_pack.rx_win_start = rx_win_start;
+         while( tx_win.begin()!=tx_win.end() && tx_win.front().seq < rx_win_start ) {
            tx_ack2_pack.missed_seq.remove(tx_win.front().seq);
            tx_win.pop_front();
          }
 
          // Notify write loop if we advanced the start pos!
-         if( tx_win.size() < tx_win_size ) 
+         // if( tx_win.size() < tx_win_size ) 
+         if( can_send() ) {
             tx_win_avail();
+         }
       }
 
       void handle_nack( const tornet::buffer& b ) {
          nack_packet np;
-         boost::rpc::datastream<const char*> ds(b.data(),b.size());
+         tornet::rpc::datastream<const char*> ds(b.data(),b.size());
          ds >> np;
          advance_tx( np.rx_win_start );         
+
+         //elog( "nack win start %1%  dropped %2% -> %3%", np.rx_win_start.value(), np.start_seq.value(), np.end_seq.value() );
          
          // TODO: Make Random Decrease
          // TODO: Only decrease once every SYN period (.1 sec)
          // TODO: Update Inter Packet Period to control sending rate
-         tx_win_size *= .75;   
-         if( tx_win_size == 0 ) tx_win_size = 1;
-
-         dp_list::iterator i = tx_win.begin();
-         dp_list::iterator e = tx_win.end();
-         while( i != e && i->seq != np.start_seq ) {++i;}
-         while( i != e && i->seq != (np.end_seq+1)) {
-            send( i->data.subbuf( -5 ) );
-            ++i;
+         if( dec_on_nack ) {
+             elog( "Scale back by 10%" );
+             dec_on_nack = false;
+             if( start_up ) 
+                tx_win_size *= .75;
+             else
+                 tx_win_size *= .90;   
+             start_up    = false;
+             if( tx_win_size == 0 ) tx_win_size = 1;
          }
+         tx_miss_list.add( np.start_seq, np.end_seq );
+         retransmit();
       }
 
       void handle_ack2( const tornet::buffer& b ) {
@@ -260,18 +382,18 @@ namespace tornet {
         // a NACK
       }
 
-      void send_nack( uint16_t st_seq, uint16_t end_seq ) {
+      void send_nack( seq_num st_seq, seq_num end_seq ) {
         nack_packet np;
         np.flags = packet::nack;
-        np.rx_win_start = rx_ack_pack.rx_win_start+1;
+        np.rx_win_start = rx_ack_pack.rx_win_start;
         np.start_seq = st_seq;
         np.end_seq   = end_seq;
 
         tornet::buffer b;
-        boost::rpc::datastream<char*> ds(b.data(),b.size());
+        tornet::rpc::datastream<char*> ds(b.data(),b.size());
         ds << np;
         b.resize(ds.tellp());
-
+        //wlog( "send nack %1% -> %2%  rx_win_start %3%", st_seq.value(), end_seq.value(), np.rx_win_start.value() );
         send(b);
       }
 
@@ -281,9 +403,12 @@ namespace tornet {
         rx_ack_pack.utc_time = duration_cast<microseconds>(system_clock::now().time_since_epoch()).count();
 
         tornet::buffer b;
-        boost::rpc::datastream<char*> ds(b.data(),b.size());
+        tornet::rpc::datastream<char*> ds(b.data(),b.size());
         ds << rx_ack_pack;
         b.resize(ds.tellp());
+
+    //    slog( "send ack  ack_seq: %1%    rx_win_start %2%  rx_win_end %3%", rx_ack_pack.ack_seq.value(),
+    //                rx_ack_pack.rx_win_start.value(), rx_ack_pack.rx_win_end.value() );
         send(b);
       }
     
@@ -294,18 +419,18 @@ namespace tornet {
       void send( const tornet::buffer& b ) {
        // TODO check Inter Packet Time... usleep if we are sending
        // too quickly!
+       //  slog( "send %1%", b.size() );
         chan.send(b);
       }
   };
 
 
 
-  udt_channel::udt_channel( const channel& c, uint16_t rx_win_size ) {
-    my = new udt_channel_private( c, rx_win_size );
+  udt_channel::udt_channel( const channel& c, uint16_t rx_win_size )
+  :my(new udt_channel_private( c, rx_win_size ) ) {
   }
 
   udt_channel::~udt_channel() {
-    delete my;
   }
 
 
@@ -319,7 +444,9 @@ namespace tornet {
 
     while( len ) {
       while( !my->rx_win.size() || my->rx_win.front().seq != my->rx_ack_pack.rx_win_start ) {
+        //wlog( "waiting for data!  %1% != %2%", my->rx_win.front().seq.value(),  my->rx_ack_pack.rx_win_start.value() );
         boost::cmt::wait( my->rx_win_avail );
+        //wlog( "data avail!" );
       }
       data_packet& dp = my->rx_win.front();
       uint32_t clen = (std::min)(size_t(len),size_t(dp.data.size()));
@@ -351,13 +478,15 @@ namespace tornet {
 
     const char* data = boost::asio::buffer_cast<const char*>(b);
     uint32_t    len  = boost::asio::buffer_size(b);
+    //slog( "write %1% bytes", len );
 
     while( len ) {
        tornet::buffer  pbuf;
        data_packet     dp( pbuf.subbuf( 5 ) );
        dp.flags        = packet::data;
        dp.rx_win_start = my->rx_ack_pack.rx_win_start;
-       dp.seq          = my->next_tx_seq++;
+       dp.seq          = ++my->next_tx_seq;
+       dp.last_sent_ack_seq = my->tx_ack2_pack.ack_seq - 5;
        int  plen = (std::min)(uint32_t(len),uint32_t(1200));
        dp.data.resize(plen);
        memcpy( dp.data.data(), data, plen );
@@ -367,19 +496,26 @@ namespace tornet {
        pbuf[0] = packet::data;
        memcpy(pbuf.data()+1, &dp.rx_win_start, sizeof(dp.rx_win_start) );
        memcpy(pbuf.data()+3, &dp.seq,          sizeof(dp.seq) );
+      
+       pbuf.resize( 5 + plen );
 
        // it is possible for other senders (retrans) to wake up 
        // first and steal our slot, so we must check again
-       while( my->tx_win.size() >= my->tx_win_size ) {
-          slog( "tx win full... wait for ack..." );
+       while( !my->can_send() ) {
+          //slog( "tx win full... wait for ack...  tx_win.used: %1%  tx_win size %2%  ", my->tx_win.size(), my->tx_win_size );
+         // slog( "next_tx_seq %1%   rx_win_start %2%  rx_win_end %3%", my->next_tx_seq.value(), 
+         //       my->tx_ack2_pack.rx_win_start.value(), (my->tx_ack2_pack.rx_win_start + my->tx_win_size).value() );
           boost::cmt::wait( my->tx_win_avail );
        }
        my->tx_ack2_pack.missed_seq.add(dp.seq,dp.seq);
        my->tx_win.push_back(dp);
+
+     //  slog( "send seq %1%  size: %2% ", dp.seq.value(), dp.data.size() );
        my->send(pbuf);
     }
     return boost::asio::buffer_size(b);
   }
+
 
   void udt_channel::close() {
     my->close();

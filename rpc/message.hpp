@@ -1,10 +1,10 @@
 #ifndef _TORNET_RPC_MESSAGE_HPP_
 #define _TORNET_RPC_MESSAGE_HPP_
-#include <boost/rpc/varint.hpp>
+#include <tornet/rpc/varint.hpp>
 
 namespace tornet { namespace rpc {
-  using boost::rpc::signed_int;
-  using boost::rpc::unsigned_int;
+  using tornet::rpc::signed_int;
+  using tornet::rpc::unsigned_int;
 
   struct message {
     enum types {
