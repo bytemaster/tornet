@@ -126,7 +126,7 @@ namespace tornet { namespace detail {
   void node_private::handle_packet( const tornet::buffer& b, const udp::endpoint& ep ) {
     boost::unordered_map<endpoint,connection::ptr>::iterator itr = m_ep_to_con.find(ep);
     if( itr == m_ep_to_con.end() ) {
-      // TODO: attempt to load archived connection data
+      // TODO: attempt to load archived connection data (DH key, etc) 
       
       slog( "creating new connection" );
       // failing that, create
@@ -185,11 +185,21 @@ namespace tornet { namespace detail {
       itr->second->add_channel(ch);
       return ch;
     } 
-    // TODO: Start KAD search for the proper node.
+
+    // Start KAD search for the specified node
+/*
+    connection::ptr con = kad_find( nid );
+    if( con ) {
+      channel ch( con, remote_chan_num, get_new_channel_num() ); 
+      con->add_channel(ch);
+      return ch;
+    }
+*/
 
     TORNET_THROW( "No known connections to %1%", %nid );
     return channel();
   }
+
 
   node_private::node_id node_private::connect_to( const node::endpoint& ep ) {
     ep_to_con_map::iterator itr = m_ep_to_con.find(ep);
@@ -243,6 +253,28 @@ namespace tornet { namespace detail {
           m_dist_to_con.erase(itr);
         }
     }
+  }
+
+  std::map<node::id_type,node::endpoint> node_private::find_nodes_near( const node::id_type& target, uint32_t n ) {
+    std::map<node::id_type,node::endpoint>  near;
+    std::map<node_id,connection*>::const_iterator itr =  m_dist_to_con.lower_bound( target ^ m_id );
+    while( itr != m_dist_to_con.end() && near.size() < n ) {
+      near[ (itr->first^m_id)^target  ] = itr->second->get_endpoint();
+      ++itr;
+    }
+    return near;
+  }
+
+  connection* node_private::get_connection( const node::id_type& remote_id ) {
+     std::map<node_id,connection*>::const_iterator itr = m_dist_to_con.find( remote_id ^ m_id );
+     if( itr != m_dist_to_con.end() ) return itr->second;
+     TORNET_THROW( "No known connection to %1%", %remote_id );
+  }
+
+  std::map<node::id_type,node::endpoint> node_private::remote_nodes_near( const node::id_type& remote_id, 
+                                                                          const node::id_type& target, uint32_t n ) {
+    connection* con = get_connection( remote_id ); 
+    return con->find_nodes_near( target, n );
   }
 
 } } // tornet::detail

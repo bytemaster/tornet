@@ -8,6 +8,12 @@
 namespace tornet {
   namespace detail { class node_private; }
 
+  /**
+   *  @class node
+   *
+   *  @brief Hosts services and manages connections to other nodes.
+   *
+   */
   class node {
     public:
       typedef boost::shared_ptr<node>               ptr;
@@ -18,10 +24,31 @@ namespace tornet {
       node();
       ~node();
 
+      const id_type& get_id()const;
+
       boost::cmt::thread& get_thread()const;
 
+      /**
+       * @param ddir - data directory where identity information is stored.
+       * @param port - send/recv messages via this port.
+       */
       void init( const boost::filesystem::path& ddir, uint16_t port );
+
       void close();
+
+      /**
+       *  Searches through active connections and returns the endpoints closest to target
+       *  sorted by distance from target.
+       *
+       *  TODO:  Add a method to query info about a given node.
+       */
+      std::map<id_type,endpoint> find_nodes_near( const id_type& target, uint32_t n );
+
+      /**
+       *  Calls find_nodes_near on the remote node 'rnode' and returns the result.
+       */
+      std::map<id_type,endpoint> remote_nodes_near( const id_type& rnode, 
+                                                    const id_type& target, uint32_t n );
 
       /**
        *  Connect to the endpoint and return the ID of the node or throw on error.

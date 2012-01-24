@@ -15,6 +15,8 @@ namespace tornet {
   }
   boost::cmt::thread& node::get_thread()const { return my->get_thread(); }
 
+  const node::id_type& node::get_id()const { return my->get_id(); }
+
   void node::close() {
     wlog( "closing.... " );
     if( &boost::cmt::thread::current() != &my->get_thread() )
@@ -39,6 +41,18 @@ namespace tornet {
     if( &boost::cmt::thread::current() != &my->get_thread() )
       return my->get_thread().async<channel>( boost::bind( &node_private::open_channel, my, node_id, remote_chan_num ) ).wait();
     return my->open_channel( node_id, remote_chan_num );
+  }
+
+  std::map<node::id_type,node::endpoint> node::find_nodes_near( const node::id_type& target, uint32_t n ) {
+    if( &boost::cmt::thread::current() != &my->get_thread() )
+      return my->get_thread().async<std::map<node::id_type,node::endpoint> >( boost::bind( &node_private::find_nodes_near, my, target, n ) ).wait();
+    return my->find_nodes_near( target, n );
+  }
+  std::map<node::id_type,node::endpoint> node::remote_nodes_near( const node::id_type& remote_id, const node::id_type& target, uint32_t n ) {
+    if( &boost::cmt::thread::current() != &my->get_thread() )
+      return my->get_thread().async<std::map<node::id_type,node::endpoint> >( 
+              boost::bind( &node_private::remote_nodes_near, my, remote_id, target, n ) ).wait();
+    return my->remote_nodes_near( remote_id, target, n );
   }
 
   void node::start_service( uint16_t cn, const std::string& name, const node::new_channel_handler& cb ) {

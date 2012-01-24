@@ -185,14 +185,70 @@ bool connection::decode_packet( const tornet::buffer& b ) {
 //    slog( "%1% bytes type %2%  pad %3%", b.size(), int(msg_type), int(pad) );
 
     switch( msg_type ) {
-      case data_msg:       return handle_data_msg( b.subbuf(4,b.size()-4-pad) );  
-      case auth_msg:       return handle_auth_msg( b.subbuf(4,b.size()-4-pad) );  
-      case auth_resp_msg:  return handle_auth_resp_msg( b.subbuf(4,b.size()-4-pad) );  
-      case close_msg:      return handle_close_msg( b.subbuf(4,b.size()-4-pad) );  
+      case data_msg:         return handle_data_msg( b.subbuf(4,b.size()-4-pad) );  
+      case auth_msg:         return handle_auth_msg( b.subbuf(4,b.size()-4-pad) );  
+      case auth_resp_msg:    return handle_auth_resp_msg( b.subbuf(4,b.size()-4-pad) );  
+      case route_lookup_msg: return handle_lookup_msg( b.subbuf(4,b.size()-4-pad) );
+      case route_msg:        return handle_route_msg( b.subbuf(4,b.size()-4-pad) );
+      case close_msg:        return handle_close_msg( b.subbuf(4,b.size()-4-pad) );  
       default:
         wlog( "Unknown message type" );
     }
     return true;
+}
+
+/// sha1(target_id) << uint32_t(num)  
+bool connection::handle_lookup_msg( const tornet::buffer& b ) {
+  node_id target; uint32_t num;
+  {
+  tornet::rpc::datastream<const char*> ds(b.data(), b.size() );
+  ds >> target >> num;
+  }
+  slog( "Lookup %1% near %2%", num, target );
+
+  std::map<node_id, endpoint> r = m_node.find_nodes_near( target, num );
+  std::vector<char> rb; rb.resize(2048);
+
+  num = r.size();
+  
+  slog( "r.size: %1%", r.size() );
+  tornet::rpc::datastream<char*> ds(rb.data(), rb.size() );
+  std::map<node_id, endpoint>::iterator itr = r.begin();
+  ds << target << num;
+  for( uint32_t i = 0; i < num; ++i ) {
+    slog( "Reply with %1% @ %2%:%3%", itr->first, itr->second.address().to_string(), itr->second.port() );
+    ds << itr->first << uint32_t(itr->second.address().to_v4().to_ulong()) << uint16_t(itr->second.port());
+    ++itr;
+  }
+  
+  slog( "ds.tellp %1%", ds.tellp() );
+  send( &rb.front(), ds.tellp(), route_msg );
+
+  return true;
+}
+// uint16_t(num) << (sha1(distance) << uint32_t(ip) << uint16_t(port))*
+bool connection::handle_route_msg( const tornet::buffer& b ) {
+  node_id target; uint32_t num;
+  tornet::rpc::datastream<const char*> ds(b.data(), b.size() );
+  ds >> target >> num;
+  // make sure we still have the target.... 
+
+  std::map<node_id, boost::cmt::promise<route_table>::ptr >::iterator itr = route_lookups.find(target);
+  if( itr == route_lookups.end() ) { 
+    return true;
+  }
+
+  // unpack the routing table
+  route_table rt;
+  node_id dist; uint32_t ip; uint16_t port;
+  for( uint32_t i = 0; i < num; ++i ) {
+    ds >> dist >> ip >> port; 
+    rt[dist] = endpoint( boost::asio::ip::address_v4( (unsigned long)(ip)  ), port );
+    slog( "Response of dist: %1% @ %2%:%3%", dist, boost::asio::ip::address_v4((unsigned long)(ip)).to_string(), port );
+  }
+  itr->second->set_value(rt);
+  route_lookups.erase(itr);
+  return true;
 }
 
 bool connection::handle_data_msg( const tornet::buffer& b ) {
@@ -459,6 +515,33 @@ void connection::send_auth() {
   void connection::add_channel( const channel& ch ) {
     uint32_t k = (uint32_t(ch.local_channel_num()) << 16) | ch.remote_channel_num();
     m_channels[k] = ch;
+  }
+
+  connection::endpoint connection::get_endpoint()const { return m_remote_ep; }
+
+  /**
+   *  Sends a message requesting a node lookup and waits up to 1s for a response.  If no
+   *  response in 1 second, then a timeout exception is thrown.  
+   */
+  std::map<node::id_type, node::endpoint> connection::find_nodes_near( const node::id_type& target, 
+                                                                       uint32_t n ) {
+    try {                                                                        
+      boost::cmt::promise<route_table>::ptr prom( new boost::cmt::promise<route_table>() );
+      route_lookups[ target ] = prom;
+
+      std::vector<char> buf(24); 
+      tornet::rpc::datastream<char*> ds(&buf.front(), buf.size());
+      ds << target << n;
+      send( &buf.front(), buf.size(), route_lookup_msg );
+
+      const route_table& rt = prom->wait( boost::chrono::seconds(1) );
+      if( route_lookups.find( target ) != route_lookups.end() ) 
+          route_lookups.erase( route_lookups.find( target ) );
+      return rt;
+    } catch ( const boost::exception& e ) {
+      route_lookups.erase( route_lookups.find( target ) );
+      throw;
+    }
   }
 
 } } // tornet::detail

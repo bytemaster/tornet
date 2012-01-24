@@ -10,6 +10,8 @@
 #include <boost/scoped_ptr.hpp>
 #include <tornet/net/channel.hpp>
 
+#include <boost/cmt/future.hpp>
+
 #include <boost/signals.hpp>
 
 namespace tornet {
@@ -45,10 +47,12 @@ namespace tornet {
             };
 
             enum proto_message_type {
-              data_msg      = 0,
-              auth_msg      = 1,
-              auth_resp_msg = 2,
-              close_msg     = 3
+              data_msg           = 0,
+              auth_msg           = 1,
+              auth_resp_msg      = 2,
+              route_lookup_msg   = 3,
+              route_msg          = 4,
+              close_msg          = 5
             };
 
             typedef boost::shared_ptr<connection> ptr;
@@ -89,6 +93,8 @@ namespace tornet {
             bool handle_auth_msg( const tornet::buffer& b );
             bool handle_auth_resp_msg( const tornet::buffer& b );
             bool handle_close_msg( const tornet::buffer& b );
+            bool handle_lookup_msg( const tornet::buffer& b );
+            bool handle_route_msg( const tornet::buffer& b );
 
             void generate_dh();
             bool process_dh( const tornet::buffer& b );
@@ -105,6 +111,9 @@ namespace tornet {
 
             void add_channel( const channel& c );
 
+
+            std::map<node_id,endpoint> find_nodes_near( const node_id& target, uint32_t n );
+
             boost::signal<void(state_enum)> state_changed;
         private:
             void  goto_state( state_enum s );
@@ -118,6 +127,11 @@ namespace tornet {
             
             node_id                                   m_remote_id;
             endpoint                                  m_remote_ep;
+
+            typedef std::map<node_id,endpoint> route_table;
+
+            std::map<node_id, boost::cmt::promise<route_table>::ptr > route_lookups;
+                
             
             boost::unordered_map<uint32_t,channel>    m_channels;
       };

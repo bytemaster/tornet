@@ -11,6 +11,7 @@
 #include <tornet/services/chat.hpp>
 #include <tornet/rpc/client.hpp>
 
+#include <tornet/net/kad.hpp>
 
 #include <boost/cmt/thread.hpp>
 #include <boost/cmt/signals.hpp>
@@ -70,6 +71,25 @@ void start_services( int argc, char** argv ) {
             scrypt::sha1 id = node->connect_to( to_endpoint(init_connections[i]) );
             wlog( "Connected to %1%", id );
 
+            slog( "Starting bootstrap process by searching for my node id + 1" );
+            scrypt::sha1 sh;
+            sh.hash[4] = 0x01000000;
+            scrypt::sha1 target = sh ^ node->get_id();
+            tornet::kad_search::ptr ks( new tornet::kad_search( node, target ) );
+            ks->start();
+            ks->wait();
+
+            slog( "Results: \n" );
+            const std::map<tornet::node::id_type,tornet::node::id_type>&  r = ks->current_results();
+            std::map<tornet::node::id_type,tornet::node::id_type>::const_iterator itr  = r.begin(); 
+            while( itr != r.end() ) {
+              slog( "   node id: %1%   distance: %2%", 
+                        itr->first, itr->second );
+              ++itr;
+            }
+            
+            
+#if 0
             tornet::channel c = node->open_channel( id, 101 );
             tornet::rpc::connection::ptr  con( new tornet::rpc::connection(c));
             int r = con->call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
@@ -101,6 +121,7 @@ void start_services( int argc, char** argv ) {
             for( uint32_t x = 0; x < 1000*10; ++x ) {
               uc.write( boost::asio::buffer( test.c_str(),test.size() ) );
             }
+#endif
         } catch ( const boost::exception& e ) {
             wlog( "Unable to connect to node %1%, %2%", init_connections[i], boost::diagnostic_information(e) ) ;
         }

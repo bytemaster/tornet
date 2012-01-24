@@ -13,6 +13,8 @@
 #include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 
+#include <map>
+
 namespace tornet { namespace detail {
   using namespace boost::multi_index;
 
@@ -75,6 +77,24 @@ class node_private {
     const scrypt::public_key_t& pub_key()const { return m_pub_key; }
 
     node_id connect_to( const endpoint& ep );
+
+    const node_id& get_id()const { return m_id; }
+
+    /**
+     *  Searches through active connections and returns the endpoints closest to target
+     *  sorted by distance from target.
+     *
+     *  TODO:  Add a method to query info about a given node.
+     */
+    std::map<node_id,endpoint> find_nodes_near( const node::id_type& target, uint32_t n );
+
+    /**
+     *  Calls find_nodes_near on the remote node 'rnode' and returns the result.
+     */
+    std::map<node_id,endpoint> remote_nodes_near( const node::id_type& rnode, 
+                                                  const node::id_type& target, uint32_t n );
+
+    connection* get_connection( const node::id_type& remote_id );
   private:
     uint16_t get_new_channel_num() { return ++m_next_chan_num; }
     node&                                           m_node;
