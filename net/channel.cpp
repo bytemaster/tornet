@@ -61,6 +61,15 @@ namespace tornet {
       return c->get_remote_id();
     TORNET_THROW( "Channel Closed" );  
   } 
+
+  uint8_t  channel::remote_rank()const { 
+    BOOST_ASSERT(my);
+    detail::connection::ptr c(my->con);
+    if( c )
+      return c->get_remote_rank();
+    TORNET_THROW( "Channel Closed" );  
+  } 
+
   uint16_t channel::local_channel_num() const {
     BOOST_ASSERT(my);
     return my->lport;

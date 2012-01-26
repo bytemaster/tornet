@@ -55,6 +55,7 @@ namespace tornet {
       operator bool()const;
 
       node_id  remote_node()const;
+      uint8_t  remote_rank()const;
       uint16_t local_channel_num()const;
       uint16_t remote_channel_num()const;
 

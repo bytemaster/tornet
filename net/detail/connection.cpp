@@ -3,6 +3,7 @@
 #include <scrypt/super_fast_hash.hpp>
 #include <scrypt/scrypt.hpp>
 #include <scrypt/base64.hpp>
+#include <scrypt/bigint.hpp>
 #include <tornet/net/detail/node_private.hpp>
 #include <tornet/rpc/datastream.hpp>
 #include <boost/chrono.hpp>
@@ -289,14 +290,19 @@ bool connection::handle_auth_msg( const tornet::buffer& b ) {
     scrypt::signature_t  sig;
     scrypt::public_key_t pubk;
     uint64_t             utc_us;
-    uint64_t             nonce[2];
 
     tornet::rpc::datastream<const char*> ds( b.data(), b.size() );
-    ds >> sig >> pubk >> utc_us >> nonce[0] >> nonce[1];
+    ds >> sig >> pubk >> utc_us >> m_remote_nonce[0] >> m_remote_nonce[1];
 
     scrypt::sha1_encoder  sha;
     sha.write( &m_dh->shared_key.front(), m_dh->shared_key.size() );
     sha << utc_us;
+    
+    scrypt::sha1_encoder  rank_sha;
+    rank_sha.write( (char*)m_remote_nonce, sizeof(m_remote_nonce) );
+    rank_sha << pubk;
+    scrypt::sha1 r = rank_sha.result();
+    m_remote_rank = 161 - scrypt::bigint( (const char*)r.hash, sizeof(r.hash) ).log2();
 
     if( !pubk.verify( sha.result(), sig ) ) {
       elog( "Invalid authentication" );

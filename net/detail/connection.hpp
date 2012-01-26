@@ -69,6 +69,7 @@ namespace tornet {
 
             endpoint   get_endpoint()const;
             node_id    get_remote_id()const;
+            uint8_t    get_remote_rank()const { return m_remote_rank; }
             state_enum get_state()const { return m_cur_state; }
 
             // return false if state transitioned to failed, otherwise true
@@ -127,6 +128,8 @@ namespace tornet {
             
             node_id                                   m_remote_id;
             endpoint                                  m_remote_ep;
+            uint64_t                                  m_remote_nonce[2];
+            uint8_t                                   m_remote_rank;
 
             typedef std::map<node_id,endpoint> route_table;
 

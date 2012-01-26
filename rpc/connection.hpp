@@ -24,6 +24,9 @@ namespace tornet { namespace rpc {
       connection( const tornet::channel& c, boost::cmt::thread* t = &boost::cmt::thread::current()  );
       ~connection();
 
+      uint8_t      remote_rank()const;
+      scrypt::sha1 remote_node()const;
+
       void add_method( uint16_t mid, const rpc_method& m );
 
       template<typename R, typename ParamSeq>

@@ -167,6 +167,8 @@ namespace tornet { namespace rpc {
     }
   }
 
+  uint8_t      connection::remote_rank()const { return my->chan.remote_rank(); }
+  scrypt::sha1 connection::remote_node()const { return my->chan.remote_node(); }
 
   uint16_t connection::next_method_id() { return ++my->next_method_id; }
 
