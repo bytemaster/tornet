@@ -108,7 +108,8 @@ namespace tornet { namespace rpc { namespace raw {
     void unpack( Stream& s, json::value& v ) {
       std::string str;
       unpack(s, str);
-      json::from_string( str, v );
+      slog( "json '%1%'", str );
+      if( str.size() ) json::from_string( str, v );
     }
 
     template<typename Stream>

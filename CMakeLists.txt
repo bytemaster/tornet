@@ -25,6 +25,7 @@ SET( sources
     gui/QBind.cpp
     net/channel.cpp
     net/node.cpp
+    net/kad.cpp
     net/udt_channel.cpp
     net/detail/miss_list.cpp
     net/detail/connection.cpp
@@ -34,6 +35,8 @@ SET( sources
     services/accounting.cpp
     services/chat.cpp
     services/calc.cpp
+    services/chunk_service.cpp
+    services/chunk_session.cpp
     db/peer.cpp
     db/chunk.cpp 
    )

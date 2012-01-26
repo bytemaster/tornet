@@ -20,6 +20,8 @@
 
 #include <ltl/rpc/reflect.hpp>
 
+#include <tornet/services/chunk_service.hpp>
+
 void handle_sigint( int si );
 
 
@@ -31,6 +33,75 @@ boost::asio::ip::udp::endpoint to_endpoint( const std::string& str ) {
       std::string id   = port_id.substr(port_id.find('-')+1, port_id.size() );
       std::vector<boost::asio::ip::udp::endpoint> eps = boost::cmt::asio::udp::resolve( r,host,port);
       return eps.front();
+}
+
+void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
+  try {
+     std::string line;
+     while( std::getline(std::cin, line) ) {
+       std::stringstream ss(line);
+     
+       std::string cmd;
+       ss >> cmd;
+     
+       if( cmd == "import" ) {
+         std::string infile;
+         ss >> infile;
+         scrypt::sha1 tid, check;
+         cs->import( infile, tid, check );
+         std::cout<<"Created "<<infile<<".tornet with TID: "<<std::string(tid)<<" and CHECK: "<<std::string(check)<<std::endl;
+       } else if( cmd == "export" ) {
+         std::string infile;
+         ss >> infile;
+
+       } else if( cmd == "export_tid" ) {
+         std::string tid,check;
+         ss >> tid >> check;
+         cs->export_tornet( scrypt::sha1(tid), scrypt::sha1(check) );
+       } else if( cmd == "publish" ) {
+         std::string infile;
+         ss >> infile;
+     
+       } else if( cmd == "show" ) {
+         std::string what;
+         ss >> what;
+     
+         if( what == "chunks" ) {
+            int cnt = cs->get_local_db()->count();
+            tornet::db::chunk::meta m;
+            scrypt::sha1 id;
+            std::cerr<<" "<< "ID" << "  " << "Size" << "  " << "Queried" <<  "  " << "Dist Rank" << "\n";
+            std::cerr<<"----------------------------------------------------------------------\n";
+            for( uint32_t i = 0; i <  cnt; ++i ) {
+              cs->get_local_db()->fetch_index( i+1, id, m );
+              std::cerr<<i<<"] " << id << "  " << m.size << "  " << m.query_count <<  "  " << m.distance_rank << "\n";
+            }
+     
+         } else if( what == "users" ) {
+     
+         } else if( what == "tornet" ) {
+           std::string tornet_file;
+           ss >> tornet_file;
+         } else if( what == "tid" ) {
+           std::string tid,check; 
+           ss >> tid >> check;
+         }
+     
+       } else if( cmd == "help" ) {
+         std::cerr<<"\nCommands:\n";
+         std::cerr<<"  import      FILENAME               - loads FILENAME and creates chunks and dumps FILENAME.tornet\n";
+         std::cerr<<"  export      TORNET_FILE            - loads TORNET_FILE and saves FILENAME\n";
+         std::cerr<<"  export_tid  TID CHECKSUM [OUT_FILE]- loads TORNET_FILE and saves FILENAME\n";
+         std::cerr<<"  publish TORNET_FILE                - pushes chunks from TORNET_FILE out to the network, including the TORNETFILE itself\n";
+         std::cerr<<"  show [chunks|users|tornet|tid] [tornet_file|tid] [tid_check] - prints info about chunks and users\n";
+         std::cerr<<"  help                               - prints this menu\n\n";
+       }
+     }
+  } catch ( const boost::exception& e ) {
+    elog( "%1%", boost::diagnostic_information(e) );
+  } catch ( const std::exception& e ) {
+    elog( "%1%", boost::diagnostic_information(e) );
+  }
 }
 
 void start_services( int argc, char** argv ) {
@@ -60,10 +131,11 @@ void start_services( int argc, char** argv ) {
   try {
       node->init( data_dir, node_port );
       
-      tornet::rpc::service::ptr srv( new tornet::service::calc_service( node, "rpc", 101 ) );
-      tornet::service::chat::ptr cs( new tornet::service::chat( node, 100 ) );
+      tornet::rpc::service::ptr        srv( new tornet::service::calc_service( node, "rpc", 101 ) );
+      chunk_service::ptr               cs(  new chunk_service( data_dir+"/chunks", node, "chunks", 100 ) );
+      tornet::service::accounting::ptr as(  new tornet::service::accounting( data_dir + "/accounting", node, "accounting", 69 ) );
 
-      tornet::service::accounting::ptr as( new tornet::service::accounting( data_dir + "/accounting", node, "accounting", 69 ) );
+      new boost::thread( boost::bind( cli, cs, node ) );
 
       for( uint32_t i = 0; i < init_connections.size(); ++i ) {
         try {
@@ -83,7 +155,7 @@ void start_services( int argc, char** argv ) {
             const std::map<tornet::node::id_type,tornet::node::id_type>&  r = ks->current_results();
             std::map<tornet::node::id_type,tornet::node::id_type>::const_iterator itr  = r.begin(); 
             while( itr != r.end() ) {
-              slog( "   node id: %1%   distance: %2%", 
+              slog( "   node id: %2%   distance: %1%", 
                         itr->first, itr->second );
               ++itr;
             }

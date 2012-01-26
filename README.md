@@ -43,6 +43,12 @@ To maximize 'credit' the server wants to calculate the 'return per chunk' based 
 interval and distance. 
 
 
+Publishing Chunks
+-----------------------------------
+A server is only interested in publishing your data if you pay enough to bump the least profitable
+chunk for 1 weak AND your identity is greater than the server's.
+
+
 Server Rules
 -----------------------------------
 Expand chunk range until desired bandwidth is consumed.
@@ -94,3 +100,50 @@ determine the relationship between the identity and line of credit.
 
 You can only 'advertize' on nodes of lower-rank than yourself.  Thus publishing data requires
 a larger investment in your identity than downloading data.
+
+
+Potential Attacks
+--------------------------------------
+* Query a bunch of random, non-existant chunks to force nodes to attempt to cache these
+chunks.  
+   - mitigated by checking user rank, charging per-request, only logging requests from ids
+    with a known reputation.  
+   - resetting the query count if chunk is not found
+   - requiring enough 'paid for' requests to cover the cost of finding the chunk
+   - nodes should know most of their neighbors and thus reduce the 'search radius' for
+   the desired chunk dramatically.
+
+
+Performance
+---------------------------------------
+Lets assume a standard linux distribution 1GB divided into 1024 1MB chunks and with 1M nodes
+with no overlap in data, then you will have an estimated 40K 'search' cost per 1MB of found
+data.  This will result in a 4% search overhead worst case.   Popular files are likely to
+be cached far from the leaf and therefore reduce overhead by a significant margin. 
+
+There is no reason to divide chunks into smaller pieces because clients can request sub-chunks
+from multiple different nodes.  Therefore, a search that yields 3 nodes hosting a particular
+chunk can download a different part of the same chunk from each node.
+
+With 1 million nodes and log2 lookup performance and 0 overlap it would take 20 hops to find
+a rare chunk.  At 0.5s average latency, that could be up to 10 seconds.  If you assume 500% 
+overlap (each chunk is hosted by at least 5 nodes then your lookup time improves by 2.5 seconds  
+or 7.5 seconds for the 'least popular' data.  Every time popularity doubles, it shaves 0.5 seconds
+off of the lookup time.  A chunk that is 16K times as popular as the 'least popular' data should
+be found in as few as 1 or 2 hops (less than 1 second).  
+
+Therefore, for browsing the 'web' it should perform reasonably well for popular sites which require
+1 initial lookup for the page data.  Latency would be hidden in large files.  
+
+For paying customers, they can simply use a 'super cluster' which would cache everything or a
+master index that will perform as fast as a DNS lookup.
+
+
+File Description
+----------------------------------------
+A file is described as a series of chunks identified by the sha1(data) of the data.  Each
+chunk has a size and a list of 64KB slices identified by a superfast hash(slice).  These 
+slice hashes can be used to verify partial chunk downloads from multiple nodes. 
+
+
+
