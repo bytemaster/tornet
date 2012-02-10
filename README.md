@@ -1,6 +1,5 @@
 Overview
 ----------------------------------
-
 This library provides the foundation of a P2P framework based upon UDP
 message passing and remote procedure calls.  A UDT like protocol is layered
 on top of UDP to provide flow control and retransmitting.  
@@ -13,10 +12,11 @@ All traffic is encrypted to prevent deep packet insepction.
 
 This software is still under heavy development.
 
+Information below is currently a brainstorm dump and needs to be revised to
+remove conflicts.
 
 Chunk Lookup
 ----------------------------------
-
 Each node specifies a certain amount of 'upload bandwidth and storage' that they desire to
 sell to the network.  
 
@@ -117,7 +117,7 @@ chunks.
 Performance
 ---------------------------------------
 Lets assume a standard linux distribution 1GB divided into 1024 1MB chunks and with 1M nodes
-with no overlap in data, then you will have an estimated 40K 'search' cost per 1MB of found
+with no overlap in data, then you will have an estimated 40KB 'search' cost per 1MB of found
 data.  This will result in a 4% search overhead worst case.   Popular files are likely to
 be cached far from the leaf and therefore reduce overhead by a significant margin. 
 
@@ -144,6 +144,41 @@ File Description
 A file is described as a series of chunks identified by the sha1(data) of the data.  Each
 chunk has a size and a list of 64KB slices identified by a superfast hash(slice).  These 
 slice hashes can be used to verify partial chunk downloads from multiple nodes. 
+
+
+Design
+-----------------------------------------
+Each node maintains two chunk databases, local and cache.  
+  - local stores chunks used by this client
+  - cache stores chunks opportunistically cached for profit.
+
+Each node further maintains a directory containing tornet files.
+  - a tornet file describes how to assemble chunks into a file.
+
+Each node maintains a database of tornets that it is publishing
+  - for each chunk maintain a list of 5 nodes known to host it
+  - check each chunk once per hour and 're-publish' if necessary
+  - popular content should automatically remain and 'spread', rare
+    content may need someone to continually pay for the data to
+    be hosted.
+
+Each node maintains an account for all other nodes maintaining the following information
+  - node id              - sha1(public key)  (primary key)
+  - public key           - used to validate node id
+  - nonce                - used to determine rank, (161-sha1(nonce+public key).log2())
+  - first contact time   - when combined with last contact time
+  - last contact time    - dead contacts may be deleted
+  - RTT                  - Used to enhance routing
+  - last endpoint        - IP:PORT this node was last seen at  (indexed)
+  - total sent credit    - factor in storage rates for data provided
+  - total recv credit    - factor in storage rates for data recv
+  - send btc addr        - address used to send btc to node
+  - recv btc addr        - address used to recv btc from node
+  - connection errors    - when combined with first and last contact time yield an average availability
+  - DH Key               - the last key exchange for the given endpoint, used to re-establish encrypted coms
+
+
+
 
 
 

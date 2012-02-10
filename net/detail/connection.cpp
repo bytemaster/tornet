@@ -12,8 +12,16 @@ namespace tornet { namespace detail {
 
 using namespace boost::chrono;
 
-connection::connection( detail::node_private& np, const endpoint& ep )
-:m_node(np),m_remote_ep(ep), m_cur_state(uninit),m_advance_count(0) {
+connection::connection( detail::node_private& np, const endpoint& ep, const db::peer::ptr& pptr )
+:m_node(np),m_remote_ep(ep), m_cur_state(uninit),m_advance_count(0),m_peers(pptr) {
+  if( m_peers->fetch_by_endpoint( ep, m_remote_id, m_record )  ) {
+    m_bf.reset( new scrypt::blowfish() );
+    m_bf->start( (unsigned char*)m_record.bf_key, 56 );
+    m_cur_state = connected;
+  } else {
+    m_record.last_ip   = m_remote_ep.address().to_v4().to_ulong();
+    m_record.last_port = m_remote_ep.port();
+  }
 }
 
 connection::connection( detail::node_private& np, const endpoint& ep, 
@@ -23,7 +31,11 @@ connection::connection( detail::node_private& np, const endpoint& ep,
    m_remote_id = auth_id;
    m_cur_state = init_state;
 }
+
 connection::~connection() {
+  if( m_peers && m_record.valid() ) {
+    // TODO save the record
+  }
 }
 
 
@@ -134,8 +146,20 @@ void connection::handle_connected( const tornet::buffer& b ) {
 
   if( 0 == b.size() % 8 && decode_packet(b) ) 
     return; // sucess
-
   slog("failed to decode packet... " );
+
+  if( m_peers && m_record.valid() ) { 
+    wlog( "Peer at %1%:%2% sent invalid message, resetting IP/PORT on record and "
+          "assuming new node at %1%:%2%", m_remote_ep.address().to_string(), m_record.last_port );
+     m_record.last_ip   = 0;
+     m_record.last_port = 0;
+     memset( m_record.bf_key, 0, sizeof(m_record.bf_key) );
+     m_peers->store( get_remote_id(), m_record );
+  }
+  m_record           = db::peer::record();
+  m_record.last_ip   = m_remote_ep.address().to_v4().to_ulong();
+  m_record.last_port = m_remote_ep.port();
+
   reset();
   handle_uninit(b);
 }
@@ -290,19 +314,16 @@ bool connection::handle_auth_msg( const tornet::buffer& b ) {
     scrypt::signature_t  sig;
     scrypt::public_key_t pubk;
     uint64_t             utc_us;
+    uint64_t             remote_nonce[2];
 
     tornet::rpc::datastream<const char*> ds( b.data(), b.size() );
-    ds >> sig >> pubk >> utc_us >> m_remote_nonce[0] >> m_remote_nonce[1];
+    ds >> sig >> pubk >> utc_us >> remote_nonce[0] >> remote_nonce[1];
+
 
     scrypt::sha1_encoder  sha;
     sha.write( &m_dh->shared_key.front(), m_dh->shared_key.size() );
     sha << utc_us;
     
-    scrypt::sha1_encoder  rank_sha;
-    rank_sha.write( (char*)m_remote_nonce, sizeof(m_remote_nonce) );
-    rank_sha << pubk;
-    scrypt::sha1 r = rank_sha.result();
-    m_remote_rank = 161 - scrypt::bigint( (const char*)r.hash, sizeof(r.hash) ).log2();
 
     if( !pubk.verify( sha.result(), sig ) ) {
       elog( "Invalid authentication" );
@@ -315,8 +336,31 @@ bool connection::handle_auth_msg( const tornet::buffer& b ) {
 
       scrypt::sha1_encoder pkds; pkds << pubk;
       set_remote_id( pkds.result() );
+      
+      m_peers->fetch( m_remote_id, m_record );
+      memcpy( m_record.bf_key, &m_dh->shared_key.front(), 56 );
+
+      tornet::rpc::datastream<char*> recds( m_record.public_key, sizeof(m_record.public_key) );
+      recds << pubk;
+      m_record.nonce[0] = remote_nonce[0];
+      m_record.nonce[1] = remote_nonce[1];
+      m_record.last_ip   = m_remote_ep.address().to_v4().to_ulong();
+      m_record.last_port = m_remote_ep.port();
+
+      uint64_t utc_us = duration_cast<microseconds>(system_clock::now().time_since_epoch()).count();
+      if( !m_record.first_contact ) m_record.first_contact = utc_us;
+      m_record.last_contact = utc_us;
+
+      scrypt::sha1_encoder  rank_sha;
+      rank_sha.write( (char*)remote_nonce, sizeof(remote_nonce) );
+      rank_sha << pubk;
+      scrypt::sha1 r = rank_sha.result();
+      m_record.rank = 161 - scrypt::bigint( (const char*)r.hash, sizeof(r.hash) ).log2();
+
+      m_peers->store( m_remote_id, m_record );
 
       m_node.update_dist_index( m_remote_id, this );
+
       // auth resp tru
       goto_state( connected );
     }
@@ -438,6 +482,7 @@ void connection::send_auth() {
 
     m_bf.reset( new scrypt::blowfish() );
     m_bf->start( (unsigned char*)&m_dh->shared_key.front(), 56 );
+    memcpy( m_record.bf_key, &m_dh->shared_key.front(), 56 );
     return true;
   }
 
@@ -503,8 +548,10 @@ void connection::send_auth() {
     }
   }
   void connection::close() {
-    if( m_cur_state >= received_dh )
+    if( m_cur_state >= received_dh ) {
         send_close();
+        // save....
+    }
     reset();
   }
   void connection::close_channels() {

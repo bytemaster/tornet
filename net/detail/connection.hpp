@@ -9,6 +9,7 @@
 #include <tornet/net/buffer.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <tornet/net/channel.hpp>
+#include <tornet/db/peer.hpp>
 
 #include <boost/cmt/future.hpp>
 
@@ -60,7 +61,7 @@ namespace tornet {
             typedef boost::asio::ip::udp::endpoint endpoint;
             typedef scrypt::sha1                   node_id;
 
-            connection( detail::node_private& np, const endpoint& ep );
+            connection( detail::node_private& np, const endpoint& ep, const db::peer::ptr& pptr );
             connection( detail::node_private& np, const endpoint& ep, 
                         const node_id& auth_id, state_enum init_state = connected );
             ~connection();
@@ -69,7 +70,7 @@ namespace tornet {
 
             endpoint   get_endpoint()const;
             node_id    get_remote_id()const;
-            uint8_t    get_remote_rank()const { return m_remote_rank; }
+            uint8_t    get_remote_rank()const { return m_record.rank; }
             state_enum get_state()const { return m_cur_state; }
 
             // return false if state transitioned to failed, otherwise true
@@ -128,8 +129,6 @@ namespace tornet {
             
             node_id                                   m_remote_id;
             endpoint                                  m_remote_ep;
-            uint64_t                                  m_remote_nonce[2];
-            uint8_t                                   m_remote_rank;
 
             typedef std::map<node_id,endpoint> route_table;
 
@@ -137,6 +136,8 @@ namespace tornet {
                 
             
             boost::unordered_map<uint32_t,channel>    m_channels;
+            db::peer::ptr                             m_peers;
+            db::peer::record                          m_record;
       };
   }
 

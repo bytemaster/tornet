@@ -85,8 +85,8 @@ namespace tornet { namespace detail {
     m_id = sha.result();
 
     // load peers
-    //m_peers = boost::make_shared<db::peer>( m_id, datadir/"peers" );
-    //m_peers->init();
+    m_peers = boost::make_shared<db::peer>( m_id, datadir/"peers" );
+    m_peers->init();
 
     listen(port);
   }
@@ -126,11 +126,9 @@ namespace tornet { namespace detail {
   void node_private::handle_packet( const tornet::buffer& b, const udp::endpoint& ep ) {
     boost::unordered_map<endpoint,connection::ptr>::iterator itr = m_ep_to_con.find(ep);
     if( itr == m_ep_to_con.end() ) {
-      // TODO: attempt to load archived connection data (DH key, etc) 
-      
       slog( "creating new connection" );
       // failing that, create
-      connection::ptr c( new connection( *this, ep ) );
+      connection::ptr c( new connection( *this, ep, m_peers ) );
       m_ep_to_con[ep] = c;
       c->handle_packet(b);
     } else { itr->second->handle_packet(b); }
@@ -205,9 +203,7 @@ namespace tornet { namespace detail {
     ep_to_con_map::iterator itr = m_ep_to_con.find(ep);
     connection::ptr con;
     if( itr == m_ep_to_con.end() ) {
-      // TODO: attempt to load archived connection data
-
-      connection::ptr c(new connection( *this, ep ));
+      connection::ptr c(new connection( *this, ep, m_peers ));
       m_ep_to_con[ep] = c;
       itr = m_ep_to_con.find(ep);
     }

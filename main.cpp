@@ -35,6 +35,21 @@ boost::asio::ip::udp::endpoint to_endpoint( const std::string& str ) {
       return eps.front();
 }
 
+enum chunk_order{
+  by_revenue,
+  by_opportunity,
+  by_distance
+};
+
+void print_peers( const tornet::db::peer::ptr& peers ) {
+
+}
+
+void print_chunks( const tornet::db::chunk::ptr& db, int start, int limit, chunk_order order ) {
+
+
+}
+
 void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
   try {
      std::string line;
@@ -65,16 +80,26 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
        } else if( cmd == "show" ) {
          std::string what;
          ss >> what;
+
+         if( what == "local" ) {
+            std::string start;
+            std::string limit;
+            std::string order;
+            ss >> start >> limit >> order;
+
+         } else if( what == "cache") {
+
+         }
      
          if( what == "chunks" ) {
             int cnt = cs->get_local_db()->count();
             tornet::db::chunk::meta m;
             scrypt::sha1 id;
-            std::cerr<<" "<< "ID" << "  " << "Size" << "  " << "Queried" <<  "  " << "Dist Rank" << "\n";
+            std::cerr<<"Index "<< "ID" << "  " << "Size" << "  " << "Queried" <<  "  " << "Dist Rank" << "  Annual Rev\n";
             std::cerr<<"----------------------------------------------------------------------\n";
             for( uint32_t i = 0; i <  cnt; ++i ) {
               cs->get_local_db()->fetch_index( i+1, id, m );
-              std::cerr<<i<<"] " << id << "  " << m.size << "  " << m.query_count <<  "  " << m.distance_rank << "\n";
+              std::cerr<<i<<"] " << id << "  " << m.size << "  " << m.query_count <<  "  " << (int)m.distance_rank << "  " << m.annual_revenue_rate() << "\n";
             }
      
          } else if( what == "users" ) {
@@ -93,7 +118,9 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
          std::cerr<<"  export      TORNET_FILE            - loads TORNET_FILE and saves FILENAME\n";
          std::cerr<<"  export_tid  TID CHECKSUM [OUT_FILE]- loads TORNET_FILE and saves FILENAME\n";
          std::cerr<<"  publish TORNET_FILE                - pushes chunks from TORNET_FILE out to the network, including the TORNETFILE itself\n";
-         std::cerr<<"  show [chunks|users|tornet|tid] [tornet_file|tid] [tid_check] - prints info about chunks and users\n";
+         std::cerr<<"  show local START LIMIT [by_distance|by_revenue|by_opportunity]\n";
+         std::cerr<<"  show cache START LIMIT |by_distance|by_revenue|by_opportunity]\n";
+         std::cerr<<"  show users START LIMIT |by_balance|by_rank|...]\n";
          std::cerr<<"  help                               - prints this menu\n\n";
        }
      }

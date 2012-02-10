@@ -12,6 +12,11 @@ namespace tornet { namespace db {
     memset( this, 0, sizeof(record) );
   }
 
+  bool peer::record::valid()const {
+    peer::record tmp;
+    return memcmp( tmp.public_key, public_key, sizeof(public_key) ) != 0;
+  }
+
 
   class peer_private {
     public:

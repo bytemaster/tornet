@@ -4,6 +4,7 @@
 #include <boost/cmt/thread.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/asio.hpp>
+#include <tornet/db/peer.hpp>
 
 namespace tornet {
   namespace detail { class node_private; }
@@ -27,6 +28,8 @@ namespace tornet {
       const id_type& get_id()const;
 
       boost::cmt::thread& get_thread()const;
+
+      db::peer::ptr get_peers()const;
 
       /**
        * @param ddir - data directory where identity information is stored.

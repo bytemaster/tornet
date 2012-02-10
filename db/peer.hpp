@@ -13,13 +13,16 @@ namespace tornet { namespace db {
    *  @class db::peer
    *
    *  Provides a dedicated thread for accessing the peer database.  This database
-   *  sorts peers by distance.  
+   *  sorts peers by endpoint and distance from node id.
    */
   class peer {
     public:
       typedef boost::shared_ptr<peer> ptr;
       struct record {
         record();
+
+        /// Valid of Public Key is not 0
+        bool valid()const;
 
         uint32_t  last_ip;
         uint16_t  last_port;
@@ -29,17 +32,19 @@ namespace tornet { namespace db {
         uint64_t  first_contact;
         uint64_t  last_contact;
         uint32_t  avg_rtt_us;
-        uint64_t  bytes_requested; // how much did we provide them
-        uint64_t  bytes_provided;  // how much did this peer provide us 
+        uint64_t  sent_credit; // how much did we provide them
+        uint64_t  recv_credit; // how much did this peer provide us 
         uint8_t   firewalled;
-        uint32_t  buddy_ip;        // public, non-firewalled ip of buddy 
+        uint32_t  buddy_ip;    // public, non-firewalled ip of buddy 
         uint16_t  buddy_port;      
         char      connected;
+        uint8_t   rank;
         char      public_key[256];
         char      bf_key[56];
-        char      recv_btc[40];
-        char      send_btc[40];
+        char      recv_btc[40]; // address to recv money from node id
+        char      send_btc[40]; // address to send money to node id
       };
+
       struct endpoint {
         endpoint():ip(0),port(0){}
         endpoint( const boost::asio::ip::udp::endpoint& ep )

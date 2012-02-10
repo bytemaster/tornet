@@ -69,4 +69,9 @@ namespace tornet {
        my->close_service(cn);
   }
 
+  /// TODO: Flush status from active connections
+  db::peer::ptr node::get_peers()const { 
+    return my->m_peers;
+  }
+
 } // namespace tornet
