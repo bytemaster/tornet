@@ -140,11 +140,34 @@ master index that will perform as fast as a DNS lookup.
 
 
 File Description
-----------------------------------------
+------------------------------------------
 A file is described as a series of chunks identified by the sha1(data) of the data.  Each
 chunk has a size and a list of 64KB slices identified by a superfast hash(slice).  These 
 slice hashes can be used to verify partial chunk downloads from multiple nodes. 
 
+
+Search Engine
+-----------------------------------------
+Because every chunk has a certain 'popularity' a search engine that is 'crawling' the
+web can 'rank' pages/files by their popularity.  
+
+A search engine would simply publish its 'index' as a set of chunks that any other node/user
+can download. Why would anyone consume significant resoruces to generate an index only to
+give it away?  Perhaps to help drive more traffic to their servers?  The easier it is to find
+content the more content will be downloaded.  
+
+The other alternative is hidden services.  These services allow anonymous hidden servers to aggregate
+user content and 'republish' static pages with the result.  A search engine could then generate a
+'results page' for every possible chunk and then when a user 'searches' they get the results page
+instead of the index.  This page could then imbed ads based upon the search term.  
+
+
+P2P Tagging
+-----------------------------------------
+Each node may 'tag' individual tornets with words and then publish the tags in
+a KAD key/value database.  These tags should also be published on the node that
+hosts the chunk. Each tag is signed by the tagger and this signature is used to 
+track their reputation.   
 
 Design
 -----------------------------------------
@@ -156,11 +179,14 @@ Each node further maintains a directory containing tornet files.
   - a tornet file describes how to assemble chunks into a file.
 
 Each node maintains a database of tornets that it is publishing
-  - for each chunk maintain a list of 5 nodes known to host it
+  - for each chunk maintain a list of N nodes known to host it
   - check each chunk once per hour and 're-publish' if necessary
   - popular content should automatically remain and 'spread', rare
     content may need someone to continually pay for the data to
     be hosted.
+  - when checking the status of a chunk, the publisher also gathers
+    access rate stats that is useful for knowing how popular individual
+    chunks are.
 
 Each node maintains an account for all other nodes maintaining the following information
   - node id              - sha1(public key)  (primary key)

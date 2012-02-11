@@ -1,0 +1,9 @@
+* In progress of defining publish function... this function depends upon chunk search function.
+
+* Need to develop chunk KAD search
+  - this search needs to return:
+    - every node contacted
+    - how often that chunk was queried on that node
+    - whether that node is hosting the chunk
+    - optionally stop searching after N hosting nodes are found.
+    
