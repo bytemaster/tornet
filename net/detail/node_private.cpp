@@ -251,11 +251,15 @@ namespace tornet { namespace detail {
     }
   }
 
-  std::map<node::id_type,node::endpoint> node_private::find_nodes_near( const node::id_type& target, uint32_t n ) {
+  std::map<node::id_type,node::endpoint> node_private::find_nodes_near( const node::id_type& target, 
+                                                                        uint32_t n, const boost::optional<node::id_type>& limit ) {
     std::map<node::id_type,node::endpoint>  near;
     std::map<node_id,connection*>::const_iterator itr =  m_dist_to_con.lower_bound( target ^ m_id );
     while( itr != m_dist_to_con.end() && near.size() < n ) {
-      near[ (itr->first^m_id)^target  ] = itr->second->get_endpoint();
+      node::id_type dist = (itr->first^m_id)^target;
+      if( dist < limit ) {
+        near[ dist  ] = itr->second->get_endpoint();
+      }
       ++itr;
     }
     return near;
@@ -268,9 +272,10 @@ namespace tornet { namespace detail {
   }
 
   std::map<node::id_type,node::endpoint> node_private::remote_nodes_near( const node::id_type& remote_id, 
-                                                                          const node::id_type& target, uint32_t n ) {
+                                                                          const node::id_type& target, uint32_t n,
+                                                                          const boost::optional<node::id_type>& limit ) {
     connection* con = get_connection( remote_id ); 
-    return con->find_nodes_near( target, n );
+    return con->find_nodes_near( target, n, limit );
   }
 
 } } // tornet::detail

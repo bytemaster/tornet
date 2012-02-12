@@ -229,4 +229,36 @@ void chunk_service::publish_tornet( const scrypt::sha1& tid, const scrypt::sha1&
 
 }
 
+#if 0
+void publish_loop() {
+  db::publish::ptr pdb;
+
+  while( publishing ) {
+    scrypt::sha1 cid, nid;
+    db::publish::record rec;
+    pdb->fetch_oldest( cid, nid, rec );
+
+    // get results
+
+    // find 
+    tornet::chunk_search::ptr cs( new tornet::chunk_search( node, cid ) );
+    cs->start();
+    cs->wait();
+  
+    const std::map<tornet::node::id_type,tornet::node::id_type>&  r = ks->current_results();
+    std::map<tornet::node::id_type,tornet::node::id_type>::const_iterator itr  = r.begin(); 
+    while( itr != r.end() ) {
+      // total weighted access interval
+      // pdb->store( cid, nid, now, normalize(access_interval,node distance) );
+      ++itr;
+    }
+    pdb->store( cid, publish::record( now, avg_access_rate, r.size() ) );
+
+    if( r.size() < rec.desired_host_count ) {
+      cs->best_node_to_publish_to()->publish( chunk );
+    }
+  }
+}
+#endif
+
 

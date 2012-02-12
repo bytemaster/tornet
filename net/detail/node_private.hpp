@@ -87,13 +87,13 @@ class node_private {
      *
      *  TODO:  Add a method to query info about a given node.
      */
-    std::map<node_id,endpoint> find_nodes_near( const node::id_type& target, uint32_t n );
+    std::map<node_id,endpoint> find_nodes_near( const node_id& target, uint32_t n, const boost::optional<node_id>& limit );
 
     /**
      *  Calls find_nodes_near on the remote node 'rnode' and returns the result.
      */
-    std::map<node_id,endpoint> remote_nodes_near( const node::id_type& rnode, 
-                                                  const node::id_type& target, uint32_t n );
+    std::map<node_id,endpoint> remote_nodes_near( const node_id& rnode, 
+                                                  const node_id& target, uint32_t n, const boost::optional<node_id>& limit );
 
     connection* get_connection( const node::id_type& remote_id );
 

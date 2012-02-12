@@ -224,14 +224,15 @@ bool connection::decode_packet( const tornet::buffer& b ) {
 
 /// sha1(target_id) << uint32_t(num)  
 bool connection::handle_lookup_msg( const tornet::buffer& b ) {
-  node_id target; uint32_t num;
+  node_id target; uint32_t num; uint8_t l; node_id limit;
   {
   tornet::rpc::datastream<const char*> ds(b.data(), b.size() );
-  ds >> target >> num;
+  ds >> target >> num >> l;
+  if( l ) ds >> limit;
   }
   slog( "Lookup %1% near %2%", num, target );
 
-  std::map<node_id, endpoint> r = m_node.find_nodes_near( target, num );
+  std::map<node_id, endpoint> r = m_node.find_nodes_near( target, num, limit );
   std::vector<char> rb; rb.resize(2048);
 
   num = r.size();
@@ -577,14 +578,15 @@ void connection::send_auth() {
    *  response in 1 second, then a timeout exception is thrown.  
    */
   std::map<node::id_type, node::endpoint> connection::find_nodes_near( const node::id_type& target, 
-                                                                       uint32_t n ) {
+                                                                       uint32_t n, const boost::optional<node::id_type>& limit  ) {
     try {                                                                        
       boost::cmt::promise<route_table>::ptr prom( new boost::cmt::promise<route_table>() );
       route_lookups[ target ] = prom;
 
-      std::vector<char> buf(24); 
+      std::vector<char> buf( !!limit ? 45 : 25 ); 
       tornet::rpc::datastream<char*> ds(&buf.front(), buf.size());
-      ds << target << n;
+      ds << target << n << uint8_t(!!limit);
+      if( !!limit ) { ds << *limit; }
       send( &buf.front(), buf.size(), route_lookup_msg );
 
       const route_table& rt = prom->wait( boost::chrono::seconds(1) );

@@ -39,6 +39,8 @@ namespace tornet {
    *  search queue is empty, the desired ID is found, or the search is
    *  canceled.  The search queue is empty once all nodes in the
    *  search path are included in the result set.
+   *
+   *
    */
   void kad_search::search_thread() {
     while( m_search_queue.size() && m_cur_status == kad_search::searching ) {
@@ -48,19 +50,40 @@ namespace tornet {
         
         try {
           node::id_type  rtn    = m_node->connect_to(ep);
-          if( filter( rtn ) )
+          if( filter( rtn ) ) {
               m_current_results[m_target^rtn] = rtn;
+              if( m_current_results.size() > m_n )  {
+                m_current_results.erase( --m_current_results.end() );
+              }
+          }
 
           if( rtn == m_target ) {
             m_cur_status = kad_search::done;
             return;
           }
 
-          std::map<node::id_type,node::endpoint> rr = m_node->remote_nodes_near( rtn, m_target, m_n );
+          
+          /** Only place the node in the search queue if it is closer than
+             the furthest result.   If we are searching for 20 nodes and 
+             already have 20 valid results, we only want the closest 20 and
+             thus there is no need to consider a result further away.
+
+             There is no need for the remote node to return nodes further away than our
+             current 'worst result'.  Otherwise, we are consuming unecesary/redunant 
+             bandwidth and ultimately searching almost every node on the network.
+          */
+          node::id_type limit;
+          if( m_current_results.size() >= m_n && m_n ) {
+            limit = (--m_current_results.end())->first; 
+          }
+
+          std::map<node::id_type,node::endpoint> rr = m_node->remote_nodes_near( rtn, m_target, m_n, limit );
           std::map<node::id_type,node::endpoint>::const_iterator rri = rr.begin();
           while( rri != rr.end() ) {
-            if( m_current_results.find( rri->first ) == m_current_results.end() )
+            if( m_current_results.find( rri->first ) == m_current_results.end() ) {
+
                 m_search_queue[rri->first] = rri->second;
+            }
             ++rri;
           }
 

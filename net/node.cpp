@@ -43,16 +43,16 @@ namespace tornet {
     return my->open_channel( node_id, remote_chan_num );
   }
 
-  std::map<node::id_type,node::endpoint> node::find_nodes_near( const node::id_type& target, uint32_t n ) {
+  std::map<node::id_type,node::endpoint> node::find_nodes_near( const node::id_type& target, uint32_t n, const boost::optional<node::id_type>& limit ) {
     if( &boost::cmt::thread::current() != &my->get_thread() )
-      return my->get_thread().async<std::map<node::id_type,node::endpoint> >( boost::bind( &node_private::find_nodes_near, my, target, n ) ).wait();
-    return my->find_nodes_near( target, n );
+      return my->get_thread().async<std::map<node::id_type,node::endpoint> >( boost::bind( &node_private::find_nodes_near, my, target, n, limit ) ).wait();
+    return my->find_nodes_near( target, n, limit );
   }
-  std::map<node::id_type,node::endpoint> node::remote_nodes_near( const node::id_type& remote_id, const node::id_type& target, uint32_t n ) {
+  std::map<node::id_type,node::endpoint> node::remote_nodes_near( const node::id_type& remote_id, const node::id_type& target, uint32_t n, const boost::optional<node::id_type>& limit ) {
     if( &boost::cmt::thread::current() != &my->get_thread() )
       return my->get_thread().async<std::map<node::id_type,node::endpoint> >( 
-              boost::bind( &node_private::remote_nodes_near, my, remote_id, target, n ) ).wait();
-    return my->remote_nodes_near( remote_id, target, n );
+              boost::bind( &node_private::remote_nodes_near, my, remote_id, target, n, limit ) ).wait();
+    return my->remote_nodes_near( remote_id, target, n, limit );
   }
 
   void node::start_service( uint16_t cn, const std::string& name, const node::new_channel_handler& cb ) {

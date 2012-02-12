@@ -43,15 +43,21 @@ namespace tornet {
        *  Searches through active connections and returns the endpoints closest to target
        *  sorted by distance from target.
        *
+       *  @param limit - the maximum distance to consider, or unlimited distance if limit is 0
+       *
        *  TODO:  Add a method to query info about a given node.
        */
-      std::map<id_type,endpoint> find_nodes_near( const id_type& target, uint32_t n );
+      std::map<id_type,endpoint> find_nodes_near( const id_type& target, uint32_t n, 
+                                                  const boost::optional<id_type>& limit = boost::optional<id_type>() );
 
       /**
        *  Calls find_nodes_near on the remote node 'rnode' and returns the result.
+       *
+       *  @param limit - the maximum distance to consider, or unlimited distance if limit is 0
        */
       std::map<id_type,endpoint> remote_nodes_near( const id_type& rnode, 
-                                                    const id_type& target, uint32_t n );
+                                                    const id_type& target, uint32_t n,
+                                                    const boost::optional<id_type>& limit = boost::optional<id_type>() );
 
       /**
        *  Connect to the endpoint and return the ID of the node or throw on error.

@@ -114,7 +114,7 @@ namespace tornet {
             void add_channel( const channel& c );
 
 
-            std::map<node_id,endpoint> find_nodes_near( const node_id& target, uint32_t n );
+            std::map<node_id,endpoint> find_nodes_near( const node_id& target, uint32_t n, const boost::optional<node_id>& limit  );
 
             boost::signal<void(state_enum)> state_changed;
         private:

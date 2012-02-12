@@ -5,8 +5,10 @@
 namespace tornet {
 
  /**
-  *   Maintains state durring KAD node lookup.  Doing a KAD lookup is not
-  *   an exact science and is something that will be extended by derived 
+  *   @class kad_search
+  *   @breif Maintains state durring KAD node lookup.  
+  *
+  *   Doing a KAD lookup is not an exact science and is something that will be extended by derived 
   *   classes that deal with 'special cases' such as finding a chunk or 
   *   a particular service and where near matches count.
   *
@@ -25,7 +27,6 @@ namespace tornet {
         canceled,
         done
       };
-
 
       /**
        *  @param N - the number of results to return, default 20
