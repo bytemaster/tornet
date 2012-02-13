@@ -103,6 +103,8 @@ namespace tornet {
     return true;
   }
 
+  const scrypt::sha1& kad_search::target()const { return m_target; }
+
 } // namespace tornet
 
 

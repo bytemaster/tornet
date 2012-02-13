@@ -7,6 +7,7 @@
 struct chunk_session_result {
 enum result_enum {
   ok,
+  available,
   invalid_rank,
   invalid_size,
   credit_limit_reached,
@@ -19,13 +20,16 @@ enum result_enum {
 
 struct fetch_response {
   fetch_response( chunk_session_result::result_enum e = chunk_session_result::unknown, int64_t new_bal = 0 )
-  :result(e),offset(0),balance(new_bal){}
+  :result(e),offset(0),balance(new_bal),query_interval(0),deadend_count(0){}
 
-  int8_t                    result; 
-  uint32_t                  offset;
-  std::vector<char>         data;
-  std::vector<scrypt::sha1> references;   
-  int64_t                   balance;
+  int8_t                    result;         ///!< see chunk_session_result::result_enum
+  uint32_t                  offset;         ///!< offset from start of the data
+  std::vector<char>         data;           ///!< actual data of the chunk
+  std::vector<scrypt::sha1> references;     ///!< nodes that are known to host the content... 
+                                            ///< @todo consider removing now that a method to pay to publish is available
+  int64_t                   balance;        ///!< current balance/credit on this node
+  int64_t                   query_interval; ///!< how often this chunk is queried on this node
+  uint32_t                  deadend_count;  ///!< number of sequential unsuccessful searches for this chunk by this node
 };
 
 struct store_response {

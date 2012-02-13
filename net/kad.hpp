@@ -38,6 +38,7 @@ namespace tornet {
       void   start();
       void   cancel();
       void   wait();
+      const scrypt::sha1& target()const;
 
       status get_status()const;
 
@@ -50,6 +51,8 @@ namespace tornet {
         return m_current_results;
       }
 
+      const node::ptr& get_node()const { return m_node; }
+
    protected:
       /**
        *  This method can be overloaded by derived classes to perform 
@@ -60,6 +63,8 @@ namespace tornet {
        */
       virtual bool filter( const node::id_type& id );
 
+      uint32_t m_n;
+      uint32_t m_p;
    private:
       void search_thread();
 
@@ -67,8 +72,6 @@ namespace tornet {
       node::id_type                               m_target;
       node::id_type                               m_target_dist;
 
-      uint32_t m_n;
-      uint32_t m_p;
 
       // all pending operations that must complete
       // before the search is marked as 'done'

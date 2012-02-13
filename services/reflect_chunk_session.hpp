@@ -5,7 +5,7 @@
 #include <tornet/services/chunk_session.hpp>
 
 BOOST_REFLECT( fetch_response,
-  (result)(offset)(data)(references)(balance) )
+  (result)(offset)(data)(references)(balance)(query_interval)(deadend_count) )
 BOOST_REFLECT( store_response, (result)(balance) )
 
 BOOST_REFLECT_ANY( chunk_session,

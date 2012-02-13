@@ -37,6 +37,7 @@ SET( sources
     services/calc.cpp
     services/chunk_service.cpp
     services/chunk_session.cpp
+    services/chunk_search.cpp
     db/peer.cpp
     db/chunk.cpp 
    )

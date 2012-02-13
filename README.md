@@ -106,6 +106,14 @@ Potential Attacks
 --------------------------------------
 * Query a bunch of random, non-existant chunks to force nodes to attempt to cache these
 chunks.  
+   - if chunk is searched for and not found, increment a 'not found' count 
+   - when other nodes are searching for a chunk, return the not found count
+   - this allows other nodes to quickly learn when a resource has already been searched for
+      but not found and therefore they can stop searching sooner.  
+   - this still has the potential problem of maintaining meta info on a bunch of bogus chunks.
+   - this is a good argument for keeping things 'closed source'.  
+
+
    - mitigated by checking user rank, charging per-request, only logging requests from ids
     with a known reputation.  
    - resetting the query count if chunk is not found
