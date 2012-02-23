@@ -12,18 +12,24 @@ namespace tornet { namespace db {
   :first_update(0),last_update(0),query_count(0),size(0),distance_rank(1){}
 
   /**
-   *  Microseconds between accesses.
+   *  Microseconds between accesses, always >= 1
    */
   uint64_t chunk::meta::access_interval()const {
       if( query_count == 0 ) return 0xffffffffffffffff;
-      return (last_update - first_update)/query_count;
+      return 1+ (last_update - first_update)/query_count;
   }
 
   /**
    *  size * (161-log2(dist)) / year
    */
   int64_t chunk::meta::annual_revenue_rate()const {
-    return (size ? size : -1024*64 )* distance_rank * ( uint64_t(1000ll*1000ll*60ll*60ll*24*365) / access_interval() );
+    return price() * annual_query_count();
+  }
+  int64_t chunk::meta::price()const {
+      return (size ? int64_t(size) : -1024*66) * distance_rank + 1024;
+  }
+  int64_t  chunk::meta::annual_query_count()const {
+    return (365ll*24*60*60*1000000) / access_interval();
   }
 
 
@@ -55,7 +61,7 @@ namespace tornet { namespace db {
    */
   int get_annual_rev( Db* secondary, const Dbt* pkey, const Dbt* pdata, Dbt* skey ) {
     chunk::meta* met = (chunk::meta*)(pdata->get_data());
-    skey->set_data ( new int64_t(met->annual_revenue_rate()) );
+    skey->set_data ( new int64_t(met->annual_revenue_rate() ) );
     skey->set_size ( sizeof(int64_t) );
     skey->set_flags( DB_DBT_APPMALLOC );
     return 0;
@@ -77,12 +83,21 @@ namespace tornet { namespace db {
 
       do {
         m.resize(m.size()+1);
-        int64_t v=0;
+        int64_t v=1;
         Dbt key((char*)&v,sizeof(v));
         Dbt pkey((char*)&m.back().key.hash, sizeof(m.back().key.hash) );
         Dbt value((char*)&m.back().value, sizeof(m.back().value) ); 
 
+        value.set_data( (char*)&m.back().value );
+        value.set_ulen( sizeof(m.back().value) );
         value.set_flags( DB_DBT_USERMEM );
+
+        key.set_data( (char*)&v );
+        key.set_ulen( sizeof(v) );
+        key.set_flags( DB_DBT_USERMEM );
+
+        pkey.set_data( (char*)&m.back().key.hash );
+        pkey.set_ulen( sizeof(m.back().key.hash) );
         pkey.set_flags( DB_DBT_USERMEM );
 
         int rtn = 0;
@@ -94,10 +109,12 @@ namespace tornet { namespace db {
 
         if( DB_NOTFOUND == rtn ) {
           m.pop_back();
+          cur->close();
           return;
         }
+        m.back().key = m.back().key ^ my->m_node_id;
       } while ( m.size() < n );
-  
+      cur->close();
   }
   /**
    *  Find the first N elements in the secondary index (most negative)
@@ -115,14 +132,28 @@ namespace tornet { namespace db {
         Dbt pkey((char*)&m.back().key.hash, sizeof(m.back().key.hash) );
         Dbt value((char*)&m.back().value, sizeof(m.back().value) ); 
 
+        value.set_data( (char*)&m.back().value );
+        value.set_size( sizeof(m.back().value) );
+        value.set_ulen( sizeof(m.back().value) );
         value.set_flags( DB_DBT_USERMEM );
+
+        key.set_data( (char*)&v );
+        key.set_size( sizeof(v) );
+        key.set_ulen( sizeof(v) );
+        key.set_flags( DB_DBT_USERMEM );
+
+        pkey.set_data( (char*)&m.back().key.hash );
+        pkey.set_ulen( sizeof(m.back().key.hash) );
         pkey.set_flags( DB_DBT_USERMEM );
 
         if( DB_NOTFOUND == cur->pget( &key, &pkey, &value, DB_NEXT  ) ) {
           m.pop_back();
+          cur->close(); 
           return;
         }
+        m.back().key = m.back().key ^ my->m_node_id;
       } while ( m.size() < n );
+      cur->close(); 
   }
 
 
@@ -147,7 +178,7 @@ namespace tornet { namespace db {
   }
     static int compare_i64(Db *db, const Dbt *key1, const Dbt *key2) {
       int64_t* _k1 = (int64_t*)(key1->get_data());
-      int64_t* _k2 = (int64_t*)(key1->get_data());
+      int64_t* _k2 = (int64_t*)(key2->get_data());
       if( *_k1 > *_k2 ) return 1;
       if( *_k1 == *_k2 ) return 0;
       return -1;
@@ -191,7 +222,7 @@ namespace tornet { namespace db {
       my->m_meta_rev_idx = new Db(&my->m_env, 0 );
       my->m_meta_rev_idx->set_flags( DB_DUP | DB_DUPSORT );
       my->m_meta_rev_idx->set_bt_compare( &compare_i64 );
-      my->m_meta_rev_idx->open( NULL, "chunk_meta_rev_idx", "chunk_meta_rev_idx", DB_BTREE , DB_CREATE | DB_AUTO_COMMIT, 0600 );
+      my->m_meta_rev_idx->open( NULL, "chunk_meta_rev_idx", "chunk_meta_rev_idx", DB_BTREE , DB_CREATE | DB_AUTO_COMMIT, 0);//0600 );
       my->m_meta_db->associate( 0, my->m_meta_rev_idx, get_annual_rev, 0 );
 
     } catch( const DbException& e ) {
@@ -409,6 +440,7 @@ namespace tornet { namespace db {
     if( auto_inc ) {
       slog( "found && auto inc" );
       m.query_count++;
+      m.last_update = m.now();
       store_meta( id, m );
     }
     return true;

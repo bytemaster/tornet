@@ -12,13 +12,14 @@
 #include <tornet/rpc/client.hpp>
 
 #include <tornet/net/kad.hpp>
+#include <tornet/services/chunk_search.hpp>
 
 #include <boost/cmt/thread.hpp>
 #include <boost/cmt/signals.hpp>
 #include <tornet/rpc/service.hpp>
 #include <tornet/services/accounting.hpp>
 
-#include <ltl/rpc/reflect.hpp>
+//#include <ltl/rpc/reflect.hpp>
 
 #include <tornet/services/chunk_service.hpp>
 
@@ -47,7 +48,62 @@ void print_peers( const tornet::db::peer::ptr& peers ) {
 
 void print_chunks( const tornet::db::chunk::ptr& db, int start, int limit, chunk_order order ) {
 
-
+    int cnt = db->count();
+    if( order == by_distance ) {
+    std::cerr<<std::setw(6)<<"Index"<<"  "<<std::setw(40)<< "ID" << "  " << std::setw(8) << "Size" << "  " 
+            <<std::setw(8) << "Queries"  << "  " 
+            <<std::setw(10)<< "Q/Year"   << "  "
+            <<std::setw(5) << "DistR"    << "  " 
+            <<std::setw(8) << "Price"    << "  " 
+            <<"Rev/Year\n";
+    std::cerr<<"------------------------------------------------------------------------------------\n";
+        tornet::db::chunk::meta m;
+        scrypt::sha1 id;
+        for( uint32_t i = 0; i <  cnt; ++i ) {
+          db->fetch_index( i+1, id, m );
+          std::cerr<< std::setw(6) << i                        << "  "
+                   <<                id                        << "  " 
+                   << std::setw(8)  << m.size                  << "  " 
+                   << std::setw(8)  << m.query_count           << "  " 
+                   << std::setw(10) << m.annual_query_count()  << "  "
+                   << std::setw(5)  << (int)m.distance_rank    << "  " 
+                   << std::setw(8)  << m.price()               << "  "
+                   << std::setw(10) << m.annual_revenue_rate() << "\n";
+        }
+    } else if( order == by_opportunity ) {
+    std::cerr<<std::setw(6)<<"Index"<<"  "<<std::setw(40)<< "ID" << "  " << std::setw(8) << "Size" << "  " 
+            <<std::setw(8) << "Queries"  << "  " 
+            <<std::setw(10)<< "Q/Year"   << "  "
+            <<std::setw(5) << "DistR"    << "  " 
+            <<std::setw(8) << "Price"    << "  " 
+            <<"Rev/Year*\n";
+    std::cerr<<"------------------------------------------------------------------------------------\n";
+      std::vector<tornet::db::chunk::meta_record> recs;
+      db->fetch_best_opportunity( recs, 10 );
+      for( uint32_t i = 0; i < recs.size(); ++i ) {
+          std::cerr<< std::setw(6) << i                        << "  "
+                   <<                recs[i].key                      << "  " 
+                   << std::setw(8)  << recs[i].value.size                  << "  " 
+                   << std::setw(8)  << recs[i].value.query_count           << "  " 
+                   << std::setw(10) << recs[i].value.annual_query_count()  << "  "
+                   << std::setw(5)  << (int)recs[i].value.distance_rank    << "  " 
+                   << std::setw(8)  << recs[i].value.price()               << "  "
+                   << std::setw(10) << recs[i].value.annual_revenue_rate() << "\n";
+      }
+    } else if( order == by_revenue ) {
+      std::vector<tornet::db::chunk::meta_record> recs;
+      db->fetch_worst_performance( recs, 10 );
+      for( uint32_t i = 0; i < recs.size(); ++i ) {
+          std::cerr<< std::setw(6) << i                        << "  "
+                   <<                recs[i].key                      << "  " 
+                   << std::setw(8)  << recs[i].value.size                  << "  " 
+                   << std::setw(8)  << recs[i].value.query_count           << "  " 
+                   << std::setw(10) << recs[i].value.annual_query_count()  << "  "
+                   << std::setw(5)  << (int)recs[i].value.distance_rank    << "  " 
+                   << std::setw(8)  << recs[i].value.price()               << "  "
+                   << std::setw(10) << recs[i].value.annual_revenue_rate() << "\n";
+      }
+    }
 }
 
 void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
@@ -76,32 +132,64 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
        } else if( cmd == "publish" ) {
          std::string infile;
          ss >> infile;
+       } else if( cmd == "find" ) {
+         std::string tid;
+         ss >> tid;
+
+         tornet::chunk_search::ptr csearch(  boost::make_shared<tornet::chunk_search>(nd, scrypt::sha1(tid), 10, 1, true ) );  
+         csearch->start();
+         csearch->wait();
+
+         slog( "Results: \n" );
+         const std::map<tornet::node::id_type,tornet::node::id_type>&  r = csearch->current_results();
+         std::map<tornet::node::id_type,tornet::node::id_type>::const_iterator itr  = r.begin(); 
+         while( itr != r.end() ) {
+           slog( "   node id: %2%   distance: %1%", 
+                     itr->first, itr->second );
+           ++itr;
+         }
+
+         slog( "Hosting Matches: \n" ); {
+           const std::map<tornet::node::id_type,tornet::node::id_type>&  r = csearch->hosting_nodes();
+           std::map<tornet::node::id_type,tornet::node::id_type>::const_iterator itr  = r.begin(); 
+           while( itr != r.end() ) {
+             slog( "   node id: %2%   distance: %1%", 
+                       itr->first, itr->second );
+             ++itr;
+           }
+         }
+
+         wlog( "avg query rate: %1%    weight: %2%", csearch->avg_query_rate(), csearch->query_rate_weight() );
+
      
        } else if( cmd == "show" ) {
          std::string what;
+         std::string order;
          ss >> what;
+         ss >> order;
+         chunk_order o = by_distance;
+         if( order == "by_revenue" ) o = by_revenue;
+         else if( order == "by_opportunity" ) o = by_opportunity;
+         else if( order == "by_distance" || order == "" ) o = by_distance;
+         else { 
+          std::cerr<<"Invalid order '"<<order<<"'\n  options are by_revenue, by_opportunity, by_distance\n";
+         }
 
          if( what == "local" ) {
-            std::string start;
-            std::string limit;
-            std::string order;
-            ss >> start >> limit >> order;
-
+          print_chunks( cs->get_local_db(), 0, 0xffffff, o );
          } else if( what == "cache") {
-
-         }
-     
-         if( what == "chunks" ) {
-            int cnt = cs->get_local_db()->count();
+          print_chunks( cs->get_cache_db(), 0, 0xffffff, o );
+          /*
+            int cnt = cs->get_cache_db()->count();
             tornet::db::chunk::meta m;
             scrypt::sha1 id;
             std::cerr<<"Index "<< "ID" << "  " << "Size" << "  " << "Queried" <<  "  " << "Dist Rank" << "  Annual Rev\n";
             std::cerr<<"----------------------------------------------------------------------\n";
             for( uint32_t i = 0; i <  cnt; ++i ) {
-              cs->get_local_db()->fetch_index( i+1, id, m );
+              cs->get_cache_db()->fetch_index( i+1, id, m );
               std::cerr<<i<<"] " << id << "  " << m.size << "  " << m.query_count <<  "  " << (int)m.distance_rank << "  " << m.annual_revenue_rate() << "\n";
             }
-     
+          */
          } else if( what == "users" ) {
      
          } else if( what == "tornet" ) {
@@ -116,6 +204,7 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
          std::cerr<<"\nCommands:\n";
          std::cerr<<"  import      FILENAME               - loads FILENAME and creates chunks and dumps FILENAME.tornet\n";
          std::cerr<<"  export      TORNET_FILE            - loads TORNET_FILE and saves FILENAME\n";
+         std::cerr<<"  find        CHUNK_ID               - looks for the chunk and returns query rate stats for the chunk\n";
          std::cerr<<"  export_tid  TID CHECKSUM [OUT_FILE]- loads TORNET_FILE and saves FILENAME\n";
          std::cerr<<"  publish TORNET_FILE                - pushes chunks from TORNET_FILE out to the network, including the TORNETFILE itself\n";
          std::cerr<<"  show local START LIMIT [by_distance|by_revenue|by_opportunity]\n";

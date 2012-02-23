@@ -62,6 +62,8 @@ namespace tornet { namespace db {
 
           uint64_t now()const;
           uint64_t access_interval()const;
+          int64_t  price()const;
+          int64_t  annual_query_count()const;
           int64_t  annual_revenue_rate()const;
       };
       struct meta_record {
