@@ -167,15 +167,24 @@ namespace tornet { namespace db {
     if( &boost::cmt::thread::current() != &my->m_thread ) {
         return my->m_thread.sync<bool>( boost::bind(&peer::fetch, this, id, boost::ref(r)) );
     }
+    try {
     scrypt::sha1 dist = id ^ my->m_node_id;
 
-    Dbt key(dist.hash,sizeof(dist.hash));
+    Dbt key;
+    key.set_data( (char*)dist.hash);
+    key.set_ulen( sizeof(dist.hash) );
     key.set_flags( DB_DBT_USERMEM );
 
-    Dbt val( (char*)&r, sizeof(r) );
+    Dbt val;
+    val.set_size( sizeof(r) );
+    val.set_ulen( sizeof(r) );
     val.set_flags( DB_DBT_USERMEM );
 
     return DB_NOTFOUND != my->m_peer_db->get( 0, &key, &val, 0 );
+    } catch ( const DbException& e ) {
+      elog( "%1%", boost::diagnostic_information( e ) );
+      return false;
+    }
   }
 
   bool peer::exists( const scrypt::sha1& id ) {

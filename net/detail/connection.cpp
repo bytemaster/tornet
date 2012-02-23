@@ -16,9 +16,13 @@ connection::connection( detail::node_private& np, const endpoint& ep, const db::
 :m_node(np),m_remote_ep(ep), m_cur_state(uninit),m_advance_count(0),m_peers(pptr) {
   if( m_peers->fetch_by_endpoint( ep, m_remote_id, m_record )  ) {
     m_bf.reset( new scrypt::blowfish() );
+    wlog( "Known peer at %1%:%2%start bf %3%",  ep.address().to_string(), ep.port(),
+        scrypt::to_hex( m_record.bf_key, 56 ) );
     m_bf->start( (unsigned char*)m_record.bf_key, 56 );
+    m_node.update_dist_index( m_remote_id, this );
     m_cur_state = connected;
   } else {
+    wlog( "Unknown peer at %1%:%2%", ep.address().to_string(), ep.port() );
     m_record.last_ip   = m_remote_ep.address().to_v4().to_ulong();
     m_record.last_port = m_remote_ep.port();
   }
@@ -63,6 +67,17 @@ void connection::handle_packet( const tornet::buffer& b ) {
  */
 void connection::handle_uninit( const tornet::buffer& b ) {
   slog("");
+  if( m_peers->fetch_by_endpoint( m_remote_ep, m_remote_id, m_record )  ) {
+    m_bf.reset( new scrypt::blowfish() );
+    wlog( "Known peer at %1%:%2%start bf %3%",  m_remote_ep.address().to_string(), m_remote_ep.port(),
+        scrypt::to_hex( m_record.bf_key, 56 ) );
+    m_bf->start( (unsigned char*)m_record.bf_key, 56 );
+    m_node.update_dist_index( m_remote_id, this );
+    goto_state(connected);
+    handle_connected( b );
+    return;
+  }
+
   BOOST_ASSERT( m_cur_state == uninit );
   if( (b.size() % 8) && b.size() > 56 ) { // key exchange
     generate_dh();
@@ -224,10 +239,11 @@ bool connection::decode_packet( const tornet::buffer& b ) {
 
 /// sha1(target_id) << uint32_t(num)  
 bool connection::handle_lookup_msg( const tornet::buffer& b ) {
-  node_id target; uint32_t num; uint8_t l; node_id limit;
+  node_id target; uint32_t num; uint8_t l=0; node_id limit;
   {
   tornet::rpc::datastream<const char*> ds(b.data(), b.size() );
   ds >> target >> num >> l;
+  slog( "Lookup %1% near %2%  l: %3%", num, target, int(l) );
   if( l ) ds >> limit;
   }
   slog( "Lookup %1% near %2%", num, target );
@@ -483,6 +499,7 @@ void connection::send_auth() {
 
     m_bf.reset( new scrypt::blowfish() );
     m_bf->start( (unsigned char*)&m_dh->shared_key.front(), 56 );
+    wlog( "start bf %1%", scrypt::to_hex( (char*)&m_dh->shared_key.front(), 56 ) );
     memcpy( m_record.bf_key, &m_dh->shared_key.front(), 56 );
     return true;
   }
@@ -589,12 +606,16 @@ void connection::send_auth() {
       if( !!limit ) { ds << *limit; }
       send( &buf.front(), buf.size(), route_lookup_msg );
 
-      const route_table& rt = prom->wait( boost::chrono::seconds(1) );
+      wlog( "waiting on remote response!\n");
+      const route_table& rt = prom->wait( boost::chrono::seconds(10) );
       if( route_lookups.find( target ) != route_lookups.end() ) 
           route_lookups.erase( route_lookups.find( target ) );
       return rt;
     } catch ( const boost::exception& e ) {
-      route_lookups.erase( route_lookups.find( target ) );
+      elog( "%1%", boost::diagnostic_information(e) );
+      std::map<node_id, boost::cmt::promise<route_table>::ptr >::iterator ritr = route_lookups.find(target);
+      if( ritr != route_lookups.end() )
+          route_lookups.erase( ritr );
       throw;
     }
   }

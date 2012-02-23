@@ -22,16 +22,19 @@ namespace tornet {
   void kad_search::start() {
      m_current_results.clear();
      m_cur_status   = searching;
+     slog( "searching for %1% nodes near %2%", m_n, m_target );
      m_search_queue = m_node->find_nodes_near( m_target, m_n );
      m_pending.reserve(m_p);
      for( uint32_t i = 0; i < m_p ; ++i ) {
-        m_pending.push_back( boost::cmt::async<void>( boost::bind( &kad_search::search_thread, shared_from_this() ) ) );
+        m_pending.push_back( m_node->get_thread().async<void>( boost::bind( &kad_search::search_thread, shared_from_this() ) ) );
      }
   }
 
   void kad_search::wait() {
-    for( uint32_t i = 0; i < m_pending.size(); ++i ) 
+    for( uint32_t i = 0; i < m_pending.size(); ++i )  {
+      slog( "waiting... %1%", i );
       m_pending[i].wait();
+    }
   }
 
   /**
@@ -40,9 +43,11 @@ namespace tornet {
    *  canceled.  The search queue is empty once all nodes in the
    *  search path are included in the result set.
    *
-   *
+   *  The search only gets narrower, it does not add nodes further away than the
+   *  farthest result once the maximum number of results have been found.
    */
   void kad_search::search_thread() {
+    slog( "search thread.... queue size %1%", m_search_queue.size() );
     while( m_search_queue.size() && m_cur_status == kad_search::searching ) {
         node::endpoint ep     = m_search_queue.begin()->second;
         node::id_type  nid    = m_search_queue.begin()->first ^ m_target;
@@ -50,18 +55,20 @@ namespace tornet {
         
         try {
           node::id_type  rtn    = m_node->connect_to(ep);
-          if( filter( rtn ) ) {
-              m_current_results[m_target^rtn] = rtn;
-              if( m_current_results.size() > m_n )  {
-                m_current_results.erase( --m_current_results.end() );
-              }
+          slog( "node %1% found at %2%", rtn, ep );
+          filter( rtn );
+          slog( "    adding node %1% to result list", rtn );
+          m_current_results[m_target^rtn] = rtn;
+          if( m_current_results.size() > m_n )  {
+            m_current_results.erase( --m_current_results.end() );
           }
 
           if( rtn == m_target ) {
             m_cur_status = kad_search::done;
-            return;
           }
 
+          if( m_cur_status == kad_search::done )
+            return;
           
           /** Only place the node in the search queue if it is closer than
              the furthest result.   If we are searching for 20 nodes and 
@@ -72,17 +79,29 @@ namespace tornet {
              current 'worst result'.  Otherwise, we are consuming unecesary/redunant 
              bandwidth and ultimately searching almost every node on the network.
           */
-          node::id_type limit;
+          boost::optional<node::id_type> limit;
           if( m_current_results.size() >= m_n && m_n ) {
-            limit = (--m_current_results.end())->first; 
+              slog( "result size %1% > target size %2%", m_current_results.size(), m_n );
+              limit = (--m_current_results.end())->first; 
           }
 
+          slog( "finding %1% nodes known by %2% near target %3% within limit %4%  sqsize: %5%", m_n, rtn, m_target, limit, m_search_queue.size() );
           std::map<node::id_type,node::endpoint> rr = m_node->remote_nodes_near( rtn, m_target, m_n, limit );
           std::map<node::id_type,node::endpoint>::const_iterator rri = rr.begin();
           while( rri != rr.end() ) {
+            // if the node is not in the current results 
             if( m_current_results.find( rri->first ) == m_current_results.end() ) {
-
+              // if current results is not 'full' or the new result is less than the last
+              // current result
+              if( m_current_results.size() < m_n ) {
                 m_search_queue[rri->first] = rri->second;
+              } else { // assume m_current_results.size() > 1 because m_n >= 1
+                std::map<node::id_type,node::id_type>::const_iterator ritr = m_current_results.end();
+                --ritr;
+                if( ritr->first > rri->first ) { // only search the node if it is closer than current results
+                  m_search_queue[rri->first] = rri->second;
+                }
+              }
             }
             ++rri;
           }
@@ -91,16 +110,6 @@ namespace tornet {
           wlog( "%1%", boost::diagnostic_information(e) );
         }
     }
-  }
-
-  /**
-   *  This method can be overloaded by derived classes to perform 
-   *  operations on the node.   By default, it just returns true.
-   *  If results are returned then it returns true, otherwise false.  Only nodes that
-   *  return true are included in the results.
-   */
-  bool kad_search::filter( const node::id_type& id ) {
-    return true;
   }
 
   const scrypt::sha1& kad_search::target()const { return m_target; }

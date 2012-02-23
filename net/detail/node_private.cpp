@@ -232,6 +232,7 @@ namespace tornet { namespace detail {
    *  The connection is responsible for updating the node index that maps ids to active connections.
    */
   void node_private::update_dist_index( const node_private::node_id& nid, connection* c ) {
+    elog( "%1%", nid );
     node_id dist = nid ^ m_id;
     std::map<node_id,connection*>::iterator itr = m_dist_to_con.find(dist);
     if( c ) {
@@ -246,6 +247,10 @@ namespace tornet { namespace detail {
         }
     } else {  // clear the connection
         if( itr != m_dist_to_con.end() ) {
+    //      ep_to_con_map::iterator epitr = m_ep_to_con.find( itr->second->get_endpoint() );
+    //      if( epitr != m_ep_to_con.end() ) { 
+    //        m_ep_to_con.erase(epitr); 
+    //      }
           m_dist_to_con.erase(itr);
         }
     }
@@ -255,11 +260,25 @@ namespace tornet { namespace detail {
                                                                         uint32_t n, const boost::optional<node::id_type>& limit ) {
     std::map<node::id_type,node::endpoint>  near;
     std::map<node_id,connection*>::const_iterator itr =  m_dist_to_con.lower_bound( target ^ m_id );
+    if( itr == m_dist_to_con.end() ) {
+      int c  = 0;
+      while( itr != m_dist_to_con.begin() && c < n){
+        --itr;
+        c++;
+      }
+    }
+
+    wlog( "m_dist_to_con::size %1%  near.size %2%   n: %3%", m_dist_to_con.size(), near.size(), n );
+    if( itr == m_dist_to_con.end() ) {
+      elog( "no nodes closer..." );
+      return near;
+    }
     while( itr != m_dist_to_con.end() && near.size() < n ) {
       node::id_type dist = (itr->first^m_id)^target;
-      if( dist < limit ) {
+      // if( limit != node::id_type() || dist < limit ) {
+      slog( "dist: %1%  target: %2%", dist, target );
         near[ dist  ] = itr->second->get_endpoint();
-      }
+     // }
       ++itr;
     }
     return near;

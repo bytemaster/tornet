@@ -19,6 +19,8 @@ namespace tornet {
    */
   class chunk_search : public kad_search {
     public:
+      typedef boost::shared_ptr<chunk_search> ptr;
+
       chunk_search( const node::ptr& local_node, const scrypt::sha1& target, 
                     uint32_t N, uint32_t P, bool find_near_matches = false  );
 
@@ -26,7 +28,7 @@ namespace tornet {
        *  Ask the node if it has the desired data then it returns true, otherwise
        *  it gets put in the near matches if requested.
        */
-      virtual bool filter( const node::id_type& id );
+      virtual void filter( const node::id_type& id );
 
       /**
        *  How often is this chunk searched for on the network
@@ -39,15 +41,15 @@ namespace tornet {
       uint32_t get_deadend_count()const;
 
       /**
-       *  Nodes close to the chunk that do not host the chunk.
+       *  Nodes close to the chunk that host the chunk
        */
-      const std::map<node::id_type,node::id_type>&  near_matches()const;
+      const std::map<node::id_type,node::id_type>&  hosting_nodes()const { return m_host_results; }
     private:
       bool                                        find_nm; 
       uint32_t                                    deadend_count;
       double                                      avg_qr;
       double                                      qr_weight;
-      std::map<node::id_type, node::id_type>      m_near_results;
+      std::map<node::id_type, node::id_type>      m_host_results;
   };
 
 } // namespace tornet

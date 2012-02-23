@@ -27,6 +27,8 @@ boost::any chunk_service::init_connection( const tornet::rpc::connection::ptr& c
 
     uint16_t mid = 0;
     boost::reflect::visit(acc, service::visitor<chunk_session>(*con, acc, mid) );
+
+    return acc; 
 }
 
 

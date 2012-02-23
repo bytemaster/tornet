@@ -56,12 +56,11 @@ namespace tornet {
    protected:
       /**
        *  This method can be overloaded by derived classes to perform 
-       *  operations on the node.   By default, it will attempt to connect
-       *  and request the nearest nodes to the target.   If results are
-       *  returned then it returns true, otherwise false.  Only nodes that
-       *  return true are included in the results.
+       *  operations on each node in the search path.
+       *  
        */
-      virtual bool filter( const node::id_type& id );
+      virtual void filter( const node::id_type& id ){};
+      void  set_status( status s ) { m_cur_status = s; }
 
       uint32_t m_n;
       uint32_t m_p;

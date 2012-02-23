@@ -20,6 +20,7 @@ int8_t   chunk_session::publish_rank()const {
 }
 
 fetch_response chunk_session::fetch( const chunk_id& cid, int32_t bytes, uint32_t offset  ) {
+  slog( "fetch %1%   bytes: %2%   ofset: %3%", cid, bytes, offset );
   tornet::db::chunk::meta met;
   m_cdb->fetch_meta( cid, met, true );
 
@@ -27,7 +28,11 @@ fetch_response chunk_session::fetch( const chunk_id& cid, int32_t bytes, uint32_
     // TODO: Check for References
     // TODO: Calculate Cost and Bill User Account
     int64_t new_bal = 0;
-    return fetch_response( chunk_session_result::unknown_chunk, new_bal );
+    fetch_response fr( chunk_session_result::unknown_chunk, new_bal );
+    double sec = (met.access_interval()/double(1000000));
+    wlog( "ai: %1% sec  %2% hz query count: %3%", sec, 1.0/sec, met.query_count );
+    fr.query_interval = met.access_interval();
+    return fr;
   }
 
   fetch_response r;
@@ -42,6 +47,7 @@ fetch_response chunk_session::fetch( const chunk_id& cid, int32_t bytes, uint32_
 
   r.balance = new_bal;
   r.result  = chunk_session_result::ok;
+  r.query_interval = met.access_interval();
 
   return r;
 }
