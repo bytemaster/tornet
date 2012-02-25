@@ -37,8 +37,9 @@ connection::connection( detail::node_private& np, const endpoint& ep,
 }
 
 connection::~connection() {
+  elog( "~connection" );
   if( m_peers && m_record.valid() ) {
-    // TODO save the record
+    m_peers->store( m_remote_id, m_record );
   }
 }
 
@@ -195,6 +196,9 @@ bool connection::handle_close_msg( const tornet::buffer& b ) {
 }
 
 void connection::reset() {
+  if( m_peers && m_record.valid() ) {
+    m_peers->store( m_remote_id, m_record );
+  }
   close_channels();
   m_node.update_dist_index( m_remote_id, 0 );
   goto_state(uninit); 
