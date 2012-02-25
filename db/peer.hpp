@@ -73,6 +73,7 @@ namespace tornet { namespace db {
       uint32_t count();
 
       bool fetch_by_endpoint( const peer::endpoint& ep, scrypt::sha1& id, record& m );
+      bool fetch_index( uint32_t recnum, scrypt::sha1& id, record& r );
       bool fetch( const scrypt::sha1& id, record& m );
       bool store( const scrypt::sha1& id, const record& m );
       bool exists( const scrypt::sha1& id );

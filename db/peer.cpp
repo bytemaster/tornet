@@ -288,6 +288,28 @@ namespace tornet { namespace db {
       return false;
   }
 
+  bool peer::fetch_index( uint32_t recnum, scrypt::sha1& id, record& m) {
+    if( &boost::cmt::thread::current() != &my->m_thread ) {
+        return my->m_thread.sync<bool>( boost::bind(&peer::fetch_index, this, recnum, boost::ref(id), boost::ref(m) ) );
+    }
+    db_recno_t rn(recnum);
+    Dbt key( &rn, sizeof(rn) );
+    Dbt val( &rn, sizeof(rn) );
+
+    int rtn = my->m_peer_db->get( 0, &key, &val, DB_SET_RECNO );
+    if( rtn == EINVAL ) {
+      elog( "Invalid DB Query" );
+      return false;
+    }
+    if( rtn != DB_NOTFOUND ) {
+      memcpy((char*)id.hash, key.get_data(), key.get_size() );
+      id = id ^ my->m_node_id;
+      memcpy( &m, val.get_data(), val.get_size() );
+      return true;
+    }
+    wlog( "Unable to find recno %1%", recnum );
+    return false;
+  }
 
 
 
