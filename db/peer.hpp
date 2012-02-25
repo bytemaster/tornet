@@ -23,6 +23,7 @@ namespace tornet { namespace db {
 
         /// Valid of Public Key is not 0
         bool valid()const;
+        scrypt::sha1 id()const;
 
         uint32_t  last_ip;
         uint16_t  last_port;

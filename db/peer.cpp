@@ -16,6 +16,11 @@ namespace tornet { namespace db {
     peer::record tmp;
     return memcmp( tmp.public_key, public_key, sizeof(public_key) ) != 0;
   }
+  scrypt::sha1 peer::record::id()const {
+    scrypt::sha1_encoder enc;
+    enc.write( public_key, sizeof(public_key) );
+    return enc.result();
+  }
 
 
   class peer_private {

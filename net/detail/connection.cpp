@@ -598,6 +598,9 @@ void connection::send_auth() {
                                                                        uint32_t n, const boost::optional<node::id_type>& limit  ) {
     try {                                                                        
       boost::cmt::promise<route_table>::ptr prom( new boost::cmt::promise<route_table>() );
+      using namespace boost::chrono;
+      uint64_t start_time_utc = duration_cast<microseconds>(system_clock::now().time_since_epoch()).count();
+
       route_lookups[ target ] = prom;
 
       std::vector<char> buf( !!limit ? 45 : 25 ); 
@@ -607,9 +610,13 @@ void connection::send_auth() {
       send( &buf.front(), buf.size(), route_lookup_msg );
 
       wlog( "waiting on remote response!\n");
-      const route_table& rt = prom->wait( boost::chrono::seconds(10) );
-      if( route_lookups.find( target ) != route_lookups.end() ) 
-          route_lookups.erase( route_lookups.find( target ) );
+      const route_table& rt = prom->wait( boost::chrono::seconds(5) );
+
+      uint64_t end_time_utc  = duration_cast<microseconds>(system_clock::now().time_since_epoch()).count();
+      elog( "%1% - %2% = %3%", end_time_utc, start_time_utc, (end_time_utc-start_time_utc) );
+      m_record.avg_rtt_us =  (m_record.avg_rtt_us*1 + (end_time_utc-start_time_utc)) / 2;
+
+      assert( route_lookups.end() == route_lookups.find(target) );
       return rt;
     } catch ( const boost::exception& e ) {
       elog( "%1%", boost::diagnostic_information(e) );

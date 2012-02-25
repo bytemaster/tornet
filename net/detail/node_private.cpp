@@ -296,5 +296,16 @@ namespace tornet { namespace detail {
     connection* con = get_connection( remote_id ); 
     return con->find_nodes_near( target, n, limit );
   }
+  std::vector<db::peer::record> node_private::active_peers()const {
+    std::vector<db::peer::record> recs(m_dist_to_con.size());
+    std::map<node_id,connection*>::const_iterator itr = m_dist_to_con.begin();
+    int i = 0;
+    while( itr != m_dist_to_con.end() ) {
+      recs[i] = itr->second->get_db_record();
+      ++i;
+      ++itr;
+    }
+    return recs;
+  }
 
 } } // tornet::detail

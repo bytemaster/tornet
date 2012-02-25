@@ -59,14 +59,24 @@ namespace tornet {
     if( &boost::cmt::thread::current() != &my->get_thread() )
        my->get_thread().async<void>( boost::bind( &node_private::start_service, my, cn, name, cb ) ).wait();
     else
-        my->start_service(cn,name,cb);
+       my->start_service(cn,name,cb);
   }
 
   void node::close_service( uint16_t cn ) {
     if( &boost::cmt::thread::current() != &my->get_thread() )
        my->get_thread().async<void>( boost::bind( &node_private::close_service, my, cn ) ).wait();
     else
-       my->close_service(cn);
+     my->close_service(cn);
+  }
+
+  /**
+   *  Unlike accessing the peer database, this only returns currently
+   *  connected peers and includes data not yet saved in the peer db.
+   */
+  std::vector<db::peer::record> node::active_peers()const {
+    if( &boost::cmt::thread::current() != &my->get_thread() )
+       return my->get_thread().async<std::vector<db::peer::record> >( boost::bind( &node_private::active_peers, my ) ).wait();
+    return  my->active_peers();
   }
 
   /// TODO: Flush status from active connections

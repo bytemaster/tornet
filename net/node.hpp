@@ -25,6 +25,8 @@ namespace tornet {
       node();
       ~node();
 
+      std::vector<db::peer::record> active_peers()const;
+
       const id_type& get_id()const;
 
       boost::cmt::thread& get_thread()const;

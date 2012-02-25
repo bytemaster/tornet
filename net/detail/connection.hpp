@@ -117,6 +117,7 @@ namespace tornet {
             std::map<node_id,endpoint> find_nodes_near( const node_id& target, uint32_t n, const boost::optional<node_id>& limit  );
 
             boost::signal<void(state_enum)> state_changed;
+            const db::peer::record&   get_db_record()const { return m_record; }
         private:
             void  goto_state( state_enum s );
 
@@ -132,7 +133,7 @@ namespace tornet {
 
             typedef std::map<node_id,endpoint> route_table;
 
-            std::map<node_id, boost::cmt::promise<route_table>::ptr > route_lookups;
+            std::map<node_id,boost::cmt::promise<route_table>::ptr> route_lookups;
                 
             
             boost::unordered_map<uint32_t,channel>    m_channels;

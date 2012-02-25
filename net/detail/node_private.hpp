@@ -98,6 +98,7 @@ class node_private {
     connection* get_connection( const node::id_type& remote_id );
 
 
+    std::vector<db::peer::record> active_peers()const;
     boost::shared_ptr<db::peer>                     m_peers;
   private:
     uint16_t get_new_channel_num() { return ++m_next_chan_num; }
