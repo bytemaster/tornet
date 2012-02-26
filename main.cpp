@@ -219,6 +219,10 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
           std::cerr<<"Invalid order '"<<order<<"'\n  options are by_revenue, by_opportunity, by_distance\n";
          }
 
+         if( what == "rank" ) {
+          std::cerr<<"Local Rank: "<< nd->rank()<<std::endl;
+         }
+
          if( what == "local" ) {
           print_chunks( cs->get_local_db(), 0, 0xffffff, o );
          } else if( what == "cache") {
@@ -258,7 +262,13 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
            ss >> tid >> check;
          }
      
-       } else if( cmd == "help" ) {
+       } 
+       else if( cmd == "rankeffort" ) {
+           std::string per;
+           ss >> per;
+           nd->start_rank_search( boost::lexical_cast<double>(per) / 100.0 );
+       }
+       else {
          std::cerr<<"\nCommands:\n";
          std::cerr<<"  import      FILENAME               - loads FILENAME and creates chunks and dumps FILENAME.tornet\n";
          std::cerr<<"  export      TORNET_FILE            - loads TORNET_FILE and saves FILENAME\n";
@@ -268,6 +278,7 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
          std::cerr<<"  show local START LIMIT [by_distance|by_revenue|by_opportunity]\n";
          std::cerr<<"  show cache START LIMIT |by_distance|by_revenue|by_opportunity]\n";
          std::cerr<<"  show users START LIMIT |by_balance|by_rank|...]\n";
+         std::cerr<<"  rankeffort EFFORT                  - percent effort to apply towoard improving rank\n";
          std::cerr<<"  help                               - prints this menu\n\n";
        }
      }

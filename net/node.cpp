@@ -84,4 +84,20 @@ namespace tornet {
     return my->m_peers;
   }
 
+  /**
+   *  Starts a thread looking for nonce's that result in a higher node rank.
+   *
+   *  @param effort - the percent of a thread to apply to this effort.
+   */
+  void node::start_rank_search( double effort ) {
+    my->rank_search_effort = effort;
+    if( !my->rank_search_thread ) {
+      my->rank_search_thread = boost::cmt::thread::create("rank");
+      my->rank_search_thread->async( boost::bind( &node_private::rank_search, my ) );
+    }
+  }
+
+  uint32_t node::rank()const { return my->rank(); }
+
+
 } // namespace tornet

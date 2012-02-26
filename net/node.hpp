@@ -39,6 +39,9 @@ namespace tornet {
        */
       void init( const boost::filesystem::path& ddir, uint16_t port );
 
+      void start_rank_search( double effort = 1 );
+      uint32_t rank()const;
+
       void close();
 
       /**

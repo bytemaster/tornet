@@ -18,7 +18,7 @@ namespace tornet { namespace detail {
   using namespace boost::asio::ip;
 
   node_private::node_private( node& n, boost::cmt::thread& t)
-  :m_node(n), m_thread(t), m_done(false),m_next_chan_num(10000) {
+  :m_node(n), m_thread(t), m_done(false),m_next_chan_num(10000),rank_search_thread(0) {
   
   }
 
@@ -73,11 +73,13 @@ namespace tornet { namespace detail {
       scrypt::generate_keys( m_pub_key,m_priv_key );
       os << m_pub_key << m_priv_key;
       os.write( (char*)m_nonce, sizeof(m_nonce) );
+      os.write( (char*)m_nonce_search, sizeof(m_nonce_search) );
     } else {
       std::ifstream ink;
       ink.open( kf.native().c_str(), std::ios::in | std::ios::binary );
       ink >> m_pub_key >> m_priv_key;
       ink.read( (char*)m_nonce, sizeof(m_nonce) );
+      ink.read( (char*)m_nonce_search, sizeof(m_nonce_search) );
     }
 
     scrypt::sha1_encoder sha; 
@@ -306,6 +308,62 @@ namespace tornet { namespace detail {
       ++itr;
     }
     return recs;
+  }
+
+  uint32_t node_private::rank()const {
+    scrypt::sha1_encoder  rank_sha;
+    rank_sha.write( (char*)m_nonce, sizeof(m_nonce) );
+    rank_sha << m_pub_key;
+    scrypt::sha1 r = rank_sha.result();
+    return 161 - scrypt::bigint( (const char*)r.hash, sizeof(r.hash) ).log2();
+  }
+
+  void node_private::rank_search() {
+    uint64_t nonces[2];
+    nonces[0]= m_nonce_search[0];
+    nonces[1]= m_nonce_search[1];
+    
+    int cur_rank = rank();
+    uint64_t cnt = 0;
+    for( uint64_t i = nonces[0]; i < uint64_t(-1); ++i ) {
+      nonces[0] = i;
+      for( uint64_t n = nonces[1]; n < uint64_t(-1); ++n ) {
+        ++cnt;
+        nonces[1] = n;
+        scrypt::sha1_encoder  rank_sha;
+        rank_sha.write( (char*)nonces, sizeof(nonces) );
+        rank_sha << m_pub_key;
+        scrypt::sha1 r = rank_sha.result();
+        int nrank = 161 - scrypt::bigint( (const char*)r.hash, sizeof(r.hash) ).log2();
+        if( nrank > cur_rank ) {
+          slog( "nonce: %1%  %2%", nonces[0], nonces[1] );
+          slog( "Rank promoted from %1% to %2%", cur_rank, nrank );
+          m_nonce[0] = nonces[0];
+          m_nonce[1] = nonces[1];
+
+          std::ofstream os;
+          os.open( (m_datadir/"identity").native().c_str(), std::ios::out | std::ios::binary );
+          os << m_pub_key << m_priv_key;
+          os.write( (char*)m_nonce, sizeof(m_nonce) );
+
+          cur_rank = nrank;
+        }
+        if( cnt % 1000000 == 0 ) {
+          slog( "%1%   %2%   %3%", i, double(i)/(uint64_t(-1)), n  );
+          std::ofstream os;
+          os.open( (m_datadir/"identity").native().c_str(), std::ios::out | std::ios::binary );
+          os << m_pub_key << m_priv_key;
+          os.write( (char*)m_nonce, sizeof(m_nonce) );
+          os.write( (char*)m_nonce_search, sizeof(m_nonce_search) );
+          m_nonce_search[0] = nonces[0];
+          m_nonce_search[1] = nonces[1];
+          
+          boost::cmt::usleep(1000);
+          // sleep an appropriate fraction to maintain desired level of effort
+        }
+      }
+      nonces[1] = 0;
+    }
   }
 
 } } // tornet::detail

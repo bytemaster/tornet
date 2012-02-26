@@ -6,6 +6,7 @@
 #include <boost/cmt/future.hpp>
 
 #include <scrypt/scrypt.hpp>
+#include <scrypt/bigint.hpp>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/member.hpp>
@@ -100,11 +101,17 @@ class node_private {
 
     std::vector<db::peer::record> active_peers()const;
     boost::shared_ptr<db::peer>                     m_peers;
+    boost::cmt::thread*                             rank_search_thread;
+    double                                          rank_search_effort;
+
+    uint32_t rank()const;
+    void     rank_search();
   private:
     uint16_t get_new_channel_num() { return ++m_next_chan_num; }
     node&                                           m_node;
     boost::cmt::thread&                             m_thread;
     bool                                            m_done;
+
 
     uint16_t                                        m_next_chan_num;
 
@@ -112,6 +119,7 @@ class node_private {
     scrypt::sha1                                    m_id; // sha1(m_pub_key)
     boost::cmt::future<void>                        m_rl_complete;
     uint64_t                                        m_nonce[2];
+    uint64_t                                        m_nonce_search[2];
     scrypt::public_key_t                            m_pub_key;
     scrypt::private_key_t                           m_priv_key;
     ep_to_con_map                                   m_ep_to_con;    
