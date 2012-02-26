@@ -53,7 +53,8 @@ namespace tornet {
               auth_resp_msg      = 2,
               route_lookup_msg   = 3,
               route_msg          = 4,
-              close_msg          = 5
+              close_msg          = 5,
+              update_rank        = 6
             };
 
             typedef boost::shared_ptr<connection> ptr;
@@ -97,12 +98,14 @@ namespace tornet {
             bool handle_close_msg( const tornet::buffer& b );
             bool handle_lookup_msg( const tornet::buffer& b );
             bool handle_route_msg( const tornet::buffer& b );
+            bool handle_update_rank_msg( const tornet::buffer& b );
 
             void generate_dh();
             bool process_dh( const tornet::buffer& b );
             void send_dh();
             void send_auth();
             void send_auth_response(bool);
+            void send_update_rank();
 
             void close_channel( const channel& c );
             void send_close();

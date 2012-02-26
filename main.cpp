@@ -5,6 +5,7 @@
 #include <boost/exception/all.hpp>
 #include <tornet/db/peer.hpp>
 #include <boost/cmt/asio.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <tornet/net/node.hpp>
 #include <tornet/net/udt_channel.hpp>
 #include <tornet/services/calc.hpp>
@@ -112,12 +113,15 @@ void print_record_header() {
              <<std::setw(40) <<"ID"<<" "
              <<std::setw(10) <<"Dist"<<" "
              <<std::setw(5)  <<"Rank"<<" "
+             <<std::setw(5)  <<"PRank"<<" "
              <<std::setw(8)  <<"% Avail"<<" "
              <<std::setw(8)  <<"RTT(us)"<<" "
              <<std::setw(10) <<"EstB(B/s)"<<" "
              <<std::setw(10) <<"SentC"<<" "
              <<std::setw(10) <<"RecvC"<<" "
              <<std::setw(3)  <<"FW"<<" "
+             <<std::setw(30) <<"First Contact"<<" "
+             <<std::setw(30) <<"Last Contact"<<" "
              <<std::setw(10) <<"nonce[0]"<<" "
              <<std::setw(10) <<"nonce[1]"<<" "
              <<std::endl;
@@ -133,18 +137,30 @@ int calc_dist( const scrypt::sha1& d ) {
   return ((bi * scrypt::bigint( 1000 )) / max).to_int64();
 }
 
+
+boost::posix_time::ptime to_system_time( uint64_t utc_us ) {
+//    typedef boost::chrono::microseconds duration_t;
+//    typedef duration_t::rep rep_t;
+//    rep_t d = boost::chrono::duration_cast<duration_t>(t.time_since_epoch()).count();
+    static boost::posix_time::ptime epoch(boost::gregorian::date(1970, boost::gregorian::Jan, 1));
+    return epoch + boost::posix_time::seconds(long(utc_us/1000000)) + boost::posix_time::microseconds(long(utc_us%1000000));
+}
+
 void print_record( const tornet::db::peer::record& rec, const tornet::node::ptr& nd ) {
   std::cerr<< std::setw(21) 
            << (boost::asio::ip::address_v4(rec.last_ip).to_string()+":"+boost::lexical_cast<std::string>(rec.last_port))<<" "
            << rec.id() << " "
            << std::setw(10)  << calc_dist(rec.id() ^ nd->get_id()) << " "
            << std::setw(5)   << int(rec.rank) << " "
+           << std::setw(5)   << int(rec.published_rank) << " "
            << std::setw(8)   << double(rec.availability) / uint16_t(0xffff) <<" "
            << std::setw(8)   << (rec.avg_rtt_us) <<" "
            << std::setw(10)  << rec.est_bandwidth << " "
            << std::setw(10)  << rec.sent_credit << " "
            << std::setw(10)  << rec.recv_credit << " "
            << std::setw(3)   << (rec.firewalled ? 'Y' : 'N') << " "
+           << std::setw(30)  << boost::posix_time::to_simple_string(to_system_time( rec.first_contact )) <<" "
+           << std::setw(30)  << boost::posix_time::to_simple_string(to_system_time( rec.last_contact ))  <<" "
            << std::setw(10)  << (rec.nonce[0]) << " " << std::setw(10) << (rec.nonce[1]) << " "
            << std::endl;
 }

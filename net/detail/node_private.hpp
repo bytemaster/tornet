@@ -113,6 +113,7 @@ class node_private {
     bool                                            m_done;
 
 
+    uint8_t                                         m_rank;
     uint16_t                                        m_next_chan_num;
 
     boost::filesystem::path                         m_datadir;

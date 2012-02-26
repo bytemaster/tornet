@@ -18,7 +18,7 @@ namespace tornet { namespace detail {
   using namespace boost::asio::ip;
 
   node_private::node_private( node& n, boost::cmt::thread& t)
-  :m_node(n), m_thread(t), m_done(false),m_next_chan_num(10000),rank_search_thread(0) {
+  :m_node(n), m_thread(t), m_done(false),m_next_chan_num(10000),rank_search_thread(0),m_rank(0) {
   
   }
 
@@ -80,6 +80,12 @@ namespace tornet { namespace detail {
       ink >> m_pub_key >> m_priv_key;
       ink.read( (char*)m_nonce, sizeof(m_nonce) );
       ink.read( (char*)m_nonce_search, sizeof(m_nonce_search) );
+
+      scrypt::sha1_encoder  rank_sha;
+      rank_sha.write( (char*)m_nonce, sizeof(m_nonce) );
+      rank_sha << m_pub_key;
+      scrypt::sha1 r = rank_sha.result();
+      m_rank = 161 - scrypt::bigint( (const char*)r.hash, sizeof(r.hash) ).log2();
     }
 
     scrypt::sha1_encoder sha; 
@@ -311,11 +317,7 @@ namespace tornet { namespace detail {
   }
 
   uint32_t node_private::rank()const {
-    scrypt::sha1_encoder  rank_sha;
-    rank_sha.write( (char*)m_nonce, sizeof(m_nonce) );
-    rank_sha << m_pub_key;
-    scrypt::sha1 r = rank_sha.result();
-    return 161 - scrypt::bigint( (const char*)r.hash, sizeof(r.hash) ).log2();
+    return m_rank;
   }
 
   void node_private::rank_search() {
@@ -347,8 +349,9 @@ namespace tornet { namespace detail {
           os.write( (char*)m_nonce, sizeof(m_nonce) );
 
           cur_rank = nrank;
+          m_rank   = nrank;
         }
-        if( cnt % 1000000 == 0 ) {
+        if( cnt % 100000000ll == 0 ) {
           slog( "%1%   %2%   %3%", i, double(i)/(uint64_t(-1)), n  );
           std::ofstream os;
           os.open( (m_datadir/"identity").native().c_str(), std::ios::out | std::ios::binary );

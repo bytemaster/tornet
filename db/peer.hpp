@@ -39,7 +39,8 @@ namespace tornet { namespace db {
         uint32_t  buddy_ip;    // public, non-firewalled ip of buddy 
         uint16_t  buddy_port;      
         char      connected;
-        uint8_t   rank;
+        uint8_t   rank;           // the rank of this node
+        uint8_t   published_rank; // the rank last sent to this node of my node
         char      public_key[256];
         char      bf_key[56];
         char      recv_btc[40]; // address to recv money from node id

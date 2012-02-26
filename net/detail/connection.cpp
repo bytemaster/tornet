@@ -182,11 +182,32 @@ void connection::handle_connected( const tornet::buffer& b ) {
 bool connection::handle_auth_resp_msg( const tornet::buffer& b ) {
   wlog("auth response %1%", int(b[0]) );
   if( b[0] ) { 
+    m_record.published_rank = uint8_t(b[0]);
     goto_state( connected ); 
     return true; 
   }
   reset();
   return false;
+}
+
+bool connection::handle_update_rank_msg( const tornet::buffer& b ) {
+  if( b.size() < 2*sizeof(uint64_t) ) {
+    elog( "update rank message is too small" );
+    return false;
+  }
+  scrypt::sha1_encoder  rank_sha;
+  rank_sha.write( (char*)b.data(), 2*sizeof(uint64_t) );
+  rank_sha.write( m_record.public_key, sizeof(m_record.public_key) );
+  scrypt::sha1 r = rank_sha.result();
+  uint8_t new_rank = 161 - scrypt::bigint( (const char*)r.hash, sizeof(r.hash) ).log2();
+  if( new_rank > m_record.rank ) {
+    m_record.rank = new_rank;
+    memcpy( (char*)m_record.nonce, b.data(), 2*sizeof(uint64_t) );
+    send_auth_response(true);
+    slog( "Received rank update for %1% to %2%", m_remote_id, int(m_record.rank) );
+    m_peers->store( m_remote_id, m_record );
+  }
+  return true;
 }
 
 bool connection::handle_close_msg( const tornet::buffer& b ) {
@@ -209,12 +230,26 @@ void connection::send_close() {
   char resp = 1;
   send( &resp, sizeof(resp), close_msg );
 }
+
+/**
+ *  Return the received rank
+ */
 void connection::send_auth_response(bool r ) {
-  char resp = r;
-  send( &resp, sizeof(resp), auth_resp_msg );
+  if( !r ) {
+      char resp = r;
+      send( &resp, sizeof(resp), auth_resp_msg );
+  } else {
+      send( (char*)&m_record.rank, sizeof(m_record.rank), auth_resp_msg );
+  }
+}
+
+void connection::send_update_rank() {
+  send( (char*)m_node.nonce(), 2*sizeof(uint64_t), update_rank );
 }
 
 bool connection::decode_packet( const tornet::buffer& b ) {
+    m_record.last_contact = duration_cast<microseconds>(system_clock::now().time_since_epoch()).count();
+
     m_bf->reset_chain();
     m_bf->decrypt( (unsigned char*)b.data(), b.size(), scrypt::blowfish::CBC );
 
@@ -235,6 +270,7 @@ bool connection::decode_packet( const tornet::buffer& b ) {
       case route_lookup_msg: return handle_lookup_msg( b.subbuf(4,b.size()-4-pad) );
       case route_msg:        return handle_route_msg( b.subbuf(4,b.size()-4-pad) );
       case close_msg:        return handle_close_msg( b.subbuf(4,b.size()-4-pad) );  
+      case update_rank:      return handle_update_rank_msg( b.subbuf(4,b.size()-4-pad) );  
       default:
         wlog( "Unknown message type" );
     }
@@ -353,7 +389,6 @@ bool connection::handle_auth_msg( const tornet::buffer& b ) {
       return false;
     } else {
       slog( "Authenticated!" );
-      send_auth_response(true);
 
       scrypt::sha1_encoder pkds; pkds << pubk;
       set_remote_id( pkds.result() );
@@ -369,7 +404,8 @@ bool connection::handle_auth_msg( const tornet::buffer& b ) {
       m_record.last_port = m_remote_ep.port();
 
       uint64_t utc_us = duration_cast<microseconds>(system_clock::now().time_since_epoch()).count();
-      if( !m_record.first_contact ) m_record.first_contact = utc_us;
+      if( !m_record.first_contact ) 
+        m_record.first_contact = utc_us;
       m_record.last_contact = utc_us;
 
       scrypt::sha1_encoder  rank_sha;
@@ -377,6 +413,8 @@ bool connection::handle_auth_msg( const tornet::buffer& b ) {
       rank_sha << pubk;
       scrypt::sha1 r = rank_sha.result();
       m_record.rank = 161 - scrypt::bigint( (const char*)r.hash, sizeof(r.hash) ).log2();
+
+      send_auth_response(true);
 
       m_peers->store( m_remote_id, m_record );
 
@@ -601,6 +639,9 @@ void connection::send_auth() {
   std::map<node::id_type, node::endpoint> connection::find_nodes_near( const node::id_type& target, 
                                                                        uint32_t n, const boost::optional<node::id_type>& limit  ) {
     try {                                                                        
+      if( m_record.published_rank < m_node.rank() )
+        send_update_rank();
+
       boost::cmt::promise<route_table>::ptr prom( new boost::cmt::promise<route_table>() );
       using namespace boost::chrono;
       uint64_t start_time_utc = duration_cast<microseconds>(system_clock::now().time_since_epoch()).count();
