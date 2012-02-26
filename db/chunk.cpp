@@ -176,13 +176,13 @@ namespace tornet { namespace db {
   :m_thread(t), m_node_id(node_id), m_envdir(envdir), m_env(0), m_chunk_db(0), m_meta_db(0)
   {
   }
-    static int compare_i64(Db *db, const Dbt *key1, const Dbt *key2) {
-      int64_t* _k1 = (int64_t*)(key1->get_data());
-      int64_t* _k2 = (int64_t*)(key2->get_data());
-      if( *_k1 > *_k2 ) return 1;
-      if( *_k1 == *_k2 ) return 0;
-      return -1;
-    }
+  int compare_i64(Db *db, const Dbt *key1, const Dbt *key2) {
+    int64_t* _k1 = (int64_t*)(key1->get_data());
+    int64_t* _k2 = (int64_t*)(key2->get_data());
+    if( *_k1 > *_k2 ) return 1;
+    if( *_k1 == *_k2 ) return 0;
+    return -1;
+  }
 
   void chunk::init() {
     if( &boost::cmt::thread::current() != &my->m_thread ) {
