@@ -190,8 +190,9 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
          ss >> tid >> check;
          cs->export_tornet( scrypt::sha1(tid), scrypt::sha1(check) );
        } else if( cmd == "publish" ) {
-         std::string infile;
-         ss >> infile;
+         std::string tid, check;
+         ss >> tid >> check;
+         cs->publish_tornet( scrypt::sha1(tid), scrypt::sha1(check), 3 );
        } else if( cmd == "find" ) {
          std::string tid;
          ss >> tid;
@@ -260,6 +261,25 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
             for( uint32_t i =0; i < recs.size(); ++i ) {
               print_record( recs[i], nd );
             }
+         } else if( what == "publish" ) {
+            uint32_t cnt = cs->get_publish_db()->count(); 
+            tornet::db::publish::record rec;
+            scrypt::sha1                id;
+            std::cerr<< std::setw(40) << "ID" << " "
+                     << std::setw(10) << "AI" << " "
+                     << std::setw(10) << "Next" << " "
+                     << std::setw(10) << "Hosts" << " "
+                     << std::setw(10) << "Desired Hosts" << "\n";
+            std::cerr<<"-----------------------------------------------------------------------------\n";
+            for( uint32_t i = 1; i <= cnt; ++i ) {
+              cs->get_publish_db()->fetch_index( i, id, rec );
+              std::cerr << id << " " 
+                        << std::setw(10) << rec.access_interval << " " 
+                        << std::setw(10) << (rec.next_update == 0 ? std::string("now") : boost::posix_time::to_simple_string( to_system_time( rec.next_update ) )) << " "
+                        << std::setw(5)  << rec.host_count << " " 
+                        << std::setw(5)  << rec.desired_host_count << std::endl;
+            }
+         
          } else if( what == "users" ) {
             print_record_header();
             tornet::db::peer::ptr p = nd->get_peers();

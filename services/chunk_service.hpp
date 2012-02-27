@@ -1,6 +1,7 @@
 #ifndef _CHUNK_SERVICE_HPP_
 #define _CHUNK_SERVICE_HPP_
 #include <tornet/db/chunk.hpp>
+#include <tornet/db/publish.hpp>
 #include <tornet/rpc/service.hpp>
 #include <boost/reflect/reflect.hpp>
 
@@ -59,8 +60,9 @@ class chunk_service : public tornet::rpc::service {
                      const tornet::node::ptr& node, const std::string& name, uint16_t port,
                      boost::cmt::thread* t = &boost::cmt::thread::current() );
 
-      boost::shared_ptr<tornet::db::chunk>&  get_cache_db(){ return m_cache_db; }
-      boost::shared_ptr<tornet::db::chunk>&  get_local_db(){ return m_local_db; }
+      boost::shared_ptr<tornet::db::chunk>&    get_cache_db()  { return m_cache_db; }
+      boost::shared_ptr<tornet::db::chunk>&    get_local_db()  { return m_local_db; }
+      boost::shared_ptr<tornet::db::publish>&  get_publish_db(){ return m_pub_db;   }
 
       /**
        *  Loads infile from disk, creates a tornet file and returns the tornet_id and thechecksum.
@@ -78,13 +80,14 @@ class chunk_service : public tornet::rpc::service {
      
       void fetch_tornet( const scrypt::sha1& tornet_id, const scrypt::sha1& checksum, tornet_file& f );
 
-      void publish_tornet( const scrypt::sha1& tornet_id, const scrypt::sha1& checksum );
+      void publish_tornet( const scrypt::sha1& tornet_id, const scrypt::sha1& checksum, uint32_t rep = 3 );
 
     protected:
       virtual boost::any init_connection( const tornet::rpc::connection::ptr& con );
 
-      boost::shared_ptr<tornet::db::chunk>  m_cache_db;
-      boost::shared_ptr<tornet::db::chunk>  m_local_db;
+      boost::shared_ptr<tornet::db::chunk>    m_cache_db;
+      boost::shared_ptr<tornet::db::chunk>    m_local_db;
+      boost::shared_ptr<tornet::db::publish>  m_pub_db;
 };
 
 #endif

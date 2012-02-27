@@ -5,6 +5,7 @@
 #include <boost/filesystem/path.hpp>
 #include <boost/asio.hpp>
 #include <tornet/db/peer.hpp>
+#include <tornet/db/publish.hpp>
 
 namespace tornet {
   namespace detail { class node_private; }

@@ -101,6 +101,7 @@ class node_private {
 
     std::vector<db::peer::record> active_peers()const;
     boost::shared_ptr<db::peer>                     m_peers;
+    boost::shared_ptr<db::publish>                  m_publish_db;
     boost::cmt::thread*                             rank_search_thread;
     double                                          rank_search_effort;
 

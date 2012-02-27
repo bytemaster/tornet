@@ -97,6 +97,7 @@ namespace tornet {
     }
   }
 
+
   uint32_t node::rank()const { return my->rank(); }
 
 

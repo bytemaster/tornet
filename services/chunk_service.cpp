@@ -18,6 +18,8 @@ chunk_service::chunk_service( const boost::filesystem::path& dbdir, const tornet
     m_cache_db->init();
     m_local_db = boost::make_shared<tornet::db::chunk>( node->get_id(), dbdir/"local_db" );
     m_local_db->init();
+    m_pub_db = boost::make_shared<tornet::db::publish>( dbdir/"publish_db" );
+    m_pub_db->init();
 }
 
 
@@ -219,16 +221,33 @@ void chunk_service::fetch_tornet( const scrypt::sha1& tornet_id, const scrypt::s
 /**
  *  This method should fetch the tornet file from local storage and then decode the chunks.
  *
- *  To publish a chunk the chunk service needs to remember every node known to host that
- *  chunk and needs to 'check' every so often to see how available (and popular) a particular
- *  chunk is on the network.  If a particular chunk is not as available as desired then
- *  this node needs to push the chunk out to other nodes.
+ *  To publish a chunk search for the N nearest nodes and track the availability of that
+ *  chunk.  If less than the desired number of hosts are found, then pick the host closest
+ *  to the chunk and upload a copy.  If the desired number of hosts are found simply note
+ *  the popularity of that chunk and schedule a time to check again.
  *
  *
  *
  */
-void chunk_service::publish_tornet( const scrypt::sha1& tid, const scrypt::sha1& cs ) {
-
+void chunk_service::publish_tornet( const scrypt::sha1& tid, const scrypt::sha1& cs, uint32_t rep ) {
+  tornet_file tf;
+  fetch_tornet( tid, cs, tf );
+  for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
+    //if( !m_local_db->exists(tf.chunks[i]) && !m_cache_db->exists(tf.chunks[i] ) ) {
+    //  TORNET_THROW( "Unable to publish tornet file because not all chunks are known to this node." );
+    //  // TODO: Should we publish the parts we know?  Should we attempt to fetch the parts we don't?
+   // }
+    tornet::db::publish::record rec;
+    m_pub_db->fetch( tf.chunks[i].id, rec );
+    rec.desired_host_count = rep;
+    rec.next_update        = 0;
+    m_pub_db->store( tf.chunks[i].id, rec );
+  }
+  tornet::db::publish::record rec;
+  m_pub_db->fetch( tid, rec );
+  rec.desired_host_count = rep;
+  rec.next_update        = 0;
+  m_pub_db->store( tid, rec );
 }
 
 #if 0

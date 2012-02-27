@@ -95,6 +95,8 @@ namespace tornet { namespace detail {
     // load peers
     m_peers = boost::make_shared<db::peer>( m_id, datadir/"peers" );
     m_peers->init();
+    m_publish_db = boost::make_shared<db::publish>( datadir/"publish_db" );
+    m_publish_db->init();
 
     listen(port);
   }
