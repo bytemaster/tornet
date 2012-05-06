@@ -115,6 +115,7 @@ namespace tornet {
             void send( const char* c, uint32_t l, proto_message_type t ); 
 
             void add_channel( const channel& c );
+            channel find_channel( uint16_t remote_chan_num )const;
 
 
             std::map<node_id,endpoint> find_nodes_near( const node_id& target, uint32_t n, const boost::optional<node_id>& limit  );

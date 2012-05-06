@@ -37,10 +37,10 @@ namespace tornet {
     return my->connect_to(ep);
   }
 
-  channel node::open_channel( const id_type& node_id, uint16_t remote_chan_num ) {
+  channel node::open_channel( const id_type& node_id, uint16_t remote_chan_num, bool share ) {
     if( &boost::cmt::thread::current() != &my->get_thread() )
-      return my->get_thread().async<channel>( boost::bind( &node_private::open_channel, my, node_id, remote_chan_num ) ).wait();
-    return my->open_channel( node_id, remote_chan_num );
+      return my->get_thread().async<channel>( boost::bind( &node_private::open_channel, my, node_id, remote_chan_num, share ) ).wait();
+    return my->open_channel( node_id, remote_chan_num, share );
   }
 
   std::map<node::id_type,node::endpoint> node::find_nodes_near( const node::id_type& target, uint32_t n, const boost::optional<node::id_type>& limit ) {

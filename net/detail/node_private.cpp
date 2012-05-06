@@ -185,10 +185,16 @@ namespace tornet { namespace detail {
   /**
    *  Find a connection for node id, create a channel and return it.
    */
-  channel node_private::open_channel( const node_id& nid, uint16_t remote_chan_num ) {
+  channel node_private::open_channel( const node_id& nid, uint16_t remote_chan_num, bool share ) {
     node_id dist = nid ^ m_id;
     std::map<node_id,connection*>::iterator itr = m_dist_to_con.find( dist );
     if( itr != m_dist_to_con.end() ) { 
+      if( share ) {
+        channel ch = itr->second->find_channel( remote_chan_num );
+        if( ch ) 
+          return ch;
+      }
+      
       channel ch( itr->second->shared_from_this(),  remote_chan_num, get_new_channel_num() ); 
       itr->second->add_channel(ch);
       return ch;

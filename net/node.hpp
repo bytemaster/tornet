@@ -77,10 +77,11 @@ namespace tornet {
        *  @param node_id     - the ID of the node that we wish to connect to.
        *  @param remote_port - the port the remote host is listening for incoming 
        *                       connections.  @ref listen
+       *  @param 
        *
        *  Throws if unable to resolve or connect to node_id
        */
-      channel open_channel( const id_type& node_id, uint16_t remote_chan_num );
+      channel open_channel( const id_type& node_id, uint16_t remote_chan_num, bool share = true );
 
       /**
        *  Every time a new channel is created to this node_chan_num, @param on_new_channel is called.

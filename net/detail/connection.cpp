@@ -625,6 +625,15 @@ void connection::send_auth() {
     m_channels.clear();
   }
 
+  channel connection::find_channel( uint16_t remote_channel_num )const {
+      boost::unordered_map<uint32_t,channel>::const_iterator itr= m_channels.begin();
+      while( itr != m_channels.end() ) {
+        if( itr->first & 0xffff == remote_channel_num )
+          return itr->second;
+        ++itr;
+      }
+      return channel();
+  }
   void connection::add_channel( const channel& ch ) {
     uint32_t k = (uint32_t(ch.local_channel_num()) << 16) | ch.remote_channel_num();
     m_channels[k] = ch;

@@ -60,7 +60,7 @@ class node_private {
             
     void    listen( uint16_t p );
     void    read_loop();
-    channel open_channel( const node_id& node_id, uint16_t remote_chan_num );
+    channel open_channel( const node_id& node_id, uint16_t remote_chan_num, bool share );
     void    close_service(uint16_t p);
     channel create_channel( const connection::ptr&, uint16_t rcn, uint16_t lcn );
 
