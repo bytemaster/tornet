@@ -345,7 +345,9 @@ void start_services( int argc, char** argv ) {
 
       if( vm.count("help") ) {
           std::cout << desc << std::endl;
+          QCoreApplication::exit(1);
           exit(1);
+          return;
       }
       
       tornet::node::ptr node(new tornet::node() );
@@ -354,7 +356,7 @@ void start_services( int argc, char** argv ) {
       
       tornet::rpc::service::ptr        srv( new tornet::service::calc_service( node, "rpc", 101 ) );
       chunk_service::ptr               cs(  new chunk_service( data_dir+"/chunks", node, "chunks", 100 ) );
-      tornet::service::accounting::ptr as(  new tornet::service::accounting( data_dir + "/accounting", node, "accounting", 69 ) );
+  //    tornet::service::accounting::ptr as(  new tornet::service::accounting( data_dir + "/accounting", node, "accounting", 69 ) );
 
       new boost::thread( boost::bind( cli, cs, node ) );
 
@@ -419,9 +421,6 @@ void start_services( int argc, char** argv ) {
             wlog( "Unable to connect to node %1%, %2%", init_connections[i], boost::diagnostic_information(e) ) ;
         }
       }
-
-
-
     //  boost::cmt::wait( quit_signal );
     wlog( "exec... " );
       boost::cmt::exec();
@@ -445,19 +444,17 @@ int main( int argc, char** argv ) {
   signal( SIGINT, handle_sigint );
   boost::cmt::thread::current().set_name("main");
   try { 
-      //boost::shared_ptr<tornet::db::chunk> c( new tornet::db::chunk( scrypt::sha1(), boost::filesystem::path(data_dir)/"chunks" ) );
-      //c->init();
       boost::cmt::thread* sthread = boost::cmt::thread::create("service");
-      sthread->async( boost::bind(&start_services,argc,argv) );
+      QApplication* app = new QApplication(argc, argv);
 
-      QApplication app(argc, argv);
-      app.exec();
+      sthread->async( boost::bind(&start_services,argc,argv) );
+      app->exec();
+
       //quit_signal();
       slog( "wating for services to clean up" );
       sthread->quit();
-//      wlog( "wait for services..." );
+      wlog( "wait for services..." );
 //      usleep(1000*1000);
-      slog( "Application quit... closing databases" );
   } catch ( const boost::exception& e ) {
     elog( "%1%", boost::diagnostic_information(e)  );
     return -1;
