@@ -282,19 +282,16 @@ bool connection::decode_packet( const tornet::buffer& b ) {
 bool connection::handle_lookup_msg( const tornet::buffer& b ) {
   node_id target; uint32_t num; uint8_t l=0; node_id limit;
   {
-  tornet::rpc::datastream<const char*> ds(b.data(), b.size() );
-  ds >> target >> num >> l;
-  slog( "Lookup %1% near %2%  l: %3%", num, target, int(l) );
-  if( l ) ds >> limit;
+      tornet::rpc::datastream<const char*> ds(b.data(), b.size() );
+      ds >> target >> num >> l;
+      slog( "Lookup %1% near %2%  l: %3%", num, target, int(l) );
+      if( l ) ds >> limit;
   }
-  slog( "Lookup %1% near %2%", num, target );
-
   std::map<node_id, endpoint> r = m_node.find_nodes_near( target, num, limit );
   std::vector<char> rb; rb.resize(2048);
 
   num = r.size();
   
-  slog( "r.size: %1%", r.size() );
   tornet::rpc::datastream<char*> ds(rb.data(), rb.size() );
   std::map<node_id, endpoint>::iterator itr = r.begin();
   ds << target << num;
@@ -303,8 +300,6 @@ bool connection::handle_lookup_msg( const tornet::buffer& b ) {
     ds << itr->first << uint32_t(itr->second.address().to_v4().to_ulong()) << uint16_t(itr->second.port());
     ++itr;
   }
-  
-  slog( "ds.tellp %1%", ds.tellp() );
   send( &rb.front(), ds.tellp(), route_msg );
 
   return true;
