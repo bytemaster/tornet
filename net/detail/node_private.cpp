@@ -200,7 +200,7 @@ namespace tornet { namespace detail {
       return ch;
     } 
 
-    // Start KAD search for the specified node
+    // TODO: ?? Start KAD search for the specified node
 /*
     connection::ptr con = kad_find( nid );
     if( con ) {

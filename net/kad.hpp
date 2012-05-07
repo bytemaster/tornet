@@ -37,7 +37,7 @@ namespace tornet {
 
       void   start();
       void   cancel();
-      void   wait();
+      void   wait( const boost::chrono::microseconds& s = boost::chrono::microseconds::max() );
       const scrypt::sha1& target()const;
 
       status get_status()const;
@@ -46,6 +46,8 @@ namespace tornet {
        *  Returns a map of 'distance-to-target' to 'node_id'.  This map is updated every time
        *  new results are returned.  If the target is found, it will be the first item in
        *  the map.  
+       *
+       *  TODO: Document the thread this update occurs in... 
        */
       const std::map<node::id_type,node::id_type>&  current_results()const {
         return m_current_results;

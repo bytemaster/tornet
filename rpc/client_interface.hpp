@@ -50,7 +50,7 @@
             m_ci           = ci;
           }
           protected:
-            uint16_t             m_method_id;
+            uint16_t                  m_method_id;
             tornet::rpc::client_base* m_ci;
         };
       }

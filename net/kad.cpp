@@ -30,10 +30,18 @@ namespace tornet {
      }
   }
 
-  void kad_search::wait() {
-    for( uint32_t i = 0; i < m_pending.size(); ++i )  {
-      slog( "waiting... %1%", i );
-      m_pending[i].wait();
+  void kad_search::wait( const boost::chrono::microseconds& d ) {
+    if( d == boost::chrono::microseconds::max() ) { 
+        for( uint32_t i = 0; i < m_pending.size(); ++i )  {
+          slog( "waiting... %1%", i );
+          m_pending[i].wait();
+        }
+    } else {
+        boost::chrono::system_clock::time_point timeout_time = boost::chrono::system_clock::now() + d;
+        for( uint32_t i = 0; i < m_pending.size(); ++i )  {
+          slog( "waiting... %1%", i );
+          m_pending[i].wait_until( timeout_time );
+        }
     }
   }
 
@@ -56,6 +64,8 @@ namespace tornet {
         try {
           node::id_type  rtn    = m_node->connect_to(ep);
           slog( "node %1% found at %2%", rtn, ep );
+
+          // This filter may involve RPC calls.... 
           filter( rtn );
           slog( "    adding node %1% to result list", rtn );
           m_current_results[m_target^rtn] = rtn;

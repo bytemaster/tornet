@@ -37,9 +37,9 @@ namespace tornet { namespace rpc {
 
           switch( msg.type ) {
             case message::notice: handle_notice(msg); return;
-            case message::call:   handle_call(msg); return;
+            case message::call:   handle_call(msg);   return;
             case message::result: handle_result(msg); return;
-            case message::error:  handle_error(msg); return;
+            case message::error:  handle_error(msg);  return;
             default: 
               wlog( "invalid message type %1%", int( msg.type ) );
           };

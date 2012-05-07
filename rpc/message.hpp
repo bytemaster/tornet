@@ -13,8 +13,8 @@ namespace tornet { namespace rpc {
       result = 3,
       error  = 4
     };
-    uint16_t          id;
-    uint8_t           type;
+    uint16_t          id;   ///< Return Code / Reference Number
+    uint8_t           type; 
     unsigned_int      method_id;
     std::vector<char> data;
   };

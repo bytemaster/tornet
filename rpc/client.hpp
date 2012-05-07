@@ -15,7 +15,8 @@ namespace tornet { namespace rpc {
    *          connection object without having to iterate over the methods again.
    */
   template<typename InterfaceType>
-  class client : public boost::reflect::any_ptr<InterfaceType, tornet::rpc::client_interface>, public client_base {
+  class client : public boost::reflect::any_ptr<InterfaceType, tornet::rpc::client_interface>, 
+                 public client_base {
     public:
       typedef boost::shared_ptr<client>   ptr;
 
