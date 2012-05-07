@@ -97,6 +97,20 @@ namespace tornet {
     }
   }
 
+  void        node::cache_object( const id_type& node_id, const std::string& key, const boost::any& v ) {
+    if( &boost::cmt::thread::current() != &my->get_thread() ) {
+       my->get_thread().async<void>( boost::bind( &node_private::cache_object, my, node_id, key, v ) ).wait();
+    } else {
+       my->cache_object( node_id, key, v );
+    }
+  }
+  boost::any  node::get_cached_object( const id_type& node_id, const std::string& key )const {
+    if( &boost::cmt::thread::current() != &my->get_thread() ) {
+       return my->get_thread().async<boost::any>( boost::bind( &node_private::get_cached_object, my, node_id, key ) ).wait();
+    } else {
+       return my->get_cached_object( node_id, key );
+    }
+  }
 
   uint32_t node::rank()const { return my->rank(); }
 

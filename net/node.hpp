@@ -15,6 +15,14 @@ namespace tornet {
    *
    *  @brief Hosts services and manages connections to other nodes.
    *
+   *  The node class is application / protocol neutral dealing only with data 
+   *  channels.  
+   *
+   *  Often it is necessary to associate data and objects with a particular node 
+   *  that share the lifetime of the node connection.  Instead of having multiple
+   *  databases that must sychronize scope, the node provides a generic method of
+   *  associating objects with the node that will be automatically freed when 
+   *  communication with the node is no longer maintained.
    */
   class node {
     public:
@@ -44,6 +52,9 @@ namespace tornet {
       uint32_t rank()const;
 
       void close();
+
+      void        cache_object( const id_type& node_id, const std::string& key, const boost::any& v );
+      boost::any  get_cached_object( const id_type& node_id, const std::string& key )const;
 
       /**
        *  Searches through active connections and returns the endpoints closest to target
@@ -77,7 +88,7 @@ namespace tornet {
        *  @param node_id     - the ID of the node that we wish to connect to.
        *  @param remote_port - the port the remote host is listening for incoming 
        *                       connections.  @ref listen
-       *  @param 
+       *  @param share - return an existing channel to the given node_id and channel num
        *
        *  Throws if unable to resolve or connect to node_id
        */

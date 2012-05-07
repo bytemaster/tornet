@@ -300,7 +300,14 @@ namespace tornet { namespace detail {
     return near;
   }
 
-  connection* node_private::get_connection( const node::id_type& remote_id ) {
+  void        node_private::cache_object( const node_id& nid, const std::string& key, const boost::any& v ) {
+    get_connection( nid )->cache_object( key, v );
+  }
+  boost::any  node_private::get_cached_object( const node_id& nid, const std::string& key )const {
+    return get_connection(nid)->get_cached_object(key);
+  }
+
+  connection* node_private::get_connection( const node::id_type& remote_id )const {
      std::map<node_id,connection*>::const_iterator itr = m_dist_to_con.find( remote_id ^ m_id );
      if( itr != m_dist_to_con.end() ) return itr->second;
      TORNET_THROW( "No known connection to %1%", %remote_id );

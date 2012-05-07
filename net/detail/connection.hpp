@@ -122,6 +122,10 @@ namespace tornet {
 
             boost::signal<void(state_enum)> state_changed;
             const db::peer::record&   get_db_record()const { return m_record; }
+
+
+            void       cache_object( const std::string& key, const boost::any& v );
+            boost::any get_cached_object( const std::string& key )const;
         private:
             void  goto_state( state_enum s );
 
@@ -140,9 +144,10 @@ namespace tornet {
             std::map<node_id,boost::cmt::promise<route_table>::ptr> route_lookups;
                 
             
-            boost::unordered_map<uint32_t,channel>    m_channels;
-            db::peer::ptr                             m_peers;
-            db::peer::record                          m_record;
+            boost::unordered_map<std::string,boost::any> m_cached_objects;
+            boost::unordered_map<uint32_t,channel>       m_channels;
+            db::peer::ptr                                m_peers;
+            db::peer::record                             m_record;
       };
   }
 

@@ -52,6 +52,10 @@ class node_private {
     typedef boost::unordered_map<endpoint,connection::ptr>  ep_to_con_map;    
     node_private( node& n, boost::cmt::thread& t );
     ~node_private();
+
+    void        cache_object( const node_id& nid, const std::string& key, const boost::any& v );
+    boost::any  get_cached_object( const node_id& nid, const std::string& key )const;
+
     void    init( const boost::filesystem::path& ddir, uint16_t port );
     void    close();
 
@@ -96,7 +100,7 @@ class node_private {
     std::map<node_id,endpoint> remote_nodes_near( const node_id& rnode, 
                                                   const node_id& target, uint32_t n, const boost::optional<node_id>& limit );
 
-    connection* get_connection( const node::id_type& remote_id );
+    connection* get_connection( const node::id_type& remote_id )const;
 
 
     std::vector<db::peer::record> active_peers()const;

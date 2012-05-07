@@ -222,6 +222,7 @@ void connection::reset() {
   }
   close_channels();
   m_node.update_dist_index( m_remote_id, 0 );
+  m_cached_objects.clear();
   goto_state(uninit); 
 }
 
@@ -679,6 +680,15 @@ void connection::send_auth() {
           route_lookups.erase( ritr );
       throw;
     }
+  }
+
+  void       connection::cache_object( const std::string& key, const boost::any& v ) {
+    m_cached_objects[key] = v;
+  }
+  boost::any connection::get_cached_object( const std::string& key )const {
+    boost::unordered_map<std::string,boost::any>::const_iterator itr = m_cached_objects.find(key);
+    if( itr == m_cached_objects.end() ) return boost::any();
+    return itr->second;
   }
 
 } } // tornet::detail
