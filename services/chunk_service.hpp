@@ -82,12 +82,18 @@ class chunk_service : public tornet::rpc::service {
 
       void publish_tornet( const scrypt::sha1& tornet_id, const scrypt::sha1& checksum, uint32_t rep = 3 );
 
+      void enable_publishing( bool state );
+      bool publishing_enabled()const;
+
+
     protected:
+      void publish_loop();
       virtual boost::any init_connection( const tornet::rpc::connection::ptr& con );
 
       boost::shared_ptr<tornet::db::chunk>    m_cache_db;
       boost::shared_ptr<tornet::db::chunk>    m_local_db;
       boost::shared_ptr<tornet::db::publish>  m_pub_db;
+      bool m_publishing;
 };
 
 #endif

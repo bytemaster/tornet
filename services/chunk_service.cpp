@@ -11,7 +11,7 @@
 
 chunk_service::chunk_service( const boost::filesystem::path& dbdir, const tornet::node::ptr& node, 
                               const std::string& name, uint16_t port, boost::cmt::thread* t )
-:service(node,name,port,t) {
+:service(node,name,port,t),m_publishing(false) {
     boost::filesystem::create_directories(dbdir/"cache_db");
     boost::filesystem::create_directories(dbdir/"local_db");
     m_cache_db = boost::make_shared<tornet::db::chunk>( node->get_id(), dbdir/"cache_db" );
@@ -248,6 +248,34 @@ void chunk_service::publish_tornet( const scrypt::sha1& tid, const scrypt::sha1&
   rec.desired_host_count = rep;
   rec.next_update        = 0;
   m_pub_db->store( tid, rec );
+}
+
+void chunk_service::enable_publishing( bool state ) {
+  if( &boost::cmt::thread::current() != get_thread() ) {
+    get_thread()->sync( boost::bind( &chunk_service::enable_publishing, this, state ) );
+    return;
+  }
+  if( state != m_publishing ) {
+      m_publishing = state;
+      slog( "state %1%", state );
+      if( state ) { 
+        wlog( "async!" );
+        get_thread()->async( boost::bind( &chunk_service::publish_loop, this ) );
+      } else {
+      }
+  }
+}
+
+bool chunk_service::publishing_enabled()const { 
+  return m_publishing;
+}
+
+void chunk_service::publish_loop() {
+  slog( "publish loop" );
+  while( m_publishing ) {
+    boost::cmt::usleep( 1000 * 1000  );
+    wlog( "publishing..." );
+  }
 }
 
 #if 0

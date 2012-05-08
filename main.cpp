@@ -193,10 +193,26 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
          std::string tid, check;
          ss >> tid >> check;
          cs->publish_tornet( scrypt::sha1(tid), scrypt::sha1(check), 3 );
+       } else if( cmd == "stop" ) {
+         std::string what;
+         ss >> what;
+         if( what == "pub" ) {
+          slog( "Stoping Publishing" );
+          cs->enable_publishing( false );
+         }
+       } else if( cmd == "start" ) {
+         std::string what;
+         ss >> what;
+         if( what == "pub" ) {
+          slog( "Starting Publishing" );
+          cs->enable_publishing( true );
+         }
+
        } else if( cmd == "find" ) {
          std::string tid;
          ss >> tid;
 
+         slog( "Starting search..." );
          tornet::chunk_search::ptr csearch(  boost::make_shared<tornet::chunk_search>(nd, scrypt::sha1(tid), 10, 1, true ) );  
          csearch->start();
          csearch->wait();
@@ -310,10 +326,11 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
          std::cerr<<"  export      TORNET_FILE            - loads TORNET_FILE and saves FILENAME\n";
          std::cerr<<"  find        CHUNK_ID               - looks for the chunk and returns query rate stats for the chunk\n";
          std::cerr<<"  export_tid  TID CHECKSUM [OUT_FILE]- loads TORNET_FILE and saves FILENAME\n";
-         std::cerr<<"  publish TORNET_FILE                - pushes chunks from TORNET_FILE out to the network, including the TORNETFILE itself\n";
+         std::cerr<<"  publish TID CHECKSUM                - pushes chunks from TORNET_FILE out to the network, including the TORNETFILE itself\n";
          std::cerr<<"  show local START LIMIT [by_distance|by_revenue|by_opportunity]\n";
          std::cerr<<"  show cache START LIMIT |by_distance|by_revenue|by_opportunity]\n";
          std::cerr<<"  show users START LIMIT |by_balance|by_rank|...]\n";
+         std::cerr<<"  show publish \n";
          std::cerr<<"  rankeffort EFFORT                  - percent effort to apply towoard improving rank\n";
          std::cerr<<"  help                               - prints this menu\n\n";
        }
