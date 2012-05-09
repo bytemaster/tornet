@@ -284,7 +284,7 @@ bool connection::handle_lookup_msg( const tornet::buffer& b ) {
   {
       tornet::rpc::datastream<const char*> ds(b.data(), b.size() );
       ds >> target >> num >> l;
-      slog( "Lookup %1% near %2%  l: %3%", num, target, int(l) );
+    //  slog( "Lookup %1% near %2%  l: %3%", num, target, int(l) );
       if( l ) ds >> limit;
   }
   std::map<node_id, endpoint> r = m_node.find_nodes_near( target, num, limit );
@@ -296,7 +296,7 @@ bool connection::handle_lookup_msg( const tornet::buffer& b ) {
   std::map<node_id, endpoint>::iterator itr = r.begin();
   ds << target << num;
   for( uint32_t i = 0; i < num; ++i ) {
-    slog( "Reply with %1% @ %2%:%3%", itr->first, itr->second.address().to_string(), itr->second.port() );
+   // slog( "Reply with %1% @ %2%:%3%", itr->first, itr->second.address().to_string(), itr->second.port() );
     ds << itr->first << uint32_t(itr->second.address().to_v4().to_ulong()) << uint16_t(itr->second.port());
     ++itr;
   }
@@ -322,7 +322,7 @@ bool connection::handle_route_msg( const tornet::buffer& b ) {
   for( uint32_t i = 0; i < num; ++i ) {
     ds >> dist >> ip >> port; 
     rt[dist] = endpoint( boost::asio::ip::address_v4( (unsigned long)(ip)  ), port );
-    slog( "Response of dist: %1% @ %2%:%3%", dist, boost::asio::ip::address_v4((unsigned long)(ip)).to_string(), port );
+   // slog( "Response of dist: %1% @ %2%:%3%", dist, boost::asio::ip::address_v4((unsigned long)(ip)).to_string(), port );
   }
   itr->second->set_value(rt);
   route_lookups.erase(itr);
@@ -347,7 +347,7 @@ bool connection::handle_data_msg( const tornet::buffer& b ) {
   if( itr != m_channels.end() ) {
     itr->second.recv( b.subbuf(4) );
   } else {
-    slog( "src %1% dst %2%", src, dst );
+ //   slog( "src %1% dst %2%", src, dst );
     try {
         channel ch = m_node.create_channel( shared_from_this(), src, dst );
         m_channels[k] = ch;
