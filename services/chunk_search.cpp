@@ -23,6 +23,7 @@ chunk_search::chunk_search( const node::ptr& local_node, const scrypt::sha1& tar
  */
 void chunk_search::filter( const node::id_type& id ) {
   
+    /*
    tornet::rpc::client<chunk_session>::ptr  chunk_client_ptr;
    boost::any accp  = get_node()->get_cached_object( id, "rpc::client<chunk_session>" );
    if( boost::any_cast<tornet::rpc::client<chunk_session>::ptr>(&accp) ) {
@@ -34,11 +35,10 @@ void chunk_search::filter( const node::id_type& id ) {
        chunk_client_ptr = boost::make_shared<tornet::rpc::client<chunk_session> >(con);
        get_node()->cache_object( id, "rpc::client<chunk_session>", chunk_client_ptr );
    }
-   tornet::rpc::client<chunk_session>&  chunk_client = *chunk_client_ptr;
+   */
+   tornet::rpc::client<chunk_session>&  chunk_client = 
+    *tornet::rpc::client<chunk_session>::get_connection( get_node(), id );//*chunk_client_ptr;
   
-  // tornet::rpc::client<chunk_session>&  chunk_client = get_node()->start_rpc_client<chunk_session>( id, 100 );
-   
-
 
    elog( "fetch target %1% on node %2%", target(), id );
    /// TODO: UDP connections may drop the request, this would cause this strand to block here forever...  figure out timeout?  

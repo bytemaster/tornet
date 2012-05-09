@@ -48,6 +48,8 @@ class chunk_session {
     typedef scrypt::sha1 chunk_id;
     typedef scrypt::sha1 node_id;
 
+    enum default_port_number { port = 100 };
+
     chunk_session( const tornet::db::chunk::ptr& chunk_db, const tornet::rpc::connection::ptr& con );
 
     int64_t  get_credit_limit()const;

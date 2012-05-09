@@ -10,6 +10,9 @@
 #include <scrypt/blowfish.hpp>
 #include <scrypt/super_fast_hash.hpp>
 
+#include <tornet/rpc/client.hpp>
+#include <tornet/services/chunk_session.hpp>
+
 using namespace tornet;
 namespace chrono = boost::chrono;
 
@@ -300,13 +303,35 @@ void chunk_service::publish_loop() {
        csearch->start();
        csearch->wait();
 
-      const std::map<node::id_type,node::id_type>&  hn = csearch->hosting_nodes();
+      typedef std::map<node::id_type,node::id_type> chunk_map;
+      const chunk_map&  hn = csearch->hosting_nodes();
 
       // If the number of nodes hosting the chunk < next_pub.desired_host_count
       if( hn.size() < next_pub.desired_host_count ) {
         wlog( "Published chunk %1% found on at least %2% hosts, desired replication is %3%",
              chunk_id, hn.size(), next_pub.desired_host_count );
+
+        slog( "Hosting nodes: " );
+        chunk_map::const_iterator itr = hn.begin();
+        while( itr != hn.end() ) {
+          slog( "    node-dist: %1%  node id: %2%", itr->first, itr->second );
+          ++itr;
+        }
+        slog( "Near nodes: " );
+        const chunk_map&  nn = csearch->current_results();
+        itr = nn.begin();
+        while( itr != nn.end() ) {
+          slog( "    node-dist: %1%  node id: %2%", itr->first, itr->second );
+          ++itr;
+        }
+        itr = nn.begin();
+
        //   Find the closest node not hosting the chunk and upload the chunk
+
+       tornet::rpc::client<chunk_session>&  chunk_client = 
+        *tornet::rpc::client<chunk_session>::get_connection( get_node(), itr->second );
+
+        
        //   Wait until the upload has completed 
        //     update the next_pub host count and update time
        //     continue the publishing loop.
