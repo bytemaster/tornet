@@ -229,7 +229,7 @@ namespace tornet { namespace detail {
         case connection::failed:
           TORNET_THROW( "Attempt to connect to %1%:%2% failed", %ep.address().to_string() %ep.port() );
         case connection::connected:
-          slog( "returning %1%", con->get_remote_id() );
+          //slog( "returning %1%", con->get_remote_id() );
           return con->get_remote_id(); 
         default: try {
           con->advance();
