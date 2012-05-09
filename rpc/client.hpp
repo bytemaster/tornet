@@ -38,6 +38,27 @@ namespace tornet { namespace rpc {
       :client_base(c) {
          tornet::rpc::client_interface::set( *this );
       }      
+
+      /**
+       *  Returns the singlton connection to a particular node id on the given port
+       *
+       */
+      static client::ptr get_connection( const tornet::node::ptr& n, 
+                                         const tornet::node::id_type& id, uint16_t port = InterfaceType::port ) {
+        ptr  client_ptr;
+        std::string name = boost::reflect::get_typename<InterfaceType>(); 
+        boost::any accp  = n->get_cached_object( id, name );
+        if( boost::any_cast<tornet::rpc::client<InterfaceType>::ptr>(&accp) ) {
+           client_ptr = boost::any_cast<tornet::rpc::client<InterfaceType>::ptr>(accp); 
+        } else {
+           elog( "creating new channel / connection" );
+            tornet::channel                chan = n->open_channel( id, port );
+            tornet::rpc::connection::ptr   con  = boost::make_shared<tornet::rpc::connection>(chan);
+            client_ptr = boost::make_shared<tornet::rpc::client<InterfaceType> >(con);
+            n->cache_object( id, name, client_ptr );
+        }
+        return client_ptr;
+      }
   };
 
 } }
