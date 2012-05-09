@@ -52,6 +52,7 @@ namespace tornet { namespace rpc {
     return boost::any();
   }
 
-  boost::cmt::thread* service::get_thread()const { return my->m_thread; }
+  boost::cmt::thread*      service::get_thread()const { return my->m_thread; }
+  const tornet::node::ptr& service::get_node()const     { return my->m_node;   }
 
 } }// tornet::rpc

@@ -41,6 +41,7 @@ namespace tornet { namespace rpc {
       ~service();
 
       boost::cmt::thread* get_thread()const;
+      const tornet::node::ptr& get_node()const;
 
     protected:
       virtual boost::any init_connection( const rpc::connection::ptr& con );
