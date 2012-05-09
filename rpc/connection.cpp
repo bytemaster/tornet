@@ -15,7 +15,6 @@ namespace tornet { namespace rpc {
         chan.on_recv( boost::bind(&connection_private::on_recv, this, _1, _2 ) );
       }
       ~connection_private() {
-        slog( " wiii " );
         chan.close();
       }
 
@@ -25,7 +24,7 @@ namespace tornet { namespace rpc {
           m_thread->async( boost::bind( &connection_private::on_recv, this, b, ec ) );
           return;
         }
-        slog( "%1% bytes  ec %2%", b.size(), int(ec) );
+        //slog( "%1% bytes  ec %2%", b.size(), int(ec) );
 
         if( !ec ) {
           tornet::rpc::datastream<const char*> ds(b.data(),b.size());
@@ -33,7 +32,7 @@ namespace tornet { namespace rpc {
           tornet::rpc::raw::unpack(ds,msg);
         
         
-          slog("Recv: %1%", json::io::to_string(msg));
+          //slog("Recv: %1%", json::io::to_string(msg));
 
           switch( msg.type ) {
             case message::notice: handle_notice(msg); return;
@@ -122,7 +121,7 @@ namespace tornet { namespace rpc {
         tornet::rpc::datastream<char*> ds(b.data(),b.size());
         tornet::rpc::raw::pack( ds, msg );
         b.resize( ds.tellp() ); 
-        slog( "rpc con send %1%", b.size() );
+        //slog( "rpc con send %1%", b.size() );
         chan.send( b ); // posts to node thread if necessary
       }
 
