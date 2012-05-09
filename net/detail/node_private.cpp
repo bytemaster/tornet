@@ -291,8 +291,9 @@ namespace tornet { namespace detail {
     }
     while( itr != m_dist_to_con.end() && near.size() < n ) {
       node::id_type dist = (itr->first^m_id)^target;
+      // TODO: apply search limit filter?
       // if( limit != node::id_type() || dist < limit ) {
-      slog( "dist: %1%  target: %2%", dist, target );
+      //slog( "dist: %1%  target: %2%", dist, target );
         near[ dist  ] = itr->second->get_endpoint();
      // }
       ++itr;
