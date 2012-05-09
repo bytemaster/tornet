@@ -260,6 +260,7 @@ namespace tornet { namespace db {
       uint64_t next = 0;
       Dbt skey((char*)&next, sizeof(next));
       skey.set_flags( DB_DBT_USERMEM );
+      skey.set_ulen(sizeof(next) );
 
       Dbt pkey( (char*)id.hash, sizeof(id) );
       pkey.set_ulen( sizeof(id) );
