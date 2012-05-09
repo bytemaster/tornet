@@ -2,12 +2,16 @@
 #include "reflect_chunk_session.hpp"
 #include <tornet/error.hpp>
 #include "chunk_service.hpp"
+#include "chunk_search.hpp"
 #include <boost/filesystem.hpp>
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <fstream>
 #include <scrypt/blowfish.hpp>
 #include <scrypt/super_fast_hash.hpp>
+
+using namespace tornet;
+namespace chrono = boost::chrono;
 
 chunk_service::chunk_service( const boost::filesystem::path& dbdir, const tornet::node::ptr& node, 
                               const std::string& name, uint16_t port, boost::cmt::thread* t )
@@ -270,11 +274,64 @@ bool chunk_service::publishing_enabled()const {
   return m_publishing;
 }
 
+
+/**
+ *  
+ *
+ */
 void chunk_service::publish_loop() {
   slog( "publish loop" );
   while( m_publishing ) {
-    boost::cmt::usleep( 1000 * 1000  );
-    wlog( "publishing..." );
+    // find the next chunk that needs to be published
+    scrypt::sha1    chunk_id;
+    tornet::db::publish::record next_pub;
+    if ( m_pub_db->fetch_next( chunk_id, next_pub ) ) {
+       int64_t time_till_update = next_pub.next_update - 
+                        boost::chrono::duration_cast<boost::chrono::microseconds>
+                        (boost::chrono::system_clock::now().time_since_epoch()).count();
+       if( time_till_update > 0 ) {
+        slog( "waiting %1% us for next publish update.", -time_till_update );
+        boost::cmt::usleep( time_till_update );
+       }
+
+       // Attempt a KAD lookup for the chunk, find up to 2x desired hosts, using parallelism of 1
+       // TODO: increase parallism of search?? This should be a background task so latency is not an issue... 
+       tornet::chunk_search::ptr csearch(  boost::make_shared<tornet::chunk_search>(get_node(), chunk_id, next_pub.desired_host_count*2, 1, true ) );  
+       csearch->start();
+       csearch->wait();
+
+      const std::map<node::id_type,node::id_type>&  hn = csearch->hosting_nodes();
+
+      // If the number of nodes hosting the chunk < next_pub.desired_host_count
+      if( hn.size() < next_pub.desired_host_count ) {
+        wlog( "Published chunk %1% found on at least %2% hosts, desired replication is %3%",
+             chunk_id, hn.size(), next_pub.desired_host_count );
+       //   Find the closest node not hosting the chunk and upload the chunk
+       //   Wait until the upload has completed 
+       //     update the next_pub host count and update time
+       //     continue the publishing loop.
+       //
+       //   TODO: enable publishing N chunks in parallel 
+      } else {
+        slog( "Published chunk %1% found on at least %2% hosts, desired replication is %3%",
+             chunk_id, hn.size(), next_pub.desired_host_count );
+
+      }
+
+      // TODO: calculate next update interval for this chunk based upon its current popularity
+      //       and host count and how far away the closest host was found.
+      uint64_t next_update = 60*1000*1000;
+      next_pub.next_update = 
+        chrono::duration_cast<chrono::microseconds>( chrono::system_clock::now().time_since_epoch()).count() + next_update;
+
+      m_pub_db->store( chunk_id, next_pub );
+    } else {
+      // TODO: do something smarter, like exit publish loop until there is something to publish
+      boost::cmt::usleep( 1000 * 1000  );
+      wlog( "nothing to publish..." );
+    }
+
+    boost::cmt::usleep(1000*1000*20);
   }
 }
 
