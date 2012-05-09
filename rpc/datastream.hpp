@@ -3,6 +3,7 @@
 #include <boost/type_traits/is_fundamental.hpp>
 #include <boost/static_assert.hpp>
 #include <stdint.h>
+#include <tornet/error.hpp>
 
 namespace tornet { namespace rpc {
 
@@ -39,6 +40,7 @@ struct datastream {
       m_pos += s;
       return true;
     }
+    TORNET_THROW( "Attempt to read %1% bytes beyond end of buffer of size %2%", %-((m_end-m_pos) - s) %(m_end-m_start) );
     return false;
   }
 
@@ -48,6 +50,7 @@ struct datastream {
       m_pos += s;
       return true;
     }
+    TORNET_THROW( "Attempt to write %1% bytes beyond end of buffer of size %2%", %-((m_end-m_pos) - s) %(m_end-m_start) );
     return false;
   }
 
@@ -57,6 +60,7 @@ struct datastream {
       ++m_pos; 
       return true;
     }
+    TORNET_THROW( "Attempt to write %1% byte beyond end of buffer of size %2%", %-((m_end-m_pos) - 1) %(m_end-m_start) );
     return  false;
   }
 
@@ -67,6 +71,7 @@ struct datastream {
       ++m_pos; 
       return true;
     }
+    TORNET_THROW( "Attempt to read %1% byte beyond end of buffer of size %2%", %-((m_end-m_pos) - 1) %(m_end-m_start) );
     ++m_pos; 
     return  false;
   }
