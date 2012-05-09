@@ -66,6 +66,6 @@ namespace tornet { namespace db {
       class publish_private* my;
   };
 
-} }
+} } // tornet::db
 
 #endif
