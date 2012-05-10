@@ -371,7 +371,7 @@ void start_services( int argc, char** argv ) {
   try {
       node->init( data_dir, node_port );
       
-      tornet::rpc::service::ptr        srv( new tornet::service::calc_service( node, "rpc", 101 ) );
+      tornet::rpc::service::ptr        srv( new tornet::service::calc_service( node, "rpc", 102 ) );
       chunk_service::ptr               cs(  new chunk_service( data_dir+"/chunks", node, "chunks", 100 ) );
   //    tornet::service::accounting::ptr as(  new tornet::service::accounting( data_dir + "/accounting", node, "accounting", 69 ) );
 

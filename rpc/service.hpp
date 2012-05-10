@@ -6,6 +6,7 @@
 #include <boost/any.hpp>
 #include <boost/reflect/any_ptr.hpp>
 #include <boost/fusion/support/deduce_sequence.hpp>
+#include <json/value_io.hpp>
 
 namespace tornet { namespace rpc {
 
@@ -16,7 +17,9 @@ namespace tornet { namespace rpc {
     :m_func(f){}
     std::vector<char> operator()( const std::vector<char>& param ) {
       Seq paramv;
+      slog( "param size: %1%", param.size() );
       raw::unpack_vec( param, paramv );
+      //slog( "parm json: %1%", json::io::to_json( paramv ) );
       std::vector<char> rtn;
       raw::pack_vec( rtn, m_func(paramv) );
       return rtn;
@@ -27,16 +30,19 @@ namespace tornet { namespace rpc {
 
   /**
    *  A services listens for new incoming connections and
-   *  spawns a service connection that implements the RPC
-   *  api.  The service connection has a pointer back to
+   *  spawns a service rpc::connection that implements the RPC
+   *  api.  The service rpc::connection has a pointer back to
    *  the service for 'shared state' and the service connection
    *  keeps the per-connection state.
+   *
+   *  The service will listen on two ports, one UDP and the other UDT.  
+   *  The UDT port is always one above the UDP port.
    */
   class service {
     public:
       typedef boost::shared_ptr<service> ptr;
 
-      service( const tornet::node::ptr& node, const std::string& name, uint16_t port,
+      service( const tornet::node::ptr& node, const std::string& name, uint16_t udp_port,
               boost::cmt::thread* t = &boost::cmt::thread::current() );
       ~service();
 

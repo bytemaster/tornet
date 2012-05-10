@@ -32,6 +32,8 @@ SET( sources
     net/detail/node_private.cpp
     rpc/connection.cpp
     rpc/service.cpp
+    rpc/udp_connection.cpp
+    rpc/udt_connection.cpp
     services/accounting.cpp
     services/chat.cpp
     services/calc.cpp

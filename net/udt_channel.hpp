@@ -35,6 +35,12 @@ namespace tornet {
        *  @return bytes read
        */
       size_t read( const boost::asio::mutable_buffer& b );
+      inline size_t read( char* d, uint32_t s ) { return read( boost::asio::mutable_buffer(d,s) ); }
+      inline bool   get( char& c )              { return read( boost::asio::mutable_buffer(&c,sizeof(c))); }
+      inline bool   get( unsigned char& c )     { return read( boost::asio::mutable_buffer(&c,sizeof(c))); }
+
+      scrypt::sha1 remote_node()const;
+      uint8_t      remote_rank()const;
 
     private:
       boost::shared_ptr<class udt_channel_private> my;

@@ -78,6 +78,10 @@ class chunk_service : public tornet::rpc::service {
        */
       void export_tornet( const scrypt::sha1& tornet_id, const scrypt::sha1& checksum );
      
+      /**
+       *  Reads the data for the chunk from the cache or local database.
+       */
+      void fetch_chunk( const scrypt::sha1& chunk_id, std::vector<char>& data );
       void fetch_tornet( const scrypt::sha1& tornet_id, const scrypt::sha1& checksum, tornet_file& f );
 
       void publish_tornet( const scrypt::sha1& tornet_id, const scrypt::sha1& checksum, uint32_t rep = 3 );

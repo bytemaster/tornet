@@ -11,6 +11,7 @@
 #include <scrypt/super_fast_hash.hpp>
 
 #include <tornet/rpc/client.hpp>
+#include <tornet/rpc/udt_connection.hpp>
 #include <tornet/services/chunk_session.hpp>
 
 using namespace tornet;
@@ -189,6 +190,20 @@ void chunk_service::export_tornet( const scrypt::sha1& tornet_id, const scrypt::
   }
 }
 
+void chunk_service::fetch_chunk( const scrypt::sha1& chunk_id, std::vector<char>& d ) {
+  tornet::db::chunk::meta met;
+  if( m_local_db->fetch_meta( chunk_id, met, false ) ) {
+      d.resize(met.size);
+      if( m_local_db->fetch_chunk( chunk_id, boost::asio::buffer(d) ) )
+        return;
+  }
+  if( m_cache_db->fetch_meta( chunk_id, met, false ) ) {
+      d.resize(met.size);
+      if( m_cache_db->fetch_chunk( chunk_id, boost::asio::buffer(d) ) ) 
+        return;
+  }
+  TORNET_THROW( "Unknown chunk %1%", %chunk_id );
+}
 
 /**
  *  Fetch and decode the tornet file description, but not the chunks
@@ -329,9 +344,16 @@ void chunk_service::publish_loop() {
        //   Find the closest node not hosting the chunk and upload the chunk
 
        tornet::rpc::client<chunk_session>&  chunk_client = 
-        *tornet::rpc::client<chunk_session>::get_connection( get_node(), itr->second );
+        *tornet::rpc::client<chunk_session>::get_udt_connection( get_node(), itr->second );
 
-        
+       std::vector<char> chunk_data;
+       fetch_chunk( chunk_id, chunk_data );
+       slog( "Uploading chunk... size %1% bytes", chunk_data.size() );
+       //chunk_data.resize(1024*65);
+       store_response r = chunk_client->store( chunk_data ).wait();
+       slog( "Response: %1%  balance: %2%", int(r.result), r.balance );
+
+
        //   Wait until the upload has completed 
        //     update the next_pub host count and update time
        //     continue the publishing loop.

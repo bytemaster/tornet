@@ -37,7 +37,7 @@ void chunk_search::filter( const node::id_type& id ) {
    }
    */
    tornet::rpc::client<chunk_session>&  chunk_client = 
-    *tornet::rpc::client<chunk_session>::get_connection( get_node(), id );//*chunk_client_ptr;
+    *tornet::rpc::client<chunk_session>::get_udp_connection( get_node(), id );//*chunk_client_ptr;
   
 
    elog( "fetch target %1% on node %2%", target(), id );

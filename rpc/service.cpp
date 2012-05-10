@@ -1,5 +1,6 @@
 #include <tornet/rpc/service.hpp>
-#include <tornet/rpc/connection.hpp>
+#include <tornet/rpc/udp_connection.hpp>
+#include <tornet/rpc/udt_connection.hpp>
 
 namespace tornet { namespace rpc {
   class service_private {
@@ -7,15 +8,24 @@ namespace tornet { namespace rpc {
       service_private( rpc::service& s, const tornet::node::ptr& n, const std::string& name, uint16_t p,
                        boost::cmt::thread* t ) 
       :self(s),m_node(n),m_port(p),m_thread(t) {
-        m_node->start_service( p, name, boost::bind( &service_private::on_connection, this, _1 ) );
+        m_node->start_service( m_port,   name, boost::bind( &service_private::on_udp_connection, this, _1 ) );
+        m_node->start_service( m_port+1, name, boost::bind( &service_private::on_udt_connection, this, _1 ) );
       }
 
-      void on_connection( const tornet::channel& c ) {
-        rpc::connection::ptr rpcc( new rpc::connection( c, m_thread ) ); 
+      void on_udp_connection( const tornet::channel& c ) {
+        slog( "on udp connection" );
+        rpc::connection::ptr rpcc( new rpc::udp_connection( c, m_thread ) ); 
         rpcc->closed.connect( boost::bind( &service_private::on_close, this, rpc::connection::wptr(rpcc) ) );
         
         // add service methods to connection!
-
+        m_connections.push_back(std::make_pair(rpcc, self.init_connection(rpcc) ));
+      }
+      void on_udt_connection( const tornet::channel& c ) {
+        slog( "on udt connection" );
+        rpc::connection::ptr rpcc( new rpc::udt_connection( udt_channel(c), m_thread ) ); 
+        rpcc->closed.connect( boost::bind( &service_private::on_close, this, rpc::connection::wptr(rpcc) ) );
+        
+        // add service methods to connection!
         m_connections.push_back(std::make_pair(rpcc, self.init_connection(rpcc) ));
       }
 

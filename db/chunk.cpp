@@ -279,6 +279,7 @@ namespace tornet { namespace db {
       TORNET_THROW( "sha1(data) does not match given id" );
     }
     scrypt::sha1 dist = id ^ my->m_node_id;
+    slog( "store chunk %1% dist %2%", id, dist );
 
     DbTxn * txn=NULL;
     my->m_env.txn_begin(NULL, &txn, 0);
@@ -288,10 +289,17 @@ namespace tornet { namespace db {
     bool       inserted = false;
 
     try {
-        Dbt key(dist.hash,sizeof(dist.hash));
+        Dbt key;//(dist.hash,sizeof(dist.hash));
         key.set_flags( DB_DBT_USERMEM );
-        Dbt val( (char*)boost::asio::buffer_cast<const char*>(b), boost::asio::buffer_size(b) );
+        key.set_data(dist.hash);
+        key.set_ulen(sizeof(dist.hash) );
+
+
+        Dbt val;//( (char*)boost::asio::buffer_cast<const char*>(b), boost::asio::buffer_size(b) );
+        val.set_data( (char*)boost::asio::buffer_cast<const char*>(b) );
         val.set_flags( DB_DBT_USERMEM );
+        val.set_ulen( boost::asio::buffer_size(b) );
+
         if( DB_KEYEXIST ==  my->m_chunk_db->put( txn, &key, &val, DB_NOOVERWRITE ) ) {
           wlog( "key already exists, ignoring store command" );
           txn->abort();
@@ -301,6 +309,7 @@ namespace tornet { namespace db {
         meta met;
         Dbt mval( &met, sizeof(met) );
         mval.set_flags( DB_DBT_USERMEM );
+        mval.set_ulen( sizeof(met) );
 
         bool inserted = false;
         if( DB_NOTFOUND == my->m_meta_db->get( txn, &key, &mval, 0 ) ) {
@@ -331,6 +340,7 @@ namespace tornet { namespace db {
         key.set_data( (char*)dist.hash );
         key.set_size( sizeof(dist.hash) );
         key.set_flags( DB_DBT_USERMEM );
+        key.set_ulen( sizeof(dist.hash) );
 
         my->m_meta_db->cursor( NULL, &cur, 0 );
         cur->get( &key, &ignore_val, DB_SET );
@@ -357,8 +367,11 @@ namespace tornet { namespace db {
     scrypt::sha1 dist = id ^ my->m_node_id;
     Dbt key(dist.hash,sizeof(dist.hash));
     key.set_flags( DB_DBT_USERMEM );
+    key.set_ulen(sizeof(dist.hash));
+
     Dbt val( (char*)&m, sizeof(m) );
     val.set_flags( DB_DBT_USERMEM );
+    val.set_ulen( sizeof(m) );
 
     DbTxn * txn=NULL;
     my->m_env.txn_begin(NULL, &txn, 0);

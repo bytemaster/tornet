@@ -52,11 +52,13 @@ fetch_response chunk_session::fetch( const chunk_id& cid, int32_t bytes, uint32_
   return r;
 }
 store_response chunk_session::store( const std::vector<char>& data ) {
+  slog( "store %1% bytes", data.size() );
   // TODO: Is rank( con->remote_id() ) > rank( local_node_id )
 
   int64_t new_bal = 0;
   
   if( data.size() == 0 || data.size() > 1024*1024 ) {
+    elog( "invalid size: %1% > %2%", data.size(), 1024*1024 );
     // TODO: Calculate Cost and Bill User Account
     return store_response( chunk_session_result::invalid_size, new_bal );
   }
@@ -68,9 +70,11 @@ store_response chunk_session::store( const std::vector<char>& data ) {
   m_cdb->fetch_meta( cid, met, true );
   if( met.size == 0 ) {
     if( m_cdb->store_chunk( cid, boost::asio::buffer(data) ) )  { 
+      slog( "ok, stored" );
       // TODO: Calculate Cost and Bill User Account, only the DB can decide whether or not to store the chunk
       return store_response( chunk_session_result::ok, new_bal );
     } else {
+      slog( "rejected, not stored" );
       // TODO: Calculate Cost and Bill User Account, don't bill as much if w do not store.
       return store_response( chunk_session_result::rejected, new_bal );
     }

@@ -6,15 +6,15 @@
 
 struct chunk_session_result {
 enum result_enum {
-  ok,
-  available,
-  invalid_rank,
-  invalid_size,
-  credit_limit_reached,
-  unknown_chunk,
-  already_stored,
-  rejected,
-  unknown
+  ok                   = 0,
+  available            = 1,
+  invalid_rank         = 2,
+  invalid_size         = 3,
+  credit_limit_reached = 4,
+  unknown_chunk        = 5,
+  already_stored       = 6,
+  rejected             = 7,
+  unknown              = 8
 };
 };
 
@@ -33,7 +33,7 @@ struct fetch_response {
 };
 
 struct store_response {
-  store_response( chunk_session_result::result_enum e, int64_t new_bal = 0 )
+  store_response( chunk_session_result::result_enum e= chunk_session_result::unknown, int64_t new_bal = 0 )
   :result(e),balance(new_bal){}
   int8_t     result; 
   int64_t    balance;

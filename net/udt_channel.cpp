@@ -231,7 +231,7 @@ namespace tornet {
         data_packet dp(b.subbuf(5));
         ds >> dp.flags >> dp.rx_win_start >> dp.seq;
 
-        //slog( "seq %1%  rx win %2%   len %3% rx window: %4%->%5% ", std::string(dp.seq), dp.rx_win_start.value(), dp.data.size(), rx_ack_pack.rx_win_start.value(), rx_ack_pack.rx_win_end.value() );
+        slog( "seq %1%  rx win %2%   len %3% rx window: %4%->%5% ", std::string(dp.seq), dp.rx_win_start.value(), dp.data.size(), rx_ack_pack.rx_win_start.value(), rx_ack_pack.rx_win_end.value() );
 
         advance_tx( dp.rx_win_start );
 
@@ -257,7 +257,7 @@ namespace tornet {
                send_nack( sr, dp.seq-1 );
             }
         } else if( dp.seq < rx_ack_pack.rx_win_start ) { 
-            //wlog( "already received %1%, before rx_win-start %2% ignoring", dp.seq.value(), rx_ack_pack.rx_win_start.value() );
+            wlog( "already received %1%, before rx_win-start %2% ignoring", dp.seq.value(), rx_ack_pack.rx_win_start.value() );
             return;
         } else {
             // insert the packet into the rx win
@@ -291,8 +291,8 @@ namespace tornet {
 
          //slog( "rx_win [ %1% -> %2% of %3% ]", ap.rx_win_start.value(), ap.rx_win_end.value(), ap.rx_win_size );
          //slog( "missing %1%", ap.missed_seq.size() );
-         // slog( "next_tx_seq %1%   rx_win_start %2%  rx_win_end %3%", next_tx_seq.value(), 
-         //       tx_ack2_pack.rx_win_start.value(), (tx_ack2_pack.rx_win_start + tx_win_size).value() );
+          slog( "next_tx_seq %1%   rx_win_start %2%  rx_win_end %3%", next_tx_seq.value(), 
+                tx_ack2_pack.rx_win_start.value(), (tx_ack2_pack.rx_win_start + tx_win_size).value() );
          if( ap.missed_seq.size() )
              retransmit();
        //  ap.missed_seq.print();
@@ -444,9 +444,9 @@ namespace tornet {
 
     while( len ) {
       while( !my->rx_win.size() || my->rx_win.front().seq != my->rx_ack_pack.rx_win_start ) {
-        //wlog( "waiting for data!  %1% != %2%", my->rx_win.front().seq.value(),  my->rx_ack_pack.rx_win_start.value() );
+        slog( "waiting for data!  %1% != %2%", my->rx_win.front().seq.value(),  my->rx_ack_pack.rx_win_start.value() );
         boost::cmt::wait( my->rx_win_avail );
-        //wlog( "data avail!" );
+        slog( "data avail!" );
       }
       data_packet& dp = my->rx_win.front();
       uint32_t clen = (std::min)(size_t(len),size_t(dp.data.size()));
@@ -478,7 +478,7 @@ namespace tornet {
 
     const char* data = boost::asio::buffer_cast<const char*>(b);
     uint32_t    len  = boost::asio::buffer_size(b);
-    //slog( "write %1% bytes", len );
+    slog( "write %1% bytes", len );
 
     while( len ) {
        tornet::buffer  pbuf;
@@ -502,15 +502,15 @@ namespace tornet {
        // it is possible for other senders (retrans) to wake up 
        // first and steal our slot, so we must check again
        while( !my->can_send() ) {
-          //slog( "tx win full... wait for ack...  tx_win.used: %1%  tx_win size %2%  ", my->tx_win.size(), my->tx_win_size );
-         // slog( "next_tx_seq %1%   rx_win_start %2%  rx_win_end %3%", my->next_tx_seq.value(), 
-         //       my->tx_ack2_pack.rx_win_start.value(), (my->tx_ack2_pack.rx_win_start + my->tx_win_size).value() );
+          slog( "tx win full... wait for ack...  tx_win.used: %1%  tx_win size %2%  ", my->tx_win.size(), my->tx_win_size );
+          //slog( "next_tx_seq %1%   rx_win_start %2%  rx_win_end %3%", my->next_tx_seq.value(), 
+          //      my->tx_ack2_pack.rx_win_start.value(), (my->tx_ack2_pack.rx_win_start + my->tx_win_size).value() );
           boost::cmt::wait( my->tx_win_avail );
        }
        my->tx_ack2_pack.missed_seq.add(dp.seq,dp.seq);
        my->tx_win.push_back(dp);
 
-     //  slog( "send seq %1%  size: %2% ", dp.seq.value(), dp.data.size() );
+       slog( "send seq %1%  size: %2% ", dp.seq.value(), dp.data.size() );
        my->send(pbuf);
     }
     return boost::asio::buffer_size(b);
@@ -520,5 +520,13 @@ namespace tornet {
   void udt_channel::close() {
     my->close();
   }
+
+
+   scrypt::sha1 udt_channel::remote_node()const {
+    return my->chan.remote_node(); 
+   }
+   uint8_t             udt_channel::remote_rank()const {
+    return my->chan.remote_rank();
+   }
 
 } // tornet
