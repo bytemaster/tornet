@@ -22,21 +22,18 @@ class udt_connection_private {
       }
 
       void read_loop() {
-        while( !m_done ) {
-          slog( "starting read loop... " );
-          tornet::rpc::message msg;
-          slog( "starting unpack\n" );
-          tornet::rpc::raw::unpack(udt_chan,msg);
-          slog( "finished unpack\n" );
-          switch( msg.type ) {
-            case message::notice: self.handle_notice(msg); return;
-            case message::call:   self.handle_call(msg);   return;
-            case message::result: self.handle_result(msg); return;
-            case message::error:  self.handle_error(msg);  return;
-            default: 
-              wlog( "invalid message type %1%", int( msg.type ) );
-          };
-        }
+         while( !m_done ) {
+           tornet::rpc::message msg;
+           tornet::rpc::raw::unpack(udt_chan,msg);
+           switch( msg.type ) {
+             case message::notice: self.handle_notice(msg); break;
+             case message::call:   self.handle_call(msg);   break;
+             case message::result: self.handle_result(msg); break;
+             case message::error:  self.handle_error(msg);  break;
+             default: 
+               wlog( "invalid message type %1%", int( msg.type ) );
+           };
+         }
       }
 };
 
