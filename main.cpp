@@ -399,49 +399,12 @@ void start_services( int argc, char** argv ) {
                         itr->first, itr->second );
               ++itr;
             }
-            
-            
-#if 0
-            tornet::channel c = node->open_channel( id, 101 );
-            tornet::rpc::connection::ptr  con( new tornet::rpc::connection(c));
-            int r = con->call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
-            r = con->call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
-            r = con->call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
-            r = con->call<int,int>( 0, 5 ).wait(); slog( "r: %1%", r );
-
-            tornet::rpc::client<tornet::service::calc_connection>   calc_client(con);
-            r = calc_client->add( 9 );
-            slog( "r: %1%", r );
-
-
-
-            tornet::channel ac = node->open_channel( id, 69 );
-            tornet::rpc::connection::ptr  acon( new tornet::rpc::connection(ac));
-            tornet::rpc::client<ltl::rpc::session>   acnt(acon);
-            slog( " create asset: %1%", acnt->create_asset( ltl::rpc::asset( "gold grams", ".999 pure" ) ).wait() );
-
-
-
-            slog( "creating test data" );
-            std::string test = "hello world.";
-            for( uint32_t y = 0; y < 16;++y ) test += test;
-
-            tornet::channel cc = node->open_channel( id, 100 );
-
-           
-            tornet::udt_channel uc(cc,1024);
-            for( uint32_t x = 0; x < 1000*10; ++x ) {
-              uc.write( boost::asio::buffer( test.c_str(),test.size() ) );
-            }
-#endif
         } catch ( const boost::exception& e ) {
             wlog( "Unable to connect to node %1%, %2%", init_connections[i], boost::diagnostic_information(e) ) ;
         }
       }
-    //  boost::cmt::wait( quit_signal );
     wlog( "exec... " );
       boost::cmt::exec();
-      //boost::cmt::usleep(1000*1000*1000);
     wlog( "done exec..." );
   } catch ( const boost::exception& e ) {
     elog( "%1%", boost::diagnostic_information(e) );
