@@ -22,7 +22,7 @@ namespace tornet { namespace rpc {
       }
       void on_udt_connection( const tornet::channel& c ) {
         slog( "on udt connection" );
-        rpc::connection::ptr rpcc( new rpc::udt_connection( udt_channel(c), m_thread ) ); 
+        rpc::connection::ptr rpcc( new rpc::udt_connection( udt_channel(c, 1024), m_thread ) ); 
         rpcc->closed.connect( boost::bind( &service_private::on_close, this, rpc::connection::wptr(rpcc) ) );
         
         // add service methods to connection!
