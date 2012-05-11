@@ -342,17 +342,21 @@ void chunk_service::publish_loop() {
         itr = nn.begin();
 
        //   Find the closest node not hosting the chunk and upload the chunk
-
-       tornet::rpc::client<chunk_session>&  chunk_client = 
-        *tornet::rpc::client<chunk_session>::get_udt_connection( get_node(), itr->second );
-
-       std::vector<char> chunk_data;
-       fetch_chunk( chunk_id, chunk_data );
-       slog( "Uploading chunk... size %1% bytes", chunk_data.size() );
-       //chunk_data.resize(1024*65);
-       store_response r = chunk_client->store( chunk_data ).wait();
-       slog( "Response: %1%  balance: %2%", int(r.result), r.balance );
-
+       while( itr != nn.end() && itr->second == get_node()->get_id() ) {
+        ++itr;
+       }
+       if( itr == nn.end() ) {
+         elog( "No hosts to publish to!" );
+       } else {
+         tornet::rpc::client<chunk_session>&  chunk_client = 
+          *tornet::rpc::client<chunk_session>::get_udt_connection( get_node(), itr->second );
+        
+         std::vector<char> chunk_data;
+         fetch_chunk( chunk_id, chunk_data );
+         slog( "Uploading chunk... size %1% bytes", chunk_data.size() );
+         store_response r = chunk_client->store( chunk_data ).wait();
+         slog( "Response: %1%  balance: %2%", int(r.result), r.balance );
+       }
 
        //   Wait until the upload has completed 
        //     update the next_pub host count and update time
@@ -377,8 +381,9 @@ void chunk_service::publish_loop() {
       boost::cmt::usleep( 1000 * 1000  );
       wlog( "nothing to publish..." );
     }
-
-    boost::cmt::usleep(1000*1000*20);
+//    elog( "wait to send next" );
+//    boost::cmt::usleep(1000*1000);
+//    elog( "wait to send next" );
   }
 }
 
