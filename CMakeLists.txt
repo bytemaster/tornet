@@ -74,5 +74,9 @@ SET( libraries
     ${QT_QTGUI_LIBRARY}
     )
 
-add_executable( tornet MACOSX_BUNDLE ${sources} )
+    SET( MACOSX_BUNDLE_INFO_STRING "TornetInfoString" )
+    SET( MACOSX_BUNDLE_BUNDLE_NAME "TornetBundleName"  )
+add_executable( tornet 
+  MACOSX_BUNDLE 
+  ${sources} )
 target_link_libraries( tornet ${libraries} )
