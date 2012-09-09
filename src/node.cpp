@@ -2,6 +2,8 @@
 #include <tornet/channel.hpp>
 #include "node_impl.hpp"
 #include <fc/bigint.hpp>
+#include <fc/signals.hpp>
+#include <fc/error.hpp>
 #include <fstream>
 
 namespace tn {
@@ -80,7 +82,31 @@ namespace tn {
     if( !my->_thread.is_current() ) {
        return my->_thread.async( [&,this](){ return connect_to( ep ); } ).wait();
     }
-    // TODO ..
+
+    ep_to_con_map::iterator itr = my->_ep_to_con.find(ep);
+    connection::ptr con;
+    if( itr == my->_ep_to_con.end() ) {
+      connection::ptr c(new connection( *this, ep, my->_peers ));
+      my->_ep_to_con[ep] = c;
+      itr = my->_ep_to_con.find(ep);
+    }
+    con = itr->second;
+    while ( true ) { // keep waiting for the state to change
+      switch( con->get_state() ) {
+        case connection::failed:
+          FC_THROW( "Attempt to connect to %s:%d failed", fc::string(ep.address()).c_str(), ep.port() );
+        case connection::connected:
+          //slog( "returning %1%", con->get_remote_id() );
+          return con->get_remote_id(); 
+        default: try {
+          con->advance();
+          // as long as we are advancing on our own, keep waiting for connected.   
+          while( fc::wait<connection::state_enum>( con->state_changed, fc::milliseconds(250) ) != connection::connected ) ;
+        } catch ( const fc::future_wait_timeout& e ) {
+          slog( "timeout... advance!" );
+        }
+      }
+    }
   }
 
   channel node::open_channel( const id_type& node_id, uint16_t remote_chan_num, bool share ) {
@@ -169,8 +195,32 @@ namespace tn {
   uint32_t node::rank()const { return my->_rank; }
 
 
-  void                     node::update_dist_index( const id_type& id, connection* c ) {
-
+  /**
+   *  The connection is responsible for updating the node index that maps ids to active connections.
+   */
+  void                     node::update_dist_index( const id_type& nid, connection* c ) {
+    elog( "%1%", nid );
+    auto dist = nid ^ my->_id;
+    auto itr = my->_dist_to_con.find(dist);
+    if( c ) {
+        if( itr == my->_dist_to_con.end() ) {
+          my->_dist_to_con[dist] = c; // add it
+        } else {
+          if( itr->second != c ) {
+              itr->second->close();
+              wlog( "Already have a connection to node %1%, closing it", nid );
+              itr->second = c;
+          }
+        }
+    } else {  // clear the connection
+        if( itr != my->_dist_to_con.end() ) {
+    //      ep_to_con_map::iterator epitr = m_ep_to_con.find( itr->second->get_endpoint() );
+    //      if( epitr != m_ep_to_con.end() ) { 
+    //        m_ep_to_con.erase(epitr); 
+    //      }
+          my->_dist_to_con.erase(itr);
+        }
+    }
   }
 
   /**

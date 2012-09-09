@@ -55,21 +55,21 @@ namespace tn {
         _nonce[0] = _nonce[1] = 0;
       }
 
-      node&             _self;
-      fc::thread        _thread;
-      fc::sha1          _id;
-      uint32_t          _rank;
-      uint64_t          _nonce[2];
-      uint64_t          _nonce_search[2];
-      fc::private_key_t _priv_key;
-      fc::public_key_t  _pub_key;
-      service_set       _services;
-      fc::udp_socket    _sock;
-      fc::future<void>  _read_loop_complete;
-      ep_to_con_map     _ep_to_con;
-      bool              _done;
-      fc::path          _datadir;
-
+      node&                           _self;
+      fc::thread                      _thread;
+      fc::sha1                        _id;
+      uint32_t                        _rank;
+      uint64_t                        _nonce[2];
+      uint64_t                        _nonce_search[2];
+      fc::private_key_t               _priv_key;
+      fc::public_key_t                _pub_key;
+      service_set                     _services;
+      fc::udp_socket                  _sock;
+      fc::future<void>                _read_loop_complete;
+      ep_to_con_map                   _ep_to_con;
+      bool                            _done;
+      fc::path                        _datadir;
+      std::map<fc::sha1,connection*>   _dist_to_con;
 
       db::peer::ptr    _peers;
       db::publish::ptr _publish_db;

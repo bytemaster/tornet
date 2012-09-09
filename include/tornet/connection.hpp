@@ -7,7 +7,7 @@
 #include <tornet/db/peer.hpp>
 #include <tornet/channel.hpp>
 #include <tornet/host.hpp>
-
+#include <fc/signals.hpp>
 
 
 namespace tn {
@@ -110,8 +110,9 @@ namespace tn {
 
         fc::vector<tn::host> find_nodes_near( const node_id& target, uint32_t n, const fc::optional<node_id>& limit  );
 
-        fc::function<void(state_enum)> state_changed;
-        const db::peer::record&        get_db_record()const;
+        //fc::function<void(state_enum)> state_changed;
+        fc::signal<void(state_enum)> state_changed;
+        const db::peer::record&      get_db_record()const;
 
 //        void    cache_object( const fc::string& key, const fc::any& v );
 //        fc::any get_cached_object( const fc::string& key )const;

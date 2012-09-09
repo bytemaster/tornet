@@ -729,6 +729,8 @@ void connection::send_auth() {
       throw;
     }
   }
+  uint8_t                connection::get_remote_rank()const { return my->_record.rank; }
+  connection::state_enum connection::get_state()const { return my->_cur_state; }
 
   /*
   void       connection::cache_object( const std::string& key, const boost::any& v ) {
