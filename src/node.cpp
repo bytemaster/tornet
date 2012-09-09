@@ -72,6 +72,7 @@ namespace tn {
     // load peers
     my->_peers = new db::peer( my->_id, datadir/"peers" );
     my->_peers->init();
+
     my->_publish_db = new db::publish( datadir/"publish_db" );
     my->_publish_db->init();
 
@@ -101,7 +102,7 @@ namespace tn {
         default: try {
           con->advance();
           // as long as we are advancing on our own, keep waiting for connected.   
-          while( fc::wait<connection::state_enum>( con->state_changed, fc::milliseconds(250) ) != connection::connected ) ;
+          while( fc::wait( con->state_changed, fc::milliseconds(250) ) != connection::connected ) ;
         } catch ( const fc::future_wait_timeout& e ) {
           slog( "timeout... advance!" );
         }

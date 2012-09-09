@@ -53,7 +53,7 @@ namespace tn { namespace db {
   }
 
   peer_private::peer_private( const fc::sha1& node_id, const fc::path& envdir ) 
-  :m_thread("peer_db"), m_node_id(node_id), m_envdir(envdir), m_env(0), m_peer_db(0), m_ep_index_db(0)
+  :m_thread("db::peer"), m_node_id(node_id), m_envdir(envdir), m_env(0), m_peer_db(0), m_ep_index_db(0)
   {
   }
 
@@ -64,7 +64,7 @@ namespace tn { namespace db {
   }
 
   void peer::init() {
-    if( &fc::thread::current() != &my->m_thread ) {
+    if( !my->m_thread.is_current() ) {
         my->m_thread.async( [this](){init();} ).wait();
         return;
     }
@@ -169,23 +169,23 @@ namespace tn { namespace db {
   }
 
   bool peer::fetch( const fc::sha1& id, peer::record& r ) {
-    if( &fc::thread::current() != &my->m_thread ) {
+    if( !my->m_thread.is_current() ) {
         return my->m_thread.async( [&,this](){ return fetch(id,r); } ).wait();
     }
     try {
-    fc::sha1 dist = id ^ my->m_node_id;
-
-    Dbt key;
-    key.set_data( dist.data() );
-    key.set_ulen( sizeof(dist) );
-    key.set_flags( DB_DBT_USERMEM );
-
-    Dbt val;
-    val.set_size( sizeof(r) );
-    val.set_ulen( sizeof(r) );
-    val.set_flags( DB_DBT_USERMEM );
-
-    return DB_NOTFOUND != my->m_peer_db->get( 0, &key, &val, 0 );
+      fc::sha1 dist = id ^ my->m_node_id;
+      
+      Dbt key;
+      key.set_data( dist.data() );
+      key.set_ulen( sizeof(dist) );
+      key.set_flags( DB_DBT_USERMEM );
+      
+      Dbt val;
+      val.set_size( sizeof(r) );
+      val.set_ulen( sizeof(r) );
+      val.set_flags( DB_DBT_USERMEM );
+      
+      return DB_NOTFOUND != my->m_peer_db->get( 0, &key, &val, 0 );
     } catch ( ... ) {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );
       return false;
@@ -211,7 +211,12 @@ namespace tn { namespace db {
   }
 
   bool peer::store( const fc::sha1& id, const record& m ) {
-    slog("storing %1%", id );
+    if( !my->m_thread.is_current() ) {
+        return my->m_thread.async( [=](){ return store(id,m); } ).wait();
+        //return my->m_thread.async( [&,this](){ return store(id,m); } ).wait();
+    }
+    slog("storing %s", fc::string(id).c_str() );
+
     fc::sha1 check = fc::sha1::hash( m.public_key, sizeof(m.public_key) );
     if( check != id ) {
       FC_THROW( "sha1(data) does not match given id" );
@@ -244,7 +249,6 @@ namespace tn { namespace db {
     key.set_ulen(sizeof(dist));
     key.set_flags( DB_DBT_USERMEM );
 
-    slog( "");
     my->m_peer_db->cursor( NULL, &cur, 0 );
     if( DB_NOTFOUND == cur->get( &key, &ignore_val, DB_FIRST ) ) {
       slog( "not found" );
@@ -258,7 +262,7 @@ namespace tn { namespace db {
 
     Dbt ignore_key;
     cur->get(  &ignore_key, &idx_val, DB_GET_RECNO );
-    slog( "inserted/updated record %1%", idx );
+    slog( "inserted/updated record %d", idx );
     cur->close();
     if( !ex )
       record_inserted(idx);

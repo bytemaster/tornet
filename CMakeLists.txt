@@ -1,48 +1,92 @@
-FIND_PACKAGE( Wt REQUIRED )
-INCLUDE_DIRECTORIES( ${Wt_INCLUDE_DIR} )
-find_package( Qt4 REQUIRED )
-add_definitions( -DQT_NO_KEYWORDS )
+PROJECT( tornet )
+
+CMAKE_MINIMUM_REQUIRED( VERSION 2.8.0 )
+SET( CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMakeModules;${CMAKE_MODULE_PATH}" )
+
+INCLUDE( VersionMacros )
+INCLUDE( SetupTargetMacros )
+
+SET( DEFAULT_HEADER_INSTALL_DIR include/\${target} )
+SET( DEFAULT_LIBRARY_INSTALL_DIR lib/ )
+SET( DEFAULT_EXECUTABLE_INSTALL_DIR bin/ )
+SET( CMAKE_DEBUG_POSTFIX _debug )
+
+IF( WIN32 )
+	ADD_DEFINITIONS( -DBOOST_CONTEXT_NO_LIB )
+	ADD_DEFINITIONS( -D_SCL_SECURE_NO_WARNINGS )
+	ADD_DEFINITIONS( -D_WIN32_WINNT=0x0501 )
+	ADD_DEFINITIONS( -D_CRT_SECURE_NO_WARNINGS )
+ELSE(WIN32)
+   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wall")
+ENDIF(WIN32)
+
+if( UNIX ) 
+  if( NOT APPLE )  
+    set(rt_library rt )
+	set(pthread_library pthread) 
+  endif() 
+endif()
+
+
+
+#FIND_PACKAGE( Wt REQUIRED )
+#INCLUDE_DIRECTORIES( ${Wt_INCLUDE_DIR} )
+#find_package( Qt4 REQUIRED )
+#add_definitions( -DQT_NO_KEYWORDS )
 
 #find_package( Protobuf REQUIRED )
 
+FIND_PACKAGE( OpenSSL )
+SET(Boost_USE_STATIC_LIBS ON)
+FIND_PACKAGE(Boost 1.51 COMPONENTS thread date_time system filesystem program_options signals serialization chrono unit_test_framework context ) 
+LINK_DIRECTORIES( ${Boost_LIBRARY_DIRS} )
+include_directories( ${Boost_INCLUDE_DIR} )
 
 include_directories( ${QT_QTCORE_INCLUDE_DIR} )
 include_directories( ${QT_QTGUI_INCLUDE_DIR} )
-include_directories( ../cmt/include )
-include_directories( ../reflect/include )
-#include_directories( ../rpc/include )
-include_directories( ../context/include )
-include_directories( ../atomic/include )
-include_directories( ../ )
+include_directories( fc/include )
+#include_directories( ../reflect/include )
+include_directories( include )
 include_directories( /usr/include )
-include_directories( /opt/local/include/db52 )
+include_directories( /opt/local/include/db53 )
 
-link_directories( /opt/local/lib/db52 )
-set( BerkeleyDB_LIBRARY /opt/local/lib/db52/libdb_cxx.a )
+link_directories( /opt/local/lib/db53 )
+set( BerkeleyDB_LIBRARY /opt/local/lib/db53/libdb_cxx.a )
+
+add_subdirectory(fc)
 
 SET( sources 
-    main.cpp
-    gui/QBind.cpp
-    net/channel.cpp
-    net/node.cpp
-    net/kad.cpp
-    net/udt_channel.cpp
-    net/detail/miss_list.cpp
-    net/detail/connection.cpp
-    net/detail/node_private.cpp
-    rpc/connection.cpp
-    rpc/service.cpp
-    rpc/udp_connection.cpp
-    rpc/udt_connection.cpp
-    services/accounting.cpp
-    services/chat.cpp
-    services/calc.cpp
-    services/chunk_service.cpp
-    services/chunk_session.cpp
-    services/chunk_search.cpp
-    db/peer.cpp
-    db/chunk.cpp 
-    db/publish.cpp 
+    src/db/chunk.cpp
+    src/db/peer.cpp
+    src/db/publish.cpp
+    src/buffer.cpp
+    src/channel.cpp
+    src/connection.cpp
+    src/node.cpp
+    src/main.cpp
+
+ #   main.cpp
+ #   gui/QBind.cpp
+ #   net/channel.cpp
+ #   net/node.cpp
+ #   net/kad.cpp
+ #   net/udt_channel.cpp
+ #   net/detail/miss_list.cpp
+ #   net/detail/connection.cpp
+ #   net/detail/node_private.cpp
+ #   rpc/connection.cpp
+ #   rpc/service.cpp
+ #   rpc/udp_connection.cpp
+ #   rpc/udt_connection.cpp
+ #   services/accounting.cpp
+ #   services/chat.cpp
+ #   services/calc.cpp
+ #   services/chunk_service.cpp
+ #   services/chunk_session.cpp
+ #   services/chunk_search.cpp
+ #   db/peer.cpp
+ #   db/chunk.cpp 
+ #   db/publish.cpp 
    )
 
 SET( moc_headers 
@@ -51,16 +95,15 @@ SET( moc_headers
 
 
 #QT4_WRAP_UI( sources gui/main.ui )
-QT4_WRAP_CPP( sources ${moc_headers} )
+#QT4_WRAP_CPP( sources ${moc_headers} )
 
 SET( CXX_FLAGS -Wall )
 
 SET( libraries 
-    boost_cmt
-    json
+    fc
     boost_context 
-    ltl
     scrypt
+    ${OPENSSL_CRYPTO_LIBRARY}
     ${BerkeleyDB_LIBRARY}
     ${Boost_THREAD_LIBRARY} 
     ${Boost_CHRONO_LIBRARY} 
@@ -80,3 +123,4 @@ add_executable( tornet
   MACOSX_BUNDLE 
   ${sources} )
 target_link_libraries( tornet ${libraries} )
+

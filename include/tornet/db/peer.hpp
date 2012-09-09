@@ -5,6 +5,7 @@
 #include <fc/sha1.hpp>
 #include <fc/filesystem.hpp>
 #include <fc/shared_ptr.hpp>
+#include <fc/signals.hpp>
 
 namespace fc { 
   namespace ip {
@@ -71,9 +72,9 @@ namespace tn { namespace db {
       // be sure to delegate to the proper thread and not to
       // perform any lengthy calculations in your handler or you
       // will block ongoing database operations
-      fc::function<void(uint32_t)> record_inserted;
-      fc::function<void(uint32_t)> record_changed;
-      fc::function<void(uint32_t)> record_removed;
+      fc::signal<void(uint32_t)> record_inserted;
+      fc::signal<void(uint32_t)> record_changed;
+      fc::signal<void(uint32_t)> record_removed;
    private:
       class peer_private* my;
   };

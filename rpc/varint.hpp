@@ -1,6 +1,6 @@
 #ifndef _BOOST_RPC_VARINT_HPP_
 #define _BOOST_RPC_VARINT_HPP_
-#include <boost/reflect/reflect.hpp>
+#include <fc/reflect.hpp>
 
 namespace tornet { namespace rpc {
 
@@ -26,7 +26,7 @@ struct signed_int {
 
 } }
 
-BOOST_REFLECT_TYPEINFO( tornet::rpc::unsigned_int )
-BOOST_REFLECT_TYPEINFO( tornet::rpc::signed_int )
+//BOOST_REFLECT_TYPEINFO( tornet::rpc::unsigned_int )
+//BOOST_REFLECT_TYPEINFO( tornet::rpc::signed_int )
 
 #endif 

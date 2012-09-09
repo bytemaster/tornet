@@ -45,8 +45,8 @@ namespace tn {
         
         boost::unordered_map<std::string,fc::any>               _cached_objects;
         boost::unordered_map<uint32_t,channel>                  _channels;
-        db::peer::ptr                                        _peers;
-        db::peer::record                                     _record;
+        db::peer::ptr                                           _peers;
+        db::peer::record                                        _record;
   };
 
 connection::connection( node& np, const fc::ip::endpoint& ep, const db::peer::ptr& pptr )
@@ -76,6 +76,7 @@ connection::connection( node& np, const fc::ip::endpoint& ep, const node_id& aut
    my->_remote_id = auth_id;
    my->_cur_state = init_state;
    my->_advance_count = 0;
+   my->_peers = np.get_peers();
 }
 
 connection::~connection() {
@@ -224,8 +225,9 @@ void connection::handle_connected( const tn::buffer& b ) {
   handle_uninit(b);
 }
 bool connection::handle_auth_resp_msg( const tn::buffer& b ) {
-  wlog("auth response %1%", int(b[0]) );
+  wlog("auth response %d", int(b[0]) );
   if( b[0] ) { 
+    slog( "rank %d", uint16_t(b[0]) );
     my->_record.published_rank = uint8_t(b[0]);
     goto_state( connected ); 
     return true; 
@@ -248,7 +250,7 @@ bool connection::handle_update_rank_msg( const tn::buffer& b ) {
     my->_record.rank = new_rank;
     memcpy( (char*)my->_record.nonce, b.data(), 2*sizeof(uint64_t) );
     send_auth_response(true);
-    slog( "Received rank update for %1% to %2%", my->_remote_id, int(my->_record.rank) );
+    slog( "Received rank update for %s to %d", fc::string(my->_remote_id).c_str(), int(my->_record.rank) );
     my->_peers->store( my->_remote_id, my->_record );
   }
   return true;
@@ -261,6 +263,7 @@ bool connection::handle_close_msg( const tn::buffer& b ) {
 }
 
 void connection::reset() {
+  wlog( "?" );
   if( my->_peers && my->_record.valid() ) {
     my->_peers->store( my->_remote_id, my->_record );
   }
@@ -371,6 +374,7 @@ bool connection::handle_route_msg( const tn::buffer& b ) {
     rt[dist] = fc::ip::endpoint( ip, port );
    // slog( "Response of dist: %1% @ %2%:%3%", dist, boost::asio::ip::address_v4((unsigned long)(ip)).to_string(), port );
   }
+  slog( "set_value..." );
   itr->second->set_value(rt);
   my->_route_lookups.erase(itr);
   return true;
@@ -436,7 +440,7 @@ bool connection::handle_auth_msg( const tn::buffer& b ) {
 
       fc::sha1::encoder pkds; pkds << pubk;
       set_remote_id( pkds.result() );
-      
+      slog( "fetch... peer %p", my->_peers.get() );
       my->_peers->fetch( my->_remote_id, my->_record );
       memcpy( my->_record.bf_key, &my->_dh->shared_key.front(), 56 );
 
@@ -458,10 +462,12 @@ bool connection::handle_auth_msg( const tn::buffer& b ) {
       fc::sha1 r = rank_sha.result();
       my->_record.rank = 161 - fc::bigint( r.data(), sizeof(r) ).log2();
 
+      slog("send auth response");
       send_auth_response(true);
-
+      slog("store peer");
       my->_peers->store( my->_remote_id, my->_record );
 
+      slog("update dist index");
       my->_node.update_dist_index( my->_remote_id, this );
 
       // auth resp tru
@@ -476,7 +482,7 @@ void connection::set_remote_id( const connection::node_id& nid ) {
 
 void connection::goto_state( state_enum s ) {
   if( my->_cur_state != s ) {
-    slog( "goto %1% from %2%", int(s), int(my->_cur_state) );
+    slog( "goto %d from %d", int(s), int(my->_cur_state) );
     state_changed( my->_cur_state = s );
   }
 }

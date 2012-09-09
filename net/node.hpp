@@ -1,11 +1,12 @@
 #ifndef _TORNET_NODE_HPP_
 #define _TORNET_NODE_HPP_
 #include <tornet/net/channel.hpp>
-#include <boost/cmt/thread.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/asio.hpp>
 #include <tornet/db/peer.hpp>
 #include <tornet/db/publish.hpp>
+
+namespace fc { class thread; }
 
 namespace tornet {
   namespace detail { class node_private; }
@@ -38,7 +39,7 @@ namespace tornet {
 
       const id_type& get_id()const;
 
-      boost::cmt::thread& get_thread()const;
+      fc::thread& get_thread()const;
 
       db::peer::ptr get_peers()const;
 

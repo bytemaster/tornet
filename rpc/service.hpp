@@ -1,12 +1,12 @@
 #ifndef _TORNET_RPC_SERVICE_HPP_
 #define _TORNET_RPC_SERVICE_HPP_
 #include <tornet/rpc/connection.hpp>
-#include <boost/cmt/thread.hpp>
 #include <tornet/net/node.hpp>
 #include <boost/any.hpp>
-#include <boost/reflect/any_ptr.hpp>
+#include <fc/any_ptr.hpp>
 #include <boost/fusion/support/deduce_sequence.hpp>
-#include <json/value_io.hpp>
+
+namespace fc { class thread; }
 
 namespace tornet { namespace rpc {
 
@@ -42,11 +42,10 @@ namespace tornet { namespace rpc {
     public:
       typedef boost::shared_ptr<service> ptr;
 
-      service( const tornet::node::ptr& node, const std::string& name, uint16_t udp_port,
-              boost::cmt::thread* t = &boost::cmt::thread::current() );
+      service( const tornet::node::ptr& node, const std::string& name, uint16_t udp_port, fc::thread* t = &fc::thread::current() );
       ~service();
 
-      boost::cmt::thread* get_thread()const;
+      fc::thread*              get_thread()const;
       const tornet::node::ptr& get_node()const;
 
     protected:

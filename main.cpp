@@ -1,10 +1,10 @@
-#include <QApplication>
-#include <boost/cmt/log/log.hpp>
+//#include <QApplication>
 #include <boost/program_options.hpp>
+#include <fc/log.hpp>
 #include <tornet/db/chunk.hpp>
 #include <boost/exception/all.hpp>
 #include <tornet/db/peer.hpp>
-#include <boost/cmt/asio.hpp>
+#include <fc/asio.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <tornet/net/node.hpp>
 #include <tornet/net/udt_channel.hpp>
@@ -16,8 +16,8 @@
 #include <tornet/services/chunk_search.hpp>
 #include <scrypt/bigint.hpp>
 
-#include <boost/cmt/thread.hpp>
-#include <boost/cmt/signals.hpp>
+#include <fc/thread.hpp>
+#include <fc/signals.hpp>
 #include <tornet/rpc/service.hpp>
 #include <tornet/services/accounting.hpp>
 
@@ -221,8 +221,8 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
          const std::map<tornet::node::id_type,tornet::node::id_type>&  r = csearch->current_results();
          std::map<tornet::node::id_type,tornet::node::id_type>::const_iterator itr  = r.begin(); 
          while( itr != r.end() ) {
-           slog( "   node id: %2%   distance: %1%", 
-                     itr->first, itr->second );
+           slog( "   node id: %s   distance: %s", 
+                     string(itr->first).c_str(), string(itr->second).c_str() );
            ++itr;
          }
 
@@ -231,7 +231,8 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
            std::map<tornet::node::id_type,tornet::node::id_type>::const_iterator itr  = r.begin(); 
            while( itr != r.end() ) {
              slog( "   node id: %2%   distance: %1%", 
-                       itr->first, itr->second );
+                     //  itr->first, itr->second );
+                     string(itr->first).c_str(), string(itr->second).c_str() );
              ++itr;
            }
          }
@@ -336,9 +337,9 @@ void cli( const chunk_service::ptr& cs, const tornet::node::ptr& nd ) {
        }
      }
   } catch ( const boost::exception& e ) {
-    elog( "%1%", boost::diagnostic_information(e) );
+    elog( "%s", boost::diagnostic_information(e) );
   } catch ( const std::exception& e ) {
-    elog( "%1%", boost::diagnostic_information(e) );
+    elog( "%s", boost::diagnostic_information(e) );
   }
 }
 
@@ -425,10 +426,10 @@ int main( int argc, char** argv ) {
   boost::cmt::thread::current().set_name("main");
   try { 
       boost::cmt::thread* sthread = boost::cmt::thread::create("service");
-      QApplication* app = new QApplication(argc, argv);
+      //QApplication* app = new QApplication(argc, argv);
 
       sthread->async( boost::bind(&start_services,argc,argv) );
-      app->exec();
+      //app->exec();
 
       //quit_signal();
       slog( "wating for services to clean up" );

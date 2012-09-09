@@ -1,11 +1,10 @@
-#ifndef _BOOST_RPC_RAW_HPP_
-#define _BOOST_RPC_RAW_HPP_
-#include <boost/reflect/reflect.hpp>
+#ifndef _TORNET_RPC_RAW_HPP_
+#define _TORNET_RPC_RAW_HPP_
+#include <fc/static_reflect.hpp>
 
 #include <tornet/rpc/varint.hpp>
 #include <tornet/rpc/required.hpp>
 #include <tornet/rpc/errors.hpp>
-#include <boost/cmt/log/log.hpp>
 #include <scrypt/base64.hpp>
 #include <sstream>
 #include <iostream>
@@ -17,7 +16,8 @@
 #include <boost/fusion/support/is_sequence.hpp>
 #include <boost/fusion/sequence/intrinsic/size.hpp>
 #include <tornet/rpc/datastream.hpp>
-#include <json/value.hpp>
+#include <fc/value.hpp>
+#include <fc/json.hpp>
 
 namespace tornet { namespace rpc { namespace raw {
 
@@ -28,9 +28,9 @@ namespace tornet { namespace rpc { namespace raw {
     void pack( Stream& s, const boost::optional<T>& v );
 
     template<typename Stream>
-    void unpack( Stream& s, json::value& );
+    void unpack( Stream& s, fc::value& );
     template<typename Stream>
-    void pack( Stream& s, const json::value& );
+    void pack( Stream& s, const fc::value& );
     template<typename Stream>
     void unpack( Stream& s, std::string& );
     template<typename Stream>
@@ -105,15 +105,15 @@ namespace tornet { namespace rpc { namespace raw {
         s.write( v.c_str(), v.size() );
     }
     template<typename Stream>
-    void unpack( Stream& s, json::value& v ) {
+    void unpack( Stream& s, fc::value& v ) {
       std::string str;
       unpack(s, str);
       if( str.size() ) json::from_string( str, v );
     }
 
     template<typename Stream>
-    void pack( Stream& s, const json::value& v ) {
-      pack( s, json::to_string( v ) ); 
+    void pack( Stream& s, const fc::value& v ) {
+      pack( s, fc::json::to_string( v ) ); 
     }
 
     template<typename Stream> inline void unpack( Stream& s, signed_int& vi ) {
@@ -180,7 +180,6 @@ namespace tornet { namespace rpc { namespace raw {
 
         template<typename T, typename C, T(C::*p)>
         inline void operator()( const char* name )const {
-          //pack_helper( c.*p, name );
           tornet::rpc::raw::pack( s, c.*p );
         }
         private:            
@@ -257,11 +256,11 @@ namespace tornet { namespace rpc { namespace raw {
       struct if_reflected<boost::true_type> {
         template<typename Stream, typename T>
         static inline void pack( Stream& s, const T& v ) { 
-          boost::reflect::reflector<T>::visit( pack_object_visitor<Stream,T>( v, s ) );
+          fc::static_reflector<T>::visit( pack_object_visitor<Stream,T>( v, s ) );
         }
         template<typename Stream, typename T>
         static inline void unpack( Stream& s, T& v ) { 
-          boost::reflect::reflector<T>::visit( unpack_object_visitor<Stream,T>( v, s ) );
+          fc::static_reflector<T>::visit( unpack_object_visitor<Stream,T>( v, s ) );
         }
       };
 
@@ -283,11 +282,11 @@ namespace tornet { namespace rpc { namespace raw {
       struct if_fusion_seq<boost::mpl::false_> {
         template<typename Stream, typename T> 
         inline static void pack( Stream& s, const T& v ) {
-          if_reflected<typename boost::reflect::reflector<T>::is_defined>::pack(s,v);
+          if_reflected<typename boost::static_reflector<T>::is_defined>::pack(s,v);
         }
         template<typename Stream, typename T> 
         inline static void unpack( Stream& s, T& v ) {
-          if_reflected<typename boost::reflect::reflector<T>::is_defined>::unpack(s,v);
+          if_reflected<typename boost::static_reflector<T>::is_defined>::unpack(s,v);
         }
       };
     } // namesapce detail

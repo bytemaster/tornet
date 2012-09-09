@@ -49,7 +49,7 @@ namespace tn {
 
   class node::impl {
     public:
-      impl( node& s ):_self(s){
+      impl( node& s ):_self(s),_thread("node"){
         _done = false;
         _rank = 0;
         _nonce[0] = _nonce[1] = 0;
