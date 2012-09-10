@@ -63,6 +63,7 @@ SET( sources
     src/channel.cpp
     src/connection.cpp
     src/node.cpp
+    src/kad.cpp
     src/main.cpp
 
  #   main.cpp

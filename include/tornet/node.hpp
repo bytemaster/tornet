@@ -80,6 +80,7 @@ namespace tn {
        *  sorted by distance from target.
        *
        *  @param limit - the maximum distance to consider, or unlimited distance if limit is 0
+       *  @param n     - the number of nodes to return
        *
        *  TODO:  Add a method to query info about a given node.
        */

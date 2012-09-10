@@ -28,6 +28,11 @@ namespace tn {
       return;
     }
     // TODO ... 
+    auto itr = my->_ep_to_con.begin();
+    while( itr != my->_ep_to_con.end() ) {
+      itr->second->close();
+      ++itr;
+    }
   }
 
 
@@ -117,19 +122,84 @@ namespace tn {
     // TODO
   }
 
+
+
+
+
+
+
+
   fc::vector<host> node::find_nodes_near( const id_type& target, uint32_t n, const fc::optional<id_type>& limit ) {
     if( !my->_thread.is_current() ) {
       return my->_thread.async( [&,this](){ return find_nodes_near( target, n, limit ); } ).wait();
     }
-    // TODO
+
+    //std::map<fc::sha1,fc::ip::endpoint>  near;
+    fc::vector<host> near;
+    auto itr =  my->_dist_to_con.lower_bound( target ^ my->_id );
+    auto lb  = itr;
+    if( itr != my->_dist_to_con.begin() ) {
+      --itr;
+    }
+    if( itr == my->_dist_to_con.end() ) {
+      int c  = 0;
+      while( itr != my->_dist_to_con.begin() && c < n){
+        --itr;
+        c++;
+      }
+    } 
+
+    wlog( "my->_dist_to_con::size %d  near.size %d   n: %d", 
+                      my->_dist_to_con.size(), near.size(), n );
+    if( itr == my->_dist_to_con.end() ) {
+      elog( "no nodes closer..." );
+      return near;
+    }
+    while( itr != my->_dist_to_con.end() && near.size() < n ) {
+      slog( "   near push back .. " );
+      auto dist = (itr->first^my->_id)^target;
+      near.push_back( tn::host( dist, itr->second->get_endpoint() ) );
+      // TODO: apply search limit filter?
+      // if( limit != node::id_type() || dist < limit ) {
+      //slog( "dist: %1%  target: %2%", dist, target );
+      //  near[ dist  ] = itr->second->get_endpoint();
+     // }
+      ++itr;
+    }
+    --lb;
+    while( lb != my->_dist_to_con.begin() && near.size() < n ) {
+      slog( "   near push back .. " );
+      auto dist = (lb->first^my->_id)^target;
+      near.push_back( tn::host( dist, lb->second->get_endpoint() ) );
+      // TODO: apply search limit filter?
+      // if( limit != node::id_type() || dist < limit ) {
+      //slog( "dist: %1%  target: %2%", dist, target );
+      //  near[ dist  ] = itr->second->get_endpoint();
+     // }
+      --lb;
+    }
+
+
+
+
+
+
+    return near;
   }
+
+
+
+
+
+
 
   fc::vector<host> node::remote_nodes_near( const id_type& rnode, const id_type& target, uint32_t n, 
                                           const fc::optional<id_type>& limit  ) {
     if( !my->_thread.is_current() ) {
       return my->_thread.async( [&,this](){ return remote_nodes_near( rnode, target, n, limit ); } ).wait();
     }
-    // TODO 
+    connection* con = my->get_connection( rnode ); 
+    return con->find_nodes_near( target, n, limit );
   }
 
   void node::start_service( uint16_t cn, const fc::string& name, const node::new_channel_handler& cb ) {
@@ -156,7 +226,16 @@ namespace tn {
     if( !my->_thread.is_current() ) {
       return my->_thread.async( [this](){ return active_peers(); } ).wait();
     }
-    // TODO
+    fc::vector<db::peer::record> recs(my->_dist_to_con.size());
+    auto itr = my->_dist_to_con.begin();
+    auto end = my->_dist_to_con.end();
+    int i = 0;
+    while( itr != end ) {
+      recs[i] = itr->second->get_db_record();
+      ++i;
+      ++itr;
+    }
+    return recs;
   }
 
   /// TODO: Flush status from active connections
@@ -200,7 +279,7 @@ namespace tn {
    *  The connection is responsible for updating the node index that maps ids to active connections.
    */
   void                     node::update_dist_index( const id_type& nid, connection* c ) {
-    elog( "%1%", nid );
+    elog( "%s", fc::string(nid).c_str() );
     auto dist = nid ^ my->_id;
     auto itr = my->_dist_to_con.find(dist);
     if( c ) {

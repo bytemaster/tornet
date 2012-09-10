@@ -48,6 +48,7 @@ namespace tn {
         db::peer::ptr                                           _peers;
         db::peer::record                                        _record;
   };
+const db::peer::record&  connection::get_db_record()const { return my->_record; }
 
 connection::connection( node& np, const fc::ip::endpoint& ep, const db::peer::ptr& pptr )
 :my(np) {
@@ -440,7 +441,6 @@ bool connection::handle_auth_msg( const tn::buffer& b ) {
 
       fc::sha1::encoder pkds; pkds << pubk;
       set_remote_id( pkds.result() );
-      slog( "fetch... peer %p", my->_peers.get() );
       my->_peers->fetch( my->_remote_id, my->_record );
       memcpy( my->_record.bf_key, &my->_dh->shared_key.front(), 56 );
 
@@ -462,12 +462,9 @@ bool connection::handle_auth_msg( const tn::buffer& b ) {
       fc::sha1 r = rank_sha.result();
       my->_record.rank = 161 - fc::bigint( r.data(), sizeof(r) ).log2();
 
-      slog("send auth response");
       send_auth_response(true);
-      slog("store peer");
       my->_peers->store( my->_remote_id, my->_record );
 
-      slog("update dist index");
       my->_node.update_dist_index( my->_remote_id, this );
 
       // auth resp tru
@@ -482,7 +479,6 @@ void connection::set_remote_id( const connection::node_id& nid ) {
 
 void connection::goto_state( state_enum s ) {
   if( my->_cur_state != s ) {
-    slog( "goto %d from %d", int(s), int(my->_cur_state) );
     state_changed( my->_cur_state = s );
   }
 }
@@ -712,7 +708,7 @@ void connection::send_auth() {
       const route_table& rt = prom->wait( fc::seconds(5) );
 
       uint64_t end_time_utc  = fc::time_point::now().time_since_epoch().count(); 
-      elog( "%lld - %lld = %lld", end_time_utc, start_time_utc, (end_time_utc-start_time_utc) );
+      elog( "latency: %lld - %lld = %lld us", end_time_utc, start_time_utc, (end_time_utc-start_time_utc) );
       my->_record.avg_rtt_us =  (my->_record.avg_rtt_us*1 + (end_time_utc-start_time_utc)) / 2;
 
       assert( my->_route_lookups.end() == my->_route_lookups.find(target) );
