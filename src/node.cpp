@@ -84,6 +84,26 @@ namespace tn {
     my->listen(port);
   }
 
+  fc::sha1 node::connect_to( const endpoint& ep, const endpoint& nat_ep ) {
+    if( !my->_thread.is_current() ) {
+       return my->_thread.async( [&,this](){ return connect_to( ep, nat_ep ); } ).wait();
+    }
+
+    ep_to_con_map::iterator ep_con = my->_ep_to_con.find(ep);
+    if( ep_con != my->_ep_to_con.end() ) { return ep_con->second->get_remote_id(); }
+
+    ep_to_con_map::iterator nat_con = my->_ep_to_con.find(nat_ep);
+    if( nat_con == my->_ep_to_con.end() || nat_con->second->get_state() != connection::connected ) { 
+      FC_THROW( "No active connection to NAT endpoint %s", fc::string(nat_ep).c_str() );
+    }
+
+    nat_con->second->request_reverse_connect(ep);
+
+    return connect_to(ep);
+  }
+
+
+
   node::id_type node::connect_to( const node::endpoint& ep ) {
     if( !my->_thread.is_current() ) {
        return my->_thread.async( [&,this](){ return connect_to( ep ); } ).wait();

@@ -82,6 +82,9 @@ namespace tn {
        *  @param limit - the maximum distance to consider, or unlimited distance if limit is 0
        *  @param n     - the number of nodes to return
        *
+       *  @note The returned host.ids are distances from 'this' node, to get the real id
+       *        you must perform host.id ^ this->node.id 
+       *
        *  TODO:  Add a method to query info about a given node.
        */
       fc::vector<host> find_nodes_near( const id_type& target, uint32_t n, 
@@ -99,6 +102,18 @@ namespace tn {
        *  Connect to the endpoint and return the ID of the node or throw on error.
        */
       id_type connect_to( const endpoint& ep );
+
+      /**
+       *  Given the desired endpoint (ep), attempt to open a connection, but ask nat_ep to
+       *  forward a request to poke a hole in the firewall.   Presumably, nat_ep is already 
+       *  allowed to talk to ep so his message can get through.  
+       *
+       *  Once the nat punch-through is achieved, then this method behaves the same as
+       *  connect_to(ep);
+       *
+       *  If the punch-through is not successful, then an exception will be thrown.
+       */
+      id_type connect_to( const endpoint& ep, const endpoint& nat_into_ep );
 
       /**
        *  This method will attempt to connect to node_id and then create a new channel to node_port with

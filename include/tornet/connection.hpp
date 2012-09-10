@@ -42,13 +42,14 @@ namespace tn {
         };
 
         enum proto_message_type {
-          data_msg           = 0,
-          auth_msg           = 1,
-          auth_resp_msg      = 2,
-          route_lookup_msg   = 3,
-          route_msg          = 4,
-          close_msg          = 5,
-          update_rank        = 6
+          data_msg                 = 0,
+          auth_msg                 = 1,
+          auth_resp_msg            = 2,
+          route_lookup_msg         = 3,
+          route_msg                = 4,
+          close_msg                = 5,
+          update_rank              = 6,
+          req_reverse_connect_msg  = 7
         };
 
         typedef fc::shared_ptr<connection> ptr;
@@ -92,6 +93,10 @@ namespace tn {
         bool handle_route_msg( const tn::buffer& b );
         bool handle_update_rank_msg( const tn::buffer& b );
 
+        // requests the remote host attempt to connect to ep
+        void request_reverse_connect( const fc::ip::endpoint& ep );
+        bool handle_request_reverse_connect_msg( const tn::buffer& b );
+
         void generate_dh();
         bool process_dh( const tn::buffer& b );
         void send_dh();
@@ -99,9 +104,11 @@ namespace tn {
         void send_auth_response(bool);
         void send_update_rank();
 
+
         void close_channel( const channel& c );
         void send_close();
         void send( const channel& c, const tn::buffer& b );
+
 
         void set_remote_id( const node_id& nid );
         void send( const char* c, uint32_t l, proto_message_type t ); 

@@ -58,11 +58,12 @@ void start_services( int argc, char** argv ) {
             ks->wait();
 
             slog( "Results: \n" );
-            const std::map<fc::sha1,fc::sha1>&  r = ks->current_results();
+            //const std::map<fc::sha1,tn::host>&
+            auto r = ks->current_results();
             auto itr  = r.begin(); 
             while( itr != r.end() ) {
-              slog( "   distance: %s   node: %s", 
-                       fc::string(itr->first).c_str(), fc::string(itr->second).c_str() );
+              slog( "   distance: %s   node: %s  endpoint: %s", 
+                       fc::string(itr->first).c_str(), fc::string(itr->second.id).c_str(), fc::string(itr->second.ep).c_str() );
               ++itr;
             }
         } catch ( ... ) {

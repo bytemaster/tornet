@@ -49,7 +49,7 @@ namespace tn {
        *
        *  TODO: Document the thread this update occurs in... 
        */
-      const std::map<fc::sha1,fc::sha1>&  current_results()const {
+      const std::map<fc::sha1,host>&  current_results()const {
         return m_current_results;
       }
 
@@ -82,8 +82,8 @@ namespace tn {
       status                                m_cur_status;
 
       /// stores endpoints that are on deck ordered by distance.
-      std::map<fc::sha1, fc::ip::endpoint>  m_search_queue;
-      std::map<fc::sha1, fc::sha1>          m_current_results;
+      std::map<fc::sha1, host>  m_search_queue;
+      std::map<fc::sha1, host>  m_current_results;
  };
 
 

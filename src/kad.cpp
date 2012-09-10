@@ -27,7 +27,8 @@ namespace tn {
      auto i = nn.begin();
      auto e = nn.end();
      while( i != e ) {
-       m_search_queue[i->id] = i->ep;
+       // note i->id is the distance from this node's id
+       m_search_queue[i->id] = *i;
        ++i;
      }
 
@@ -65,18 +66,25 @@ namespace tn {
   void kad_search::search_thread() {
     slog( "search thread.... queue size %d", m_search_queue.size() );
     while( m_search_queue.size() && m_cur_status == kad_search::searching ) {
-        fc::ip::endpoint ep  = m_search_queue.begin()->second;
+        auto  cur_item = m_search_queue.begin()->second;
+        fc::ip::endpoint ep  = m_search_queue.begin()->second.ep;
         fc::sha1  nid        = m_search_queue.begin()->first ^ m_target;
         m_search_queue.erase(m_search_queue.begin());
         
         try {
+          // TODO: determine if we must perform nat traversal
+          if( cur_item.nat_hosts.size() ) {
+             elog( "This node requies NAT traversal to reach!! %s",
+                    fc::string(cur_item.nat_hosts.front()).c_str() );
+          }
+
           fc::sha1  rtn    = m_node->connect_to(ep);
           slog( "node %s found at %s", fc::string(rtn).c_str(), fc::string(ep).c_str() );
 
           // This filter may involve RPC calls.... 
           filter( rtn );
           slog( "    adding node %s to result list", fc::string(rtn).c_str() );
-          m_current_results[m_target^rtn] = rtn;
+          m_current_results[m_target^rtn] = host( rtn, ep );
           if( m_current_results.size() > m_n )  {
             m_current_results.erase( --m_current_results.end() );
           }
@@ -118,12 +126,12 @@ namespace tn {
               // if current results is not 'full' or the new result is less than the last
               // current result
               if( m_current_results.size() < m_n ) {
-                m_search_queue[rri->id] = rri->ep;
+                m_search_queue[rri->id] = *rri;
               } else { // assume m_current_results.size() > 1 because m_n >= 1
-                std::map<fc::sha1,fc::sha1>::const_iterator ritr = m_current_results.end();
+                auto ritr = m_current_results.end();
                 --ritr;
                 if( ritr->first > rri->id ) { // only search the node if it is closer than current results
-                  m_search_queue[rri->id] = rri->ep;
+                  m_search_queue[rri->id] = *rri;
                 }
               }
             }

@@ -282,6 +282,44 @@ void connection::send_close() {
   send( &resp, sizeof(resp), close_msg );
 }
 
+
+/**
+ *    First, local host should send a punch_through to ep.
+ *    Then, ask this connection to forward a 'reverse connect' request
+ *        to ep.
+ *
+ *    The above two steps should repeat every .25 seconds up to 3 times
+ *    before concluding that a connection could not be established.
+ *
+ *
+ *
+ *    Put the connection in 'waiting for punch through state' so that
+ *
+ *
+ *    Send request_nat_punch_through_msg to remote ep.
+ *    The remote ep will then send a nat_punch_through_msg to ep
+ *    The remote ep will then send a request_nat_punch_through_ack_msg back to us.
+ *
+ *    This call will block for up to 1 second or until it receives the ack msg.
+ *    The request will be sent every .25 seconds until 1 second has elapsed in case
+ *    a packet was dropped.
+ */
+void connection::request_reverse_connect( const fc::ip::endpoint& ep ) {
+  char rnpt[6]; 
+  fc::datastream<char*> ds(rnpt,sizeof(rnpt));
+  ds << uint32_t(ep.get_address()) << ep.port();
+  send( rnpt, sizeof(rnpt), req_reverse_connect_msg );
+}
+
+bool connection::handle_request_reverse_connect_msg( const tn::buffer& b ) {
+   fc::datastream<const char*> ds(b.data(), b.size() );
+   uint32_t ip; uint16_t port;
+   ds >> ip >> port;
+   
+   my->_node.get_thread().async( [=]() { my->_node.connect_to( fc::ip::endpoint( ip, port ) ); } );
+   return true;
+}
+
 /**
  *  Return the received rank
  */
@@ -315,13 +353,14 @@ bool connection::decode_packet( const tn::buffer& b ) {
 //    slog( "%1% bytes type %2%  pad %3%", b.size(), int(msg_type), int(pad) );
 
     switch( msg_type ) {
-      case data_msg:         return handle_data_msg( b.subbuf(4,b.size()-4-pad) );  
-      case auth_msg:         return handle_auth_msg( b.subbuf(4,b.size()-4-pad) );  
-      case auth_resp_msg:    return handle_auth_resp_msg( b.subbuf(4,b.size()-4-pad) );  
-      case route_lookup_msg: return handle_lookup_msg( b.subbuf(4,b.size()-4-pad) );
-      case route_msg:        return handle_route_msg( b.subbuf(4,b.size()-4-pad) );
-      case close_msg:        return handle_close_msg( b.subbuf(4,b.size()-4-pad) );  
-      case update_rank:      return handle_update_rank_msg( b.subbuf(4,b.size()-4-pad) );  
+      case data_msg:                    return handle_data_msg( b.subbuf(4,b.size()-4-pad) );  
+      case auth_msg:                    return handle_auth_msg( b.subbuf(4,b.size()-4-pad) );  
+      case auth_resp_msg:               return handle_auth_resp_msg( b.subbuf(4,b.size()-4-pad) );  
+      case route_lookup_msg:            return handle_lookup_msg( b.subbuf(4,b.size()-4-pad) );
+      case route_msg:                   return handle_route_msg( b.subbuf(4,b.size()-4-pad) );
+      case close_msg:                   return handle_close_msg( b.subbuf(4,b.size()-4-pad) );  
+      case update_rank:                 return handle_update_rank_msg( b.subbuf(4,b.size()-4-pad) );  
+      case req_reverse_connect_msg:     return handle_request_reverse_connect_msg( b.subbuf(4,b.size()-4-pad) );  
       default:
         wlog( "Unknown message type" );
     }
