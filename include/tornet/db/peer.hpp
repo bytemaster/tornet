@@ -72,9 +72,9 @@ namespace tn { namespace db {
       // be sure to delegate to the proper thread and not to
       // perform any lengthy calculations in your handler or you
       // will block ongoing database operations
-      fc::signal<void(uint32_t)> record_inserted;
-      fc::signal<void(uint32_t)> record_changed;
-      fc::signal<void(uint32_t)> record_removed;
+      boost::signal<void(uint32_t)> record_inserted;
+      boost::signal<void(uint32_t)> record_changed;
+      boost::signal<void(uint32_t)> record_removed;
    private:
       class peer_private* my;
   };

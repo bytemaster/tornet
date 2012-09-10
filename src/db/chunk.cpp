@@ -6,9 +6,9 @@
 #include <fc/vector.hpp>
 #include <fc/exception.hpp>
 #include <fc/buffer.hpp>
+#include <fc/bigint.hpp>
 
 #include <db_cxx.h>
-#include <scrypt/bigint.hpp>
 
 
 namespace tn { namespace db {
@@ -317,7 +317,7 @@ namespace tn { namespace db {
         if( DB_NOTFOUND == my->m_meta_db->get( txn, &key, &mval, 0 ) ) {
           // initialize met here... 
           met.first_update = met.now(); 
-          met.distance_rank = 161 - scrypt::bigint( (const char*)dist.data(), sizeof(dist) ).log2();
+          met.distance_rank = 161 - fc::bigint( (const char*)dist.data(), sizeof(dist) ).log2();
           inserted = true;
         }
         if( met.size == 0 ) {
@@ -441,7 +441,7 @@ namespace tn { namespace db {
 
     if( DB_NOTFOUND==rtn && auto_inc ) {
       slog( "not found && auto inc" );
-      m.distance_rank = 161 - scrypt::bigint( (const char*)dist.data(), sizeof(dist) ).log2();
+      m.distance_rank = 161 - fc::bigint( (const char*)dist.data(), sizeof(dist) ).log2();
       m.first_update = m.now();
       m.last_update  = m.now();
       m.query_count  = 0;

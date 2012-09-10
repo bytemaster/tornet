@@ -2,7 +2,7 @@
 #define _TN_DB_CHUNK_HPP_
 #include <fc/shared_ptr.hpp>
 #include <fc/vector_fwd.hpp>
-#include <fc/function.hpp>
+#include <fc/signals.hpp>
 #include <fc/filesystem.hpp>
 #include <fc/sha1.hpp>
 
@@ -107,9 +107,9 @@ namespace tn { namespace db {
       // be sure to delegate to the proper thread and not to
       // perform any lengthy calculations in your handler or you
       // will block ongoing database operations
-      fc::function<void(uint32_t)> record_inserted;
-      fc::function<void(uint32_t)> record_changed;
-      fc::function<void(uint32_t)> record_removed;
+      boost::signal<void(uint32_t)> record_inserted;
+      boost::signal<void(uint32_t)> record_changed;
+      boost::signal<void(uint32_t)> record_removed;
 
     private:
       class chunk_private* my;

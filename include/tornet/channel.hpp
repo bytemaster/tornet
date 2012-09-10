@@ -42,7 +42,7 @@ namespace tn {
         closed = 1
       };
       typedef fc::sha1                                         node_id;
-      typedef fc::function<void(const tn::buffer&,error_code)> recv_handler;
+      typedef std::function<void(const tn::buffer&,error_code)> recv_handler;
 
       channel();
       channel( channel&& c );

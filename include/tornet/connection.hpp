@@ -119,7 +119,7 @@ namespace tn {
         fc::vector<tn::host> find_nodes_near( const node_id& target, uint32_t n, const fc::optional<node_id>& limit  );
 
         //fc::function<void(state_enum)> state_changed;
-        fc::signal<void(state_enum)> state_changed;
+        boost::signal<void(state_enum)> state_changed;
         const db::peer::record&      get_db_record()const;
 
 //        void    cache_object( const fc::string& key, const fc::any& v );
