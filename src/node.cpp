@@ -159,6 +159,9 @@ namespace tn {
       slog( "   near push back .. " );
       auto dist = (itr->first^my->_id)^target;
       near.push_back( tn::host( dist, itr->second->get_endpoint() ) );
+      if( itr->second->is_behind_nat() ) {
+        near.back().nat_hosts.resize(1);
+      }
       // TODO: apply search limit filter?
       // if( limit != node::id_type() || dist < limit ) {
       //slog( "dist: %1%  target: %2%", dist, target );
@@ -171,6 +174,9 @@ namespace tn {
       slog( "   near push back .. " );
       auto dist = (lb->first^my->_id)^target;
       near.push_back( tn::host( dist, lb->second->get_endpoint() ) );
+      if( itr->second->is_behind_nat() ) {
+        near.back().nat_hosts.resize(1);
+      }
       // TODO: apply search limit filter?
       // if( limit != node::id_type() || dist < limit ) {
       //slog( "dist: %1%  target: %2%", dist, target );
@@ -191,6 +197,16 @@ namespace tn {
 
 
 
+  fc::ip::endpoint node::local_endpoint( const fc::ip::endpoint& dst )const {
+    auto ep = dst;
+    if( dst == fc::ip::endpoint() ) {
+      ep = fc::ip::endpoint( fc::ip::address("74.125.228.40"), 8000 );
+    }
+    my->_lookup_sock.connect( ep );
+    auto lp = my->_lookup_sock.local_endpoint();
+    lp.set_port( my->_sock.local_endpoint().port() );
+    return lp;
+  }
 
 
   fc::vector<host> node::remote_nodes_near( const id_type& rnode, const id_type& target, uint32_t n, 

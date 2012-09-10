@@ -53,6 +53,7 @@ namespace tn {
         _done = false;
         _rank = 0;
         _nonce[0] = _nonce[1] = 0;
+        _lookup_sock.connect( fc::ip::endpoint( fc::ip::address("74.125.228.40"), 8000 ) );
       }
 
       node&                           _self;
@@ -65,11 +66,12 @@ namespace tn {
       fc::public_key_t                _pub_key;
       service_set                     _services;
       fc::udp_socket                  _sock;
+      fc::udp_socket                  _lookup_sock;
       fc::future<void>                _read_loop_complete;
       ep_to_con_map                   _ep_to_con;
       bool                            _done;
       fc::path                        _datadir;
-      std::map<fc::sha1,connection*>   _dist_to_con;
+      std::map<fc::sha1,connection*>  _dist_to_con;
 
       db::peer::ptr    _peers;
       db::publish::ptr _publish_db;

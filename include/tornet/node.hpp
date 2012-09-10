@@ -130,6 +130,11 @@ namespace tn {
        */
       void close_service( uint16_t service_channel_num );
 
+      /**
+       *  @return the endpoint that our UDP packets come from.
+       */
+      fc::ip::endpoint local_endpoint( const fc::ip::endpoint& dest = fc::ip::endpoint() )const;
+
     private:
       friend class connection;
       void                     update_dist_index( const id_type& id, connection* c );

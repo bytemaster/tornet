@@ -24,10 +24,10 @@
 
 namespace tn { 
 
-  typedef std::map<fc::sha1,fc::ip::endpoint> route_table;
+  typedef fc::vector<host> route_table;
   class connection::impl {
     public:
-        impl( node& n ):_node(n){}
+        impl( node& n ):_node(n),_behind_nat(false){}
 
         uint16_t                                              _advance_count;
         node&                                                 _node;
@@ -38,15 +38,17 @@ namespace tn {
                                                               
         node_id                                               _remote_id;
         fc::ip::endpoint                                      _remote_ep;
+        fc::ip::endpoint                                      _public_ep; // endpoint remote host reported seeing from us
+        bool                                                  _behind_nat;
 
 
-        std::map<node_id,fc::promise<route_table>::ptr> _route_lookups;
+        std::map<node_id,fc::promise<route_table>::ptr>       _route_lookups;
             
         
-        boost::unordered_map<std::string,fc::any>               _cached_objects;
-        boost::unordered_map<uint32_t,channel>                  _channels;
-        db::peer::ptr                                           _peers;
-        db::peer::record                                        _record;
+        boost::unordered_map<std::string,fc::any>             _cached_objects;
+        boost::unordered_map<uint32_t,channel>                _channels;
+        db::peer::ptr                                         _peers;
+        db::peer::record                                      _record;
   };
 const db::peer::record&  connection::get_db_record()const { return my->_record; }
 
@@ -326,7 +328,8 @@ bool connection::decode_packet( const tn::buffer& b ) {
     return true;
 }
 
-/// sha1(target_id) << uint32_t(num)  
+/// Message In:     sha1(target_id) << uint32_t(num)  
+/// Message Out:    sha1(target_id) << uint32_t(num) << *(dist << ip << port << uin8_t(is_nat) )
 bool connection::handle_lookup_msg( const tn::buffer& b ) {
   node_id target; uint32_t num; uint8_t l=0; node_id limit;
   {
@@ -337,6 +340,8 @@ bool connection::handle_lookup_msg( const tn::buffer& b ) {
     //  if( l ) ds >> limit;
   }
   fc::vector<host> r = my->_node.find_nodes_near( target, num, limit );
+
+  // TODO: put this on the stack to eliminate heap alloc
   fc::vector<char> rb; rb.resize(2048);
 
   num = r.size();
@@ -349,13 +354,16 @@ bool connection::handle_lookup_msg( const tn::buffer& b ) {
   for( uint32_t i = 0; i < num; ++i ) {
    // slog( "Reply with %1% @ %2%:%3%", itr->first, itr->second.address().to_string(), itr->second.port() );
     ds << itr->id << uint32_t(itr->ep.get_address()) << uint16_t(itr->ep.port());
+    ds << uint8_t( itr->nat_hosts.size() );
     ++itr;
   }
   send( &rb.front(), ds.tellp(), route_msg );
 
   return true;
 }
-// uint16_t(num) << (sha1(distance) << uint32_t(ip) << uint16_t(port))*
+
+
+/// Message IN:    sha1(target_id) << uint32_t(num) << *(dist << ip << port << uin8_t(is_nat) )
 bool connection::handle_route_msg( const tn::buffer& b ) {
   node_id target; uint32_t num;
   fc::datastream<const char*> ds(b.data(), b.size() );
@@ -369,10 +377,13 @@ bool connection::handle_route_msg( const tn::buffer& b ) {
 
   // unpack the routing table
   route_table rt;
+  rt.reserve(num);
   node_id dist; uint32_t ip; uint16_t port;
+  uint8_t is_nat = 0;
   for( uint32_t i = 0; i < num; ++i ) {
-    ds >> dist >> ip >> port; 
-    rt[dist] = fc::ip::endpoint( ip, port );
+    ds >> dist >> ip >> port >> is_nat; 
+    rt.push_back( host( dist, fc::ip::endpoint( ip, port ) ) );
+    if( is_nat ) rt.back().nat_hosts.push_back( my->_remote_ep );
    // slog( "Response of dist: %1% @ %2%:%3%", dist, boost::asio::ip::address_v4((unsigned long)(ip)).to_string(), port );
   }
   slog( "set_value..." );
@@ -413,7 +424,9 @@ bool connection::handle_data_msg( const tn::buffer& b ) {
 }
 
 /**
- *  Returning false, is will send us back to uninit state
+ *  Returning false, it will send us back to uninit state
+ *
+ *  sig pub_key utc nonce[2] ip port
  */
 bool connection::handle_auth_msg( const tn::buffer& b ) {
     slog( "" );
@@ -424,6 +437,10 @@ bool connection::handle_auth_msg( const tn::buffer& b ) {
 
     fc::datastream<const char*> ds( b.data(), b.size() );
     ds >> sig >> pubk >> utc_us >> remote_nonce[0] >> remote_nonce[1];
+    uint32_t rip;
+    uint16_t rport;
+    ds >> rip >> rport;
+    my->_public_ep = fc::ip::endpoint( fc::ip::address(rip), rport );
 
 
     fc::sha1::encoder  sha;
@@ -437,6 +454,21 @@ bool connection::handle_auth_msg( const tn::buffer& b ) {
       send_close();
       return false;
     } else {
+      if( my->_public_ep.get_address() != my->_remote_ep.get_address() ) {
+        wlog( "Behind NAT  remote side reported %s but we received %s",
+              fc::string(my->_public_ep).c_str(),
+              fc::string(my->_remote_ep).c_str()
+            );
+        if( rport != my->_remote_ep.port() ) {
+          wlog( "Warning: NAT Port Rewrite!!" );
+        }
+        my->_behind_nat = true;
+      } else {
+        slog( "Public IP" );
+        my->_behind_nat = false;
+      }
+      
+
       slog( "Authenticated!" );
 
       fc::sha1::encoder pkds; pkds << pubk;
@@ -506,7 +538,11 @@ void connection::send_dh() {
 }
 
 /**
- *  Creates a node authentication message.
+ *  Creates a node authentication message. This message is used to prove that the
+ *  node owns the public_key it claims.  It also is used to report the IP:PORT 
+ *  
+ *  sign( sha1(shared_key + utc) ) + pub_key + utc + nonce[2] + uint32_t(local_ip) + uint16_t(local_port)
+ *
  */
 void connection::send_auth() {
     slog("");
@@ -520,7 +556,7 @@ void connection::send_auth() {
 
     fc::signature_t s = my->_node.sign( sha.result() );
 
-    char buf[sizeof(s)+sizeof(my->_node.pub_key())+sizeof(utc_us)+16];
+    char buf[sizeof(s)+sizeof(my->_node.pub_key())+sizeof(utc_us)+16 + 6];
     //BOOST_ASSERT( sizeof(tmp) == ps.tellp() );
 
     fc::datastream<char*> ds(buf,sizeof(buf));
@@ -528,6 +564,7 @@ void connection::send_auth() {
     // allocate buffer with unused space in front for header info and back for padding, send() will then use
     // the extra space to put the encryption, pad, and type info.
     ds << s << my->_node.pub_key() << utc_us << my->_node.nonce()[0] << my->_node.nonce()[1];
+    ds << uint32_t(my->_node.local_endpoint(my->_remote_ep).get_address()) << my->_node.local_endpoint().port();
     send( buf, sizeof(buf), auth_msg );
 }
 
@@ -684,6 +721,10 @@ void connection::send_auth() {
 
   fc::ip::endpoint connection::get_endpoint()const { return my->_remote_ep; }
 
+  bool connection::is_behind_nat()const {
+    return my->_behind_nat;
+  }
+
   /**
    *  Sends a message requesting a node lookup and waits up to 1s for a response.  If no
    *  response in 1 second, then a timeout exception is thrown.  
@@ -713,16 +754,7 @@ void connection::send_auth() {
 
       assert( my->_route_lookups.end() == my->_route_lookups.find(target) );
 
-      fc::vector<tn::host> hosts;
-      hosts.reserve(rt.size());
-
-      auto i = rt.begin();
-      auto e = rt.end();
-      while( i != e ) {
-        hosts.push_back( tn::host( i->first, i->second ) );  
-        ++i;
-      }
-      return hosts;
+      return rt;
     } catch( ... ) {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );
       auto ritr = my->_route_lookups.find(target);

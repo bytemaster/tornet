@@ -64,6 +64,7 @@ namespace tn {
         node_id          get_remote_id()const;
         uint8_t          get_remote_rank()const;
         state_enum       get_state()const;
+        bool             is_behind_nat()const;
 
         // return false if state transitioned to failed, otherwise true
         bool       auto_advance();
@@ -121,7 +122,7 @@ namespace tn {
         void  goto_state( state_enum s );
 
         class impl;
-        fc::fwd<impl,680> my;
+        fc::fwd<impl,696> my;
   };
 }
 

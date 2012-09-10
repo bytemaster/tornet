@@ -65,8 +65,8 @@ namespace tn {
   void kad_search::search_thread() {
     slog( "search thread.... queue size %d", m_search_queue.size() );
     while( m_search_queue.size() && m_cur_status == kad_search::searching ) {
-        fc::ip::endpoint ep     = m_search_queue.begin()->second;
-        fc::sha1  nid    = m_search_queue.begin()->first ^ m_target;
+        fc::ip::endpoint ep  = m_search_queue.begin()->second;
+        fc::sha1  nid        = m_search_queue.begin()->first ^ m_target;
         m_search_queue.erase(m_search_queue.begin());
         
         try {
