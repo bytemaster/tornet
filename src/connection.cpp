@@ -393,7 +393,7 @@ bool connection::handle_lookup_msg( const tn::buffer& b ) {
   ds << num;
 
   for( uint32_t i = 0; i < num; ++i ) {
-   // slog( "Reply with %1% @ %2%:%3%", itr->first, itr->second.address().to_string(), itr->second.port() );
+    slog( "Reply with %s @ %s:%d", fc::string(itr->id).c_str(), fc::string(itr->ep.get_address()).c_str(), itr->ep.port() );
     ds << itr->id << uint32_t(itr->ep.get_address()) << uint16_t(itr->ep.port());
     ds << uint8_t( itr->nat_hosts.size() );
     ++itr;
@@ -425,7 +425,7 @@ bool connection::handle_route_msg( const tn::buffer& b ) {
     ds >> dist >> ip >> port >> is_nat; 
     rt.push_back( host( dist, fc::ip::endpoint( ip, port ) ) );
     if( is_nat ) rt.back().nat_hosts.push_back( my->_remote_ep );
-   // slog( "Response of dist: %1% @ %2%:%3%", dist, boost::asio::ip::address_v4((unsigned long)(ip)).to_string(), port );
+    slog( "Response of dist: %s @ %s:%d", fc::string(dist).c_str(), fc::string(fc::ip::address(ip)).c_str(), port );
   }
   slog( "set_value..." );
   itr->second->set_value(rt);

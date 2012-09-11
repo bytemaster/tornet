@@ -70,6 +70,7 @@ namespace tn {
         fc::ip::endpoint ep  = m_search_queue.begin()->second.ep;
         fc::sha1  nid        = m_search_queue.begin()->first ^ m_target;
         m_search_queue.erase(m_search_queue.begin());
+        slog( "search thread.... queue size %d", m_search_queue.size() );
         
         try {
           fc::sha1 rtn;
@@ -124,17 +125,23 @@ namespace tn {
           auto rr =  m_node->remote_nodes_near( rtn, m_target, m_n, limit );
           auto rri = rr.begin();
           while( rri != rr.end() ) {
+            wlog( "Remote node reported %s at %s", fc::string( rri->ep ).c_str(), fc::string(rri->id).c_str() );
             // if the node is not in the current results 
             if( m_current_results.find( rri->id ) == m_current_results.end() ) {
               // if current results is not 'full' or the new result is less than the last
               // current result
               if( m_current_results.size() < m_n ) {
+                slog( "   adding to search queue" );
                 m_search_queue[rri->id] = *rri;
               } else { // assume m_current_results.size() > 1 because m_n >= 1
                 auto ritr = m_current_results.end();
                 --ritr;
                 if( ritr->first > rri->id ) { // only search the node if it is closer than current results
+                  slog( "   adding to search queue" );
                   m_search_queue[rri->id] = *rri;
+                }
+                else {
+                  wlog( "   NOT adding to search queue" );
                 }
               }
             }
@@ -142,7 +149,7 @@ namespace tn {
           }
 
         } catch ( ... ) {
-          wlog( "%s", fc::current_exception().diagnostic_information().c_str() );
+          wlog( "on node %s %s %s", fc::string(ep).c_str(), fc::string(nid).c_str(), fc::current_exception().diagnostic_information().c_str() );
         }
     }
   }
