@@ -555,26 +555,16 @@ void connection::goto_state( state_enum s ) {
 }
 
 void connection::generate_dh() {
-  slog("");
   try {
-  slog("");
       my->_dh.reset( new fc::diffie_hellman() );
-  slog("");
       static std::string decode_param = 
-            fc::base64_decode( "lyIvBWa2SzbSeqb4HgBASJEj3SJrYFAIaErwx5GMt71CtFE4FYXDrVw1bPTBaRX4GTDAIBQM8Rs=" ).c_str();
-  slog("");
+            fc::base64_decode( "lyIvBWa2SzbSeqb4HgBASJEj3SJrYFAIaErwx5GMt71CtFE4FYXDrVw1bPTBaRX4GTDAIBQM8Rs=" );
       my->_dh->p.clear();
-  slog("");
       my->_dh->g = 5;
-  slog("");
       my->_dh->p.insert( my->_dh->p.begin(), decode_param.begin(), decode_param.end() );
-  slog("");
       my->_dh->pub_key.reserve(63);
-  slog("");
       do {
-      slog("");
-      my->_dh->generate_pub_key(); 
-      slog("");
+        my->_dh->generate_pub_key(); 
       } while ( my->_dh->pub_key.size() != 56 );
   } catch ( ... ) {
     elog( "%s", fc::current_exception().diagnostic_information().c_str() );
