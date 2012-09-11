@@ -16,7 +16,6 @@ void handle_sigint( int si );
 boost::signal<void()> quit;
 
 void start_services( int argc, char** argv ) {
-  slog( "starting services..." );
   std::string data_dir;
   uint16_t    node_port = 0;
   std::vector<std::string> init_connections;
@@ -86,12 +85,14 @@ void start_services( int argc, char** argv ) {
 
 fc::future<void> start_services_complete;
 
+fc::thread* service_thread = 0;
 int main( int argc, char** argv ) {
   fc::thread::current().set_name("main");
+  service_thread = &fc::thread::current();
   signal( SIGINT, handle_sigint );
 
   try {
-    start_services_complete = fc::async( [=]() { start_services( argc, argv ); } );
+    start_services_complete = fc::async( [=]() { start_services( argc, argv ); }, "start_services" );
     start_services_complete.wait();
   } catch ( ... ) {
     elog( "%s", fc::current_exception().diagnostic_information().c_str() );
@@ -102,11 +103,11 @@ int main( int argc, char** argv ) {
 
 
 void handle_sigint( int si ) {
-  slog( "%1%", si );
+  slog( "%d", si );
   static int count = 0;
   if( !count ){ 
       quit();
-      //service_thread->async( [=](){ service_thread->quit();} );
+      service_thread->poke();
 //    QCoreApplication::exit(0);
   }
   else exit(si);

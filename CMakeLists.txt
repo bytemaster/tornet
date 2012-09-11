@@ -105,7 +105,7 @@ SET( CXX_FLAGS -Wall )
 
 SET( libraries 
     fc
-    boosT_context
+    boost_context
     ${BerkeleyDB_LIBRARY}
     ${Boost_THREAD_LIBRARY} 
     ${Boost_CHRONO_LIBRARY} 
