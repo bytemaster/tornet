@@ -305,7 +305,7 @@ void connection::send_close() {
  *    a packet was dropped.
  */
 void connection::request_reverse_connect( const fc::ip::endpoint& ep ) {
-  slog( "send request reverse connection %s", fc::string(ep).c_str());
+  slog( "send request reverse connection to %s va %s", fc::string(ep).c_str(), fc::string(get_endpoint()).c_str() );
   char rnpt[6]; 
   fc::datastream<char*> ds(rnpt,sizeof(rnpt));
   ds << uint32_t(ep.get_address()) << ep.port();
