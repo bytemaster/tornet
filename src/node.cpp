@@ -15,7 +15,6 @@ namespace tn {
   }
 
   node::~node() {
-    wlog( "" );
     delete my;
   }
 
