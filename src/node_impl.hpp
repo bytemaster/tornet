@@ -1,3 +1,5 @@
+#ifndef _NODE_IMPL_HPP
+#define _NODE_IMPL_HPP
 #include <tornet/node.hpp>
 #include <fc/thread.hpp>
 #include <fc/udp_socket.hpp>
@@ -13,7 +15,7 @@
 #include <boost/multi_index/hashed_index.hpp>
 
 namespace fc { namespace ip {
-std::size_t hash_value( const fc::ip::endpoint& ep ) {
+inline std::size_t hash_value( const fc::ip::endpoint& ep ) {
   std::size_t seed = 0;
   boost::hash_combine( seed, uint32_t(ep.get_address()) );
   boost::hash_combine( seed, ep.port() );
@@ -133,3 +135,5 @@ namespace tn {
 
 
 }
+
+#endif

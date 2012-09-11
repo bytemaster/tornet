@@ -41,6 +41,7 @@ namespace tn {
           connected     = 4   // we have received a valid auth response
         };
 
+        // max 5 bits
         enum proto_message_type {
           data_msg                 = 0,
           auth_msg                 = 1,
@@ -49,7 +50,8 @@ namespace tn {
           route_msg                = 4,
           close_msg                = 5,
           update_rank              = 6,
-          req_reverse_connect_msg  = 7
+          req_reverse_connect_msg  = 7,
+          req_connect_msg          = 8
         };
 
         typedef fc::shared_ptr<connection> ptr;
@@ -94,8 +96,10 @@ namespace tn {
         bool handle_update_rank_msg( const tn::buffer& b );
 
         // requests the remote host attempt to connect to ep
-        void request_reverse_connect( const fc::ip::endpoint& ep );
+        void request_reverse_connect(const fc::ip::endpoint& ep ); 
+        void send_request_connect( const fc::ip::endpoint& ep );
         bool handle_request_reverse_connect_msg( const tn::buffer& b );
+        bool handle_request_connect_msg( const tn::buffer& b );
 
         void generate_dh();
         bool process_dh( const tn::buffer& b );

@@ -191,14 +191,21 @@ namespace tn {
 
     wlog( "my->_dist_to_con::size %d  near.size %d   n: %d", 
                       my->_dist_to_con.size(), near.size(), n );
+    {
+      auto i = my->_dist_to_con.begin();
+      while( i != my->_dist_to_con.end() ) {
+        slog( "   dist_to_con  %s at %s", fc::string(i->first).c_str(), fc::string(i->second->get_endpoint()).c_str() );
+        ++i;
+      }
+    }
     if( itr == my->_dist_to_con.end() ) {
       elog( "no nodes closer..." );
       return near;
     }
     while( itr != my->_dist_to_con.end() && near.size() < n ) {
-      slog( "   near push back .. %p", itr->second );
       auto dist = (itr->first^my->_id)^target;
       near.push_back( tn::host( dist, itr->second->get_endpoint() ) );
+      slog( "   near push back .. %s size %d", fc::string(itr->first).c_str(), near.size() );
       if( itr->second->is_behind_nat() ) {
         near.back().nat_hosts.resize(1);
       }
@@ -209,12 +216,13 @@ namespace tn {
      // }
       ++itr;
     }
-    --lb;
-    while( lb != my->_dist_to_con.begin() && near.size() < n ) {
-      slog( "   near push back .. " );
+
+    lb--;
+    while( near.size() < n ) {
       auto dist = (lb->first^my->_id)^target;
       near.push_back( tn::host( dist, lb->second->get_endpoint() ) );
-      if( itr->second && itr->second->is_behind_nat() ) {
+      slog( "   near push back .. %s size %d", fc::string(lb->first).c_str(), near.size() );
+      if( lb->second && lb->second->is_behind_nat() ) {
         near.back().nat_hosts.resize(1);
       }
       // TODO: apply search limit filter?
@@ -222,6 +230,7 @@ namespace tn {
       //slog( "dist: %1%  target: %2%", dist, target );
       //  near[ dist  ] = itr->second->get_endpoint();
      // }
+      if( lb == my->_dist_to_con.begin() ) break;
       --lb;
     }
 

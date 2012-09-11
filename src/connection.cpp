@@ -21,6 +21,7 @@
 #include <boost/unordered_map.hpp>
 
 #include <fc/fwd_impl.hpp>
+#include "node_impl.hpp"
 
 namespace tn { 
 
@@ -310,16 +311,54 @@ void connection::request_reverse_connect( const fc::ip::endpoint& ep ) {
   ds << uint32_t(ep.get_address()) << ep.port();
   send( rnpt, sizeof(rnpt), req_reverse_connect_msg );
 }
+void connection::send_request_connect( const fc::ip::endpoint& ep ) {
+  slog( "send request connection %s", fc::string(ep).c_str());
+  char rnpt[6]; 
+  fc::datastream<char*> ds(rnpt,sizeof(rnpt));
+  ds << uint32_t(ep.get_address()) << ep.port();
+  send( rnpt, sizeof(rnpt), req_connect_msg );
+}
 
+/**
+ *   Connect to given IP and PORT (should already be connected)  and request that they connect to sender of this
+ *   request.
+ */
 bool connection::handle_request_reverse_connect_msg( const tn::buffer& b ) {
    fc::datastream<const char*> ds(b.data(), b.size() );
    uint32_t ip; uint16_t port;
    ds >> ip >> port;
-   wlog( "handle reverse connect msg %s:%d", fc::string(fc::ip::address(ip)).c_str(), port );
+   fc::ip::endpoint ep( ip, port );
+   wlog( "handle reverse connect msg %s", fc::string(ep).c_str() );
    
-   my->_node.get_thread().async( [=]() { my->_node.connect_to( fc::ip::endpoint( ip, port ) ); } );
+   my->_node.get_thread().async( [=]() { 
+        auto ep_con = my->_node.my->_ep_to_con.find(ep);
+        if( ep_con != my->_node.my->_ep_to_con.end() ) { 
+          ep_con->second->send_request_connect( get_endpoint() );
+        }
+     } 
+   );
    return true;
 }
+
+/**
+ *   Connect to given IP and PORT (should already be connected)  and request that they connect to sender of this
+ *   request.
+ */
+bool connection::handle_request_connect_msg( const tn::buffer& b ) {
+   fc::datastream<const char*> ds(b.data(), b.size() );
+   uint32_t ip; uint16_t port;
+   ds >> ip >> port;
+   fc::ip::endpoint ep( ip, port );
+   wlog( "handle reverse connect msg %s", fc::string(ep).c_str() );
+   
+   my->_node.get_thread().async( [=]() { 
+        my->_node.connect_to( ep );
+     } 
+   );
+   return true;
+}
+
+
 
 /**
  *  Return the received rank
@@ -362,6 +401,7 @@ bool connection::decode_packet( const tn::buffer& b ) {
       case close_msg:                   return handle_close_msg( b.subbuf(4,b.size()-4-pad) );  
       case update_rank:                 return handle_update_rank_msg( b.subbuf(4,b.size()-4-pad) );  
       case req_reverse_connect_msg:     return handle_request_reverse_connect_msg( b.subbuf(4,b.size()-4-pad) );  
+      case req_connect_msg:             return handle_request_connect_msg( b.subbuf(4,b.size()-4-pad) );  
       default:
         wlog( "Unknown message type" );
     }
