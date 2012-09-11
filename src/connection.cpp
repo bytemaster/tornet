@@ -174,7 +174,6 @@ void connection::handle_received_dh( const tn::buffer& b ) {
     // we have a dh, so we better be able to decode it
     // if not reset!  Decode message will advance to authenticated
     // if the message is an auth message, otherwise it will ignore it.
-    slog("decode" );
     if( !decode_packet( b ) ) {
       wlog( "Reset connection to uninit" );
       goto_state(uninit);
@@ -305,6 +304,7 @@ void connection::send_close() {
  *    a packet was dropped.
  */
 void connection::request_reverse_connect( const fc::ip::endpoint& ep ) {
+  elog("%1%", fc::string(ep).c_str() );
   char rnpt[6]; 
   fc::datastream<char*> ds(rnpt,sizeof(rnpt));
   ds << uint32_t(ep.get_address()) << ep.port();
@@ -661,14 +661,13 @@ void connection::send_auth() {
     my->_dh->compute_shared_key( b.data(), 56 );
     while( my->_dh->shared_key.size() < 56 ) 
       my->_dh->shared_key.push_back('\0');
-    wlog( "shared key: %s", 
-            fc::base64_encode( (const unsigned char*)&my->_dh->shared_key.front(), my->_dh->shared_key.size() ).c_str() ); 
+    //wlog( "shared key: %s", fc::base64_encode( (const unsigned char*)&my->_dh->shared_key.front(), my->_dh->shared_key.size() ).c_str() ); 
 
     // make sure shared key make sense!
 
     my->_bf.reset( new fc::blowfish() );
     my->_bf->start( (unsigned char*)&my->_dh->shared_key.front(), 56 );
-    wlog( "start bf %s", fc::to_hex( (char*)&my->_dh->shared_key.front(), 56 ).c_str() );
+    //wlog( "start bf %s", fc::to_hex( (char*)&my->_dh->shared_key.front(), 56 ).c_str() );
     memcpy( my->_record.bf_key, &my->_dh->shared_key.front(), 56 );
     return true;
   }
