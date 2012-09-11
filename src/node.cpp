@@ -97,9 +97,29 @@ namespace tn {
       FC_THROW( "No active connection to NAT endpoint %s", fc::string(nat_ep).c_str() );
     }
 
+    connection::ptr con(new connection( *this, ep, my->_peers ));
+    my->_ep_to_con[ep] = con;
+
     nat_con->second->request_reverse_connect(ep);
 
-    return connect_to(ep);
+    // wait for the reverse connection...
+    while ( true ) { // keep waiting for the state to change
+      switch( con->get_state() ) {
+        case connection::failed:
+          FC_THROW( "Attempt to connect to %s:%d failed", fc::string(ep.address()).c_str(), ep.port() );
+        case connection::connected:
+          //slog( "returning %1%", con->get_remote_id() );
+          return con->get_remote_id(); 
+        default: try {
+          // con->advance();
+          // as long as we are advancing on our own, keep waiting for connected.   
+          while( fc::wait( con->state_changed, fc::milliseconds(1000) ) != connection::connected ) ;
+        } catch ( const fc::future_wait_timeout& e ) {
+          slog( "timeout... advance!" );
+          throw;
+        }
+      }
+    }
   }
 
 
