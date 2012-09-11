@@ -12,9 +12,9 @@
 #include <fc/sha1.hpp>
 #include <fc/buffer.hpp>
 
-#include <scrypt/blowfish.hpp>
-#include <scrypt/dh.hpp>
-#include <scrypt/super_fast_hash.hpp>
+#include <fc/blowfish.hpp>
+#include <fc/dh.hpp>
+#include <fc/super_fast_hash.hpp>
 
 #include <boost/scoped_ptr.hpp>
 #include <map>
@@ -32,8 +32,8 @@ namespace tn {
         uint16_t                                              _advance_count;
         node&                                                 _node;
                                                               
-        boost::scoped_ptr<scrypt::diffie_hellman>             _dh;
-        boost::scoped_ptr<scrypt::blowfish>                   _bf;
+        boost::scoped_ptr<fc::diffie_hellman>             _dh;
+        boost::scoped_ptr<fc::blowfish>                   _bf;
         state_enum                                            _cur_state;
                                                               
         node_id                                               _remote_id;
@@ -60,7 +60,7 @@ connection::connection( node& np, const fc::ip::endpoint& ep, const db::peer::pt
   my->_peers = pptr;
 
   if( my->_peers->fetch_by_endpoint( ep, my->_remote_id, my->_record )  ) {
-    my->_bf.reset( new scrypt::blowfish() );
+    my->_bf.reset( new fc::blowfish() );
     wlog( "Known peer at %s:%d start bf %s",  fc::string(ep.get_address()).c_str(), ep.port(),
         fc::to_hex( my->_record.bf_key, 56 ).c_str() );
     my->_bf->start( (unsigned char*)my->_record.bf_key, 56 );
@@ -115,7 +115,7 @@ void connection::handle_packet( const tn::buffer& b ) {
 void connection::handle_uninit( const tn::buffer& b ) {
   slog("");
   if( my->_peers->fetch_by_endpoint( my->_remote_ep, my->_remote_id, my->_record )  ) {
-    my->_bf.reset( new scrypt::blowfish() );
+    my->_bf.reset( new fc::blowfish() );
     wlog( "Known peer at %s:%d start bf %s",  fc::string(my->_remote_ep.get_address()).c_str(), my->_remote_ep.port(),
         fc::to_hex( my->_record.bf_key, 56 ).c_str() );
     my->_bf->start( (unsigned char*)my->_record.bf_key, 56 );
@@ -340,9 +340,9 @@ bool connection::decode_packet( const tn::buffer& b ) {
     my->_record.last_contact = fc::time_point::now().time_since_epoch().count();
 
     my->_bf->reset_chain();
-    my->_bf->decrypt( (unsigned char*)b.data(), b.size(), scrypt::blowfish::CBC );
+    my->_bf->decrypt( (unsigned char*)b.data(), b.size(), fc::blowfish::CBC );
 
-    uint32_t checksum = scrypt::super_fast_hash( (char*)b.data()+4, b.size()-4 );
+    uint32_t checksum = fc::super_fast_hash( (char*)b.data()+4, b.size()-4 );
     if( memcmp( &checksum, b.data(), 3 ) != 0 ) {
       elog( "decrytpion checksum failed" );
       return false;
@@ -556,7 +556,7 @@ void connection::goto_state( state_enum s ) {
 
 void connection::generate_dh() {
   slog("");
-  my->_dh.reset( new scrypt::diffie_hellman() );
+  my->_dh.reset( new fc::diffie_hellman() );
   static fc::string decode_param = 
         fc::base64_decode( "lyIvBWa2SzbSeqb4HgBASJEj3SJrYFAIaErwx5GMt71CtFE4FYXDrVw1bPTBaRX4GTDAIBQM8Rs=" );
   my->_dh->p.clear();
@@ -633,15 +633,15 @@ void connection::send_auth() {
       memcpy( data,buf,size);
       if( pad )
         memset( data + size, 0, pad );
-      uint32_t check = scrypt::super_fast_hash( (char*)data, size + pad );
+      uint32_t check = fc::super_fast_hash( (char*)data, size + pad );
       uint32_t size_pad = size+pad;
       memcpy( buffer, (char*)&check, 3 );
       buffer[3] = pad | (uint8_t(t)<<3);
-      //slog( "%1%", scrypt::to_hex( (char*)buffer, size_pad+4 ) );
+      //slog( "%1%", fc::to_hex( (char*)buffer, size_pad+4 ) );
 
       uint32_t buf_len = size_pad+4;
       my->_bf->reset_chain();
-      my->_bf->encrypt(  buffer, buf_len, scrypt::blowfish::CBC );
+      my->_bf->encrypt(  buffer, buf_len, fc::blowfish::CBC );
 
       /// TODO: Throttle Connection if we are sending faster than connection priority allows 
 
@@ -660,7 +660,7 @@ void connection::send_auth() {
 
     // make sure shared key make sense!
 
-    my->_bf.reset( new scrypt::blowfish() );
+    my->_bf.reset( new fc::blowfish() );
     my->_bf->start( (unsigned char*)&my->_dh->shared_key.front(), 56 );
     wlog( "start bf %s", fc::to_hex( (char*)&my->_dh->shared_key.front(), 56 ).c_str() );
     memcpy( my->_record.bf_key, &my->_dh->shared_key.front(), 56 );

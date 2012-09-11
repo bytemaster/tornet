@@ -102,8 +102,7 @@ SET( CXX_FLAGS -Wall )
 
 SET( libraries 
     fc
-    boost_context 
-    scrypt
+    ${Boost_CONTEXT_LIBRARY}
     ${OPENSSL_CRYPTO_LIBRARY}
     ${BerkeleyDB_LIBRARY}
     ${Boost_THREAD_LIBRARY} 
