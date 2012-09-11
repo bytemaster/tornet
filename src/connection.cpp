@@ -305,6 +305,7 @@ void connection::send_close() {
  *    a packet was dropped.
  */
 void connection::request_reverse_connect( const fc::ip::endpoint& ep ) {
+  slog( "send request reverse connection %s", fc::string(ep).c_str());
   char rnpt[6]; 
   fc::datastream<char*> ds(rnpt,sizeof(rnpt));
   ds << uint32_t(ep.get_address()) << ep.port();
@@ -315,6 +316,7 @@ bool connection::handle_request_reverse_connect_msg( const tn::buffer& b ) {
    fc::datastream<const char*> ds(b.data(), b.size() );
    uint32_t ip; uint16_t port;
    ds >> ip >> port;
+   wlog( "handle reverse connect msg %s:%d", fc::string(fc::ip::address(ip)).c_str(), port );
    
    my->_node.get_thread().async( [=]() { my->_node.connect_to( fc::ip::endpoint( ip, port ) ); } );
    return true;

@@ -87,6 +87,7 @@ namespace tn {
     if( !my->_thread.is_current() ) {
        return my->_thread.async( [&,this](){ return connect_to( ep, nat_ep ); } ).wait();
     }
+    elog( "connect to %s via %s", fc::string(ep).c_str(), fc::string(nat_ep).c_str() );
 
     ep_to_con_map::iterator ep_con = my->_ep_to_con.find(ep);
     if( ep_con != my->_ep_to_con.end() ) { return ep_con->second->get_remote_id(); }
