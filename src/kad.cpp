@@ -72,13 +72,16 @@ namespace tn {
         m_search_queue.erase(m_search_queue.begin());
         
         try {
+          fc::sha1 rtn;
           // TODO: determine if we must perform nat traversal
           if( cur_item.nat_hosts.size() ) {
-             elog( "This node requies NAT traversal to reach!! %s",
+             elog( "This node requies NAT traversal to reach!! (via) %s",
                     fc::string(cur_item.nat_hosts.front()).c_str() );
+             rtn    = m_node->connect_to(ep,cur_item.nat_hosts.front());
+          } else {
+             rtn    = m_node->connect_to(ep);
           }
 
-          fc::sha1  rtn    = m_node->connect_to(ep);
           slog( "node %s found at %s", fc::string(rtn).c_str(), fc::string(ep).c_str() );
 
           // This filter may involve RPC calls.... 
