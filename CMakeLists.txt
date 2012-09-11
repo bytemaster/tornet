@@ -38,7 +38,7 @@ endif()
 
 FIND_PACKAGE( OpenSSL REQUIRED )
 SET(Boost_USE_STATIC_LIBS ON)
-FIND_PACKAGE(Boost 1.51 COMPONENTS thread date_time system filesystem program_options signals serialization chrono unit_test_framework context ) 
+FIND_PACKAGE(Boost 1.51 COMPONENTS thread date_time system filesystem program_options signals serialization chrono unit_test_framework ) 
 LINK_DIRECTORIES( ${Boost_LIBRARY_DIRS} )
 include_directories( ${Boost_INCLUDE_DIR} )
 
@@ -55,6 +55,7 @@ link_directories( /opt/local/lib/db53 )
 set( BerkeleyDB_LIBRARY -ldb_cxx )
 
 add_subdirectory(fc)
+add_subdirectory(context)
 
 
 SET( sources 
@@ -104,7 +105,7 @@ SET( CXX_FLAGS -Wall )
 
 SET( libraries 
     fc
-    ${Boost_CONTEXT_LIBRARY}
+    boosT_context
     ${BerkeleyDB_LIBRARY}
     ${Boost_THREAD_LIBRARY} 
     ${Boost_CHRONO_LIBRARY} 
@@ -120,12 +121,10 @@ SET( libraries
     ${OPENSSL_CRYPTO_LIBRARIES}
     ${rt_library}
     ${pthread_library}
-    ld
     )
 
     SET( MACOSX_BUNDLE_INFO_STRING "TornetInfoString" )
     SET( MACOSX_BUNDLE_BUNDLE_NAME "TornetBundleName"  )
-SET (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 add_executable( tornet 
   MACOSX_BUNDLE 
   ${sources} )
