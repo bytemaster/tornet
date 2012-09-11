@@ -196,7 +196,7 @@ namespace tn {
       return near;
     }
     while( itr != my->_dist_to_con.end() && near.size() < n ) {
-      slog( "   near push back .. " );
+      slog( "   near push back .. %p", itr->second );
       auto dist = (itr->first^my->_id)^target;
       near.push_back( tn::host( dist, itr->second->get_endpoint() ) );
       if( itr->second->is_behind_nat() ) {
@@ -214,7 +214,7 @@ namespace tn {
       slog( "   near push back .. " );
       auto dist = (lb->first^my->_id)^target;
       near.push_back( tn::host( dist, lb->second->get_endpoint() ) );
-      if( itr->second->is_behind_nat() ) {
+      if( itr->second && itr->second->is_behind_nat() ) {
         near.back().nat_hosts.resize(1);
       }
       // TODO: apply search limit filter?
@@ -335,7 +335,7 @@ namespace tn {
    *  The connection is responsible for updating the node index that maps ids to active connections.
    */
   void                     node::update_dist_index( const id_type& nid, connection* c ) {
-    elog( "%s", fc::string(nid).c_str() );
+    elog( "%s %p", fc::string(nid).c_str(), c );
     auto dist = nid ^ my->_id;
     auto itr = my->_dist_to_con.find(dist);
     if( c ) {

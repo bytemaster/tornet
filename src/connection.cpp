@@ -767,6 +767,7 @@ void connection::send_auth() {
   fc::ip::endpoint connection::get_endpoint()const { return my->_remote_ep; }
 
   bool connection::is_behind_nat()const {
+    slog( "%p", this );
     return my->_behind_nat;
   }
 
