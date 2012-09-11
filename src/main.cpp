@@ -9,6 +9,8 @@
 
 #include <boost/program_options.hpp>
 
+#include <signal.h>
+
 void handle_sigint( int si );
 
 boost::signal<void()> quit;

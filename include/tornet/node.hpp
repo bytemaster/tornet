@@ -43,11 +43,11 @@ namespace tn {
    */
   class node : public fc::retainable {
     public:
-      typedef fc::shared_ptr<db::peer>           peer_db_ptr;
-      typedef fc::shared_ptr<node>               ptr;
-      typedef fc::sha1                           id_type;
-      typedef fc::ip::endpoint                   endpoint;
-      typedef fc::function<void(const channel&)> new_channel_handler;
+      typedef fc::shared_ptr<db::peer>            peer_db_ptr;
+      typedef fc::shared_ptr<node>                ptr;
+      typedef fc::sha1                            id_type;
+      typedef fc::ip::endpoint                    endpoint;
+      typedef std::function<void(const channel&)> new_channel_handler;
 
       node();
       ~node();
