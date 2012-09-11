@@ -55,6 +55,11 @@ namespace tn {
         _nonce[0] = _nonce[1] = 0;
         _lookup_sock.connect( fc::ip::endpoint( fc::ip::address("74.125.228.40"), 8000 ) );
       }
+      ~impl() {
+        slog( "start quit" );
+        _thread.quit();
+        slog( "don quit" );
+      }
 
       node&                           _self;
       fc::thread                      _thread;

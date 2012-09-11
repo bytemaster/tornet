@@ -16,8 +16,6 @@ namespace tn {
 
   node::~node() {
     wlog( "" );
-    my->_thread.quit();
-    my->_thread.poke();
     delete my;
   }
 
