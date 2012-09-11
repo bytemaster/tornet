@@ -169,7 +169,53 @@ namespace tn {
 
 
 
-
+  /**
+   *  This method should attempt to find n nodes near target that are no further than limit.
+   *    
+   *  The result is a list of nodes that this node is actively connected to. 
+   *
+   *  Nodes are stored by their 'distance' from this node in the _dist_to_con map.  
+   *
+   *
+   *  Not all nodes are created equal so there must be a means to filter the nodes.  
+   *      properties:
+   *          distance
+   *          bandwidth
+   *          latency
+   *          btc / resource
+   *          credit/debit....
+   *          uptime
+   *          nat
+   *          rank
+   *
+   *  Sorting these nodes can be 'expensive' to calculate.
+   *
+   *  First, calculate how far the target is 'from me', this will get me in the ballpark of nodes that
+   *  are a similar distance to the target.  In other words, this identifies the k-bucket.
+   *
+   *  Within each 'kbucket' the nodes are sorted by the following in order of priority: (TODO: establish weights)
+   *       Weight
+   *    a) 1.0       The ones that have provided me with the most data, because they are most likely to serve me/others again.
+   *                   - Assuming a histogram of nodes, what percent of nodes have given less that this node.
+   *    b) 1.0       The ones that have paid me the most for my services (least likely to be a leach) 
+   *                   - Assuming a historgram of nodes, what percent have paid me less per kb
+   *       1.0       Public IP  (not nat).... these nodes are more likely professional / high-bandwidth. 
+   *    e) 1.0       The ones that have the highest rank (most invested in their identity, similar to paid)
+   *                   - What percent of known nodes have a lower rank?
+   *    c) 1.0       The length of time they have been connected... likely to hang around (not be stale)
+   *                   - What percent of nodes have been connected for less time.
+   *    c) 1.0       The ones with the lowest latency (most likely to accelerate lookups)
+   *    d) 1.0       The ones with the hightest bandwidth (probably related to a) 
+   *
+   *  The 'best node' at a given distance (bucket) has provided the most data, paid me the most money, 
+   *  has a public IP address, highest rank, longest connection time, lowest latency and highest bandwidth. Sum their
+   *  percentials in each of these categories to get their rank in the kbucket.
+   *
+   *  How do I determine which nodes to 'keep in memory' and which ones to 'flush to disk'?  
+   *    - Keep all connections in memory that have a slot in the kbucket.
+   *    - Save connections to DB that have been idle for 30 minutes
+   *    - Free nodes from DB upon user request??
+   */
   fc::vector<host> node::find_nodes_near( const id_type& target, uint32_t n, const fc::optional<id_type>& limit ) {
     if( !my->_thread.is_current() ) {
       return my->_thread.async( [&,this](){ return find_nodes_near( target, n, limit ); } ).wait();
@@ -190,8 +236,7 @@ namespace tn {
       }
     } 
 
-    wlog( "my->_dist_to_con::size %d  near.size %d   n: %d", 
-                      my->_dist_to_con.size(), near.size(), n );
+    wlog( "my->_dist_to_con::size %d  near.size %d   n: %d", my->_dist_to_con.size(), near.size(), n );
     {
       auto i = my->_dist_to_con.begin();
       while( i != my->_dist_to_con.end() ) {
