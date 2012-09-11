@@ -99,6 +99,7 @@ namespace tn {
 
     connection::ptr con(new connection( *this, ep, my->_peers ));
     my->_ep_to_con[ep] = con;
+    con->send_punch();
 
     nat_con->second->request_reverse_connect(ep);
 
