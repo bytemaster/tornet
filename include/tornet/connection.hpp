@@ -111,6 +111,7 @@ namespace tn {
 
         void close_channel( const channel& c );
         void send_close();
+        void send_punch();
         void send( const channel& c, const tn::buffer& b );
 
 

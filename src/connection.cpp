@@ -281,6 +281,11 @@ void connection::send_close() {
   char resp = 1;
   send( &resp, sizeof(resp), close_msg );
 }
+void connection::send_punch() {
+  slog( "sending punch to %s", fc::string(get_endpoint()).c_str() );
+  char resp = 1;
+  my->_node.send( &resp, 1, my->_remote_ep );
+}
 
 
 /**
