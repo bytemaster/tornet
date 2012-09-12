@@ -6,6 +6,7 @@
 #include <tornet/db/peer.hpp>
 #include <tornet/db/publish.hpp>
 #include <tornet/connection.hpp>
+#include <tornet/kbucket.hpp>
 #include <boost/unordered_map.hpp>
 
 #include <boost/multi_index_container.hpp>
@@ -79,6 +80,7 @@ namespace tn {
       bool                            _done;
       fc::path                        _datadir;
       std::map<fc::sha1,connection*>  _dist_to_con;
+      kbucket                         _kbuckets;
 
       db::peer::ptr    _peers;
       db::publish::ptr _publish_db;
@@ -118,7 +120,9 @@ namespace tn {
           connection::ptr c( new connection( _self, ep, _peers ) );
           _ep_to_con[ep] = c;
           c->handle_packet(b);
-        } else { itr->second->handle_packet(b); }
+        } else { 
+          itr->second->handle_packet(b); 
+        }
       }
 
       connection* get_connection( const fc::sha1& remote_id )const {

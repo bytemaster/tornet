@@ -34,8 +34,8 @@ namespace tn { namespace db {
 
       DbEnv               m_env;
 
-      Db*                     m_peer_db;
-      Db*                     m_ep_index_db;
+      Db*                 m_peer_db;
+      Db*                 m_ep_index_db;
   };
   peer::peer( const fc::sha1& node_id, const fc::path& dir )
   :my(0) {

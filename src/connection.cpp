@@ -33,8 +33,8 @@ namespace tn {
         uint16_t                                              _advance_count;
         node&                                                 _node;
                                                               
-        boost::scoped_ptr<fc::diffie_hellman>             _dh;
-        boost::scoped_ptr<fc::blowfish>                   _bf;
+        boost::scoped_ptr<fc::diffie_hellman>                 _dh;
+        boost::scoped_ptr<fc::blowfish>                       _bf;
         state_enum                                            _cur_state;
                                                               
         node_id                                               _remote_id;
@@ -49,9 +49,7 @@ namespace tn {
         boost::unordered_map<std::string,fc::any>             _cached_objects;
         boost::unordered_map<uint32_t,channel>                _channels;
         db::peer::ptr                                         _peers;
-        db::peer::record                                      _record;
   };
-const db::peer::record&  connection::get_db_record()const { return my->_record; }
 
 connection::connection( node& np, const fc::ip::endpoint& ep, const db::peer::ptr& pptr )
 :my(np) {
@@ -60,17 +58,17 @@ connection::connection( node& np, const fc::ip::endpoint& ep, const db::peer::pt
   my->_advance_count = 0;
   my->_peers = pptr;
 
-  if( my->_peers->fetch_by_endpoint( ep, my->_remote_id, my->_record )  ) {
+  if( my->_peers->fetch_by_endpoint( ep, my->_remote_id, _record )  ) {
     my->_bf.reset( new fc::blowfish() );
     wlog( "Known peer at %s:%d start bf %s",  fc::string(ep.get_address()).c_str(), ep.port(),
-        fc::to_hex( my->_record.bf_key, 56 ).c_str() );
-    my->_bf->start( (unsigned char*)my->_record.bf_key, 56 );
+        fc::to_hex( _record.bf_key, 56 ).c_str() );
+    my->_bf->start( (unsigned char*)_record.bf_key, 56 );
     my->_node.update_dist_index( my->_remote_id, this );
     my->_cur_state = connected;
   } else {
     wlog( "Unknown peer at %s:%d", fc::string(ep.get_address()).c_str(), ep.port() );
-    my->_record.last_ip   = my->_remote_ep.get_address();
-    my->_record.last_port = my->_remote_ep.port();
+    _record.last_ip   = my->_remote_ep.get_address();
+    _record.last_port = my->_remote_ep.port();
   }
 }
 
@@ -85,8 +83,8 @@ connection::connection( node& np, const fc::ip::endpoint& ep, const node_id& aut
 
 connection::~connection() {
   elog( "~connection" );
-  if( my->_peers && my->_record.valid() ) {
-    my->_peers->store( my->_remote_id, my->_record );
+  if( my->_peers && _record.valid() ) {
+    my->_peers->store( my->_remote_id, _record );
   }
 }
 
@@ -115,11 +113,11 @@ void connection::handle_packet( const tn::buffer& b ) {
  */
 void connection::handle_uninit( const tn::buffer& b ) {
   slog("");
-  if( my->_peers->fetch_by_endpoint( my->_remote_ep, my->_remote_id, my->_record )  ) {
+  if( my->_peers->fetch_by_endpoint( my->_remote_ep, my->_remote_id, _record )  ) {
     my->_bf.reset( new fc::blowfish() );
     wlog( "Known peer at %s:%d start bf %s",  fc::string(my->_remote_ep.get_address()).c_str(), my->_remote_ep.port(),
-        fc::to_hex( my->_record.bf_key, 56 ).c_str() );
-    my->_bf->start( (unsigned char*)my->_record.bf_key, 56 );
+        fc::to_hex( _record.bf_key, 56 ).c_str() );
+    my->_bf->start( (unsigned char*)_record.bf_key, 56 );
     my->_node.update_dist_index( my->_remote_id, this );
     goto_state(connected);
     handle_connected( b );
@@ -210,19 +208,19 @@ void connection::handle_connected( const tn::buffer& b ) {
     return; // sucess
   slog("failed to decode packet... " );
 
-  if( my->_peers && my->_record.valid() ) { 
+  if( my->_peers && _record.valid() ) { 
     wlog( "Peer at %s:%d sent invalid message, resetting IP/PORT on record and assuming new node at %s:%d", 
-          fc::string(my->_remote_ep.get_address()).c_str(), my->_record.last_port,
-          fc::string(my->_remote_ep.get_address()).c_str(), my->_record.last_port );
+          fc::string(my->_remote_ep.get_address()).c_str(), _record.last_port,
+          fc::string(my->_remote_ep.get_address()).c_str(), _record.last_port );
 
-     my->_record.last_ip   = 0;
-     my->_record.last_port = 0;
-     memset( my->_record.bf_key, 0, sizeof(my->_record.bf_key) );
-     my->_peers->store( get_remote_id(), my->_record );
+     _record.last_ip   = 0;
+     _record.last_port = 0;
+     memset( _record.bf_key, 0, sizeof(_record.bf_key) );
+     my->_peers->store( get_remote_id(), _record );
   }
-  my->_record           = db::peer::record();
-  my->_record.last_ip   = my->_remote_ep.get_address();
-  my->_record.last_port = my->_remote_ep.port();
+  _record           = db::peer::record();
+  _record.last_ip   = my->_remote_ep.get_address();
+  _record.last_port = my->_remote_ep.port();
 
   reset();
   handle_uninit(b);
@@ -231,7 +229,7 @@ bool connection::handle_auth_resp_msg( const tn::buffer& b ) {
   wlog("auth response %d", int(b[0]) );
   if( b[0] ) { 
     slog( "rank %d", uint16_t(b[0]) );
-    my->_record.published_rank = uint8_t(b[0]);
+    _record.published_rank = uint8_t(b[0]);
     goto_state( connected ); 
     return true; 
   }
@@ -246,15 +244,15 @@ bool connection::handle_update_rank_msg( const tn::buffer& b ) {
   }
   fc::sha1::encoder  rank_sha;
   rank_sha.write( (char*)b.data(), 2*sizeof(uint64_t) );
-  rank_sha.write( my->_record.public_key, sizeof(my->_record.public_key) );
+  rank_sha.write( _record.public_key, sizeof(_record.public_key) );
   fc::sha1 r = rank_sha.result();
   uint8_t new_rank = 161 - fc::bigint( (const char*)r.data(), sizeof(r) ).log2();
-  if( new_rank > my->_record.rank ) {
-    my->_record.rank = new_rank;
-    memcpy( (char*)my->_record.nonce, b.data(), 2*sizeof(uint64_t) );
+  if( new_rank > _record.rank ) {
+    _record.rank = new_rank;
+    memcpy( (char*)_record.nonce, b.data(), 2*sizeof(uint64_t) );
     send_auth_response(true);
-    slog( "Received rank update for %s to %d", fc::string(my->_remote_id).c_str(), int(my->_record.rank) );
-    my->_peers->store( my->_remote_id, my->_record );
+    slog( "Received rank update for %s to %d", fc::string(my->_remote_id).c_str(), int(_record.rank) );
+    my->_peers->store( my->_remote_id, _record );
   }
   return true;
 }
@@ -267,8 +265,8 @@ bool connection::handle_close_msg( const tn::buffer& b ) {
 
 void connection::reset() {
   wlog( "?" );
-  if( my->_peers && my->_record.valid() ) {
-    my->_peers->store( my->_remote_id, my->_record );
+  if( my->_peers && _record.valid() ) {
+    my->_peers->store( my->_remote_id, _record );
   }
   close_channels();
   my->_node.update_dist_index( my->_remote_id, 0 );
@@ -373,7 +371,7 @@ void connection::send_auth_response(bool r ) {
       char resp = r;
       send( &resp, sizeof(resp), auth_resp_msg );
   } else {
-      send( (char*)&my->_record.rank, sizeof(my->_record.rank), auth_resp_msg );
+      send( (char*)&_record.rank, sizeof(_record.rank), auth_resp_msg );
   }
 }
 
@@ -382,7 +380,7 @@ void connection::send_update_rank() {
 }
 
 bool connection::decode_packet( const tn::buffer& b ) {
-    my->_record.last_contact = fc::time_point::now().time_since_epoch().count();
+    _record.last_contact = fc::time_point::now().time_since_epoch().count();
 
     my->_bf->reset_chain();
     my->_bf->decrypt( (unsigned char*)b.data(), b.size(), fc::blowfish::CBC );
@@ -558,29 +556,29 @@ bool connection::handle_auth_msg( const tn::buffer& b ) {
 
       fc::sha1::encoder pkds; pkds << pubk;
       set_remote_id( pkds.result() );
-      my->_peers->fetch( my->_remote_id, my->_record );
-      memcpy( my->_record.bf_key, &my->_dh->shared_key.front(), 56 );
+      my->_peers->fetch( my->_remote_id, _record );
+      memcpy( _record.bf_key, &my->_dh->shared_key.front(), 56 );
 
-      fc::datastream<char*> recds( my->_record.public_key, sizeof(my->_record.public_key) );
+      fc::datastream<char*> recds( _record.public_key, sizeof(_record.public_key) );
       recds << pubk;
-      my->_record.nonce[0] = remote_nonce[0];
-      my->_record.nonce[1] = remote_nonce[1];
-      my->_record.last_ip   = my->_remote_ep.get_address();
-      my->_record.last_port = my->_remote_ep.port();
+      _record.nonce[0] = remote_nonce[0];
+      _record.nonce[1] = remote_nonce[1];
+      _record.last_ip   = my->_remote_ep.get_address();
+      _record.last_port = my->_remote_ep.port();
 
       uint64_t utc_us = fc::time_point::now().time_since_epoch().count();
-      if( !my->_record.first_contact ) 
-        my->_record.first_contact = utc_us;
-      my->_record.last_contact = utc_us;
+      if( !_record.first_contact ) 
+        _record.first_contact = utc_us;
+      _record.last_contact = utc_us;
 
       fc::sha1::encoder  rank_sha;
       rank_sha.write( (char*)remote_nonce, sizeof(remote_nonce) );
       rank_sha << pubk;
       fc::sha1 r = rank_sha.result();
-      my->_record.rank = 161 - fc::bigint( r.data(), sizeof(r) ).log2();
+      _record.rank = 161 - fc::bigint( r.data(), sizeof(r) ).log2();
 
       send_auth_response(true);
-      my->_peers->store( my->_remote_id, my->_record );
+      my->_peers->store( my->_remote_id, _record );
 
       my->_node.update_dist_index( my->_remote_id, this );
 
@@ -714,7 +712,7 @@ void connection::send_auth() {
     my->_bf.reset( new fc::blowfish() );
     my->_bf->start( (unsigned char*)&my->_dh->shared_key.front(), 56 );
     //wlog( "start bf %s", fc::to_hex( (char*)&my->_dh->shared_key.front(), 56 ).c_str() );
-    memcpy( my->_record.bf_key, &my->_dh->shared_key.front(), 56 );
+    memcpy( _record.bf_key, &my->_dh->shared_key.front(), 56 );
     return true;
   }
 
@@ -822,7 +820,7 @@ void connection::send_auth() {
    */
   fc::vector<tn::host> connection::find_nodes_near( const node::id_type& target, uint32_t n, const fc::optional<node::id_type>& limit  ) {
     try {                                                                        
-      if( my->_record.published_rank < my->_node.rank() )
+      if( _record.published_rank < my->_node.rank() )
         send_update_rank();
 
       fc::promise<route_table>::ptr prom( new fc::promise<route_table>() );
@@ -841,7 +839,7 @@ void connection::send_auth() {
 
       uint64_t end_time_utc  = fc::time_point::now().time_since_epoch().count(); 
       elog( "latency: %lld - %lld = %lld us", end_time_utc, start_time_utc, (end_time_utc-start_time_utc) );
-      my->_record.avg_rtt_us =  (my->_record.avg_rtt_us*1 + (end_time_utc-start_time_utc)) / 2;
+      _record.avg_rtt_us =  (_record.avg_rtt_us*1 + (end_time_utc-start_time_utc)) / 2;
 
       assert( my->_route_lookups.end() == my->_route_lookups.find(target) );
 
@@ -854,7 +852,7 @@ void connection::send_auth() {
       throw;
     }
   }
-  uint8_t                connection::get_remote_rank()const { return my->_record.rank; }
+  uint8_t                connection::get_remote_rank()const { return _record.rank; }
   connection::state_enum connection::get_state()const { return my->_cur_state; }
 
   /*

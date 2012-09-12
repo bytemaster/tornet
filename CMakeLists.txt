@@ -67,6 +67,7 @@ SET( sources
     src/connection.cpp
     src/node.cpp
     src/kad.cpp
+    src/kbucket.cpp
     src/main.cpp
 
  #   main.cpp

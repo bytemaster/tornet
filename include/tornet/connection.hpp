@@ -125,13 +125,15 @@ namespace tn {
 
         //fc::function<void(state_enum)> state_changed;
         boost::signal<void(state_enum)> state_changed;
-        const db::peer::record&      get_db_record()const;
-
+        const db::peer::record&      get_db_record()const { return _record; }
+        void set_priority( float p ) { _record.priority = p; }
+        float priority()const { return _record.priority; }
 //        void    cache_object( const fc::string& key, const fc::any& v );
 //        fc::any get_cached_object( const fc::string& key )const;
 
     private:
         void  goto_state( state_enum s );
+        db::peer::record _record;
 
         class impl;
         fc::fwd<impl,696> my;
