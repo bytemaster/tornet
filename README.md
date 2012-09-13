@@ -209,10 +209,25 @@ will experience higher latencies than high-paying customers.
 
 
 
+Search Engine
+-----------------------------------------
+Because every chunk has a certain 'popularity' a search engine that is 'crawling' the
+web can 'rank' pages/files by their popularity.  
+
+A search engine would simply publish its 'index' as a set of chunks that any other node/user
+can download. Why would anyone consume significant resoruces to generate an index only to
+give it away?  Perhaps to help drive more traffic to their servers?  The easier it is to find
+content the more content will be downloaded.  
+
+The other alternative is hidden services.  These services allow anonymous hidden servers to aggregate
+user content and 'republish' static pages with the result.  A search engine could then generate a
+'results page' for every possible chunk and then when a user 'searches' they get the results page
+instead of the index.  This page could then imbed ads based upon the search term.  
 
 
-OLD OUTDATED IDEAS
+
 _______________________
+OLD OUTDATED IDEAS
 
 Chunk Lookup
 ----------------------------------
@@ -327,21 +342,6 @@ A file is described as a series of chunks identified by the sha1(data) of the da
 chunk has a size and a list of 64KB slices identified by a superfast hash(slice).  These 
 slice hashes can be used to verify partial chunk downloads from multiple nodes. 
 
-
-Search Engine
------------------------------------------
-Because every chunk has a certain 'popularity' a search engine that is 'crawling' the
-web can 'rank' pages/files by their popularity.  
-
-A search engine would simply publish its 'index' as a set of chunks that any other node/user
-can download. Why would anyone consume significant resoruces to generate an index only to
-give it away?  Perhaps to help drive more traffic to their servers?  The easier it is to find
-content the more content will be downloaded.  
-
-The other alternative is hidden services.  These services allow anonymous hidden servers to aggregate
-user content and 'republish' static pages with the result.  A search engine could then generate a
-'results page' for every possible chunk and then when a user 'searches' they get the results page
-instead of the index.  This page could then imbed ads based upon the search term.  
 
 
 P2P Tagging
