@@ -181,71 +181,35 @@ namespace tn {
     if( !my->_thread.is_current() ) {
       return my->_thread.async( [&,this](){ return find_nodes_near( target, n, limit ); } ).wait();
     }
+    slog( "%s n: %d  limit: %s", fc::string(target).c_str(), n, (!!limit?fc::string(*limit).c_str():"none") );
 
-    //std::map<fc::sha1,fc::ip::endpoint>  near;
     fc::vector<host> near;
-    auto itr =  my->_dist_to_con.lower_bound( target ^ my->_id );
-    auto lb  = itr;
-    if( itr != my->_dist_to_con.begin() ) {
-      --itr;
+    near.reserve(n);
+
+    int bid = my->_kbuckets.get_bucket_id_for_target( target );
+    slog( ".");
+    while( bid >= 0 && n > near.size() ) {
+        std::vector<connection*>& buck = my->_kbuckets.get_bucket_for_target(bid);
+        //slog( "bucket id %d  size %d", bid, buck.size() );
+        auto b= buck.begin();
+        while( b != buck.end() && n > near.size() ) {
+          if( !!limit && (*b)->get_remote_id() >= *limit ) {
+            wlog( "ignoring due to limit" );
+            ++b;
+            continue;
+          }
+          slog( "found node %s", fc::string((*b)->get_remote_id()).c_str() ); 
+          near.push_back( host( (*b)->get_remote_id(), 
+                                (*b)->get_endpoint() ) );;
+
+          if( (*b)->is_behind_nat() ) {
+            near.back().nat_hosts.resize(1);
+          }
+          ++b;
+        }
+        --bid;
     }
-    if( itr == my->_dist_to_con.end() ) {
-      int c  = 0;
-      while( itr != my->_dist_to_con.begin() && c < n){
-        --itr;
-        c++;
-      }
-    } 
-
-    wlog( "my->_dist_to_con::size %d  near.size %d   n: %d", my->_dist_to_con.size(), near.size(), n );
-    {
-      auto i = my->_dist_to_con.begin();
-      while( i != my->_dist_to_con.end() ) {
-        slog( "   dist_to_con  %s at %s", fc::string(i->first).c_str(), fc::string(i->second->get_endpoint()).c_str() );
-        ++i;
-      }
-    }
-    if( itr == my->_dist_to_con.end() ) {
-      elog( "no nodes closer..." );
-      return near;
-    }
-    while( itr != my->_dist_to_con.end() && near.size() < n ) {
-      auto dist = (itr->first^my->_id)^target;
-      near.push_back( tn::host( dist, itr->second->get_endpoint() ) );
-      slog( "   near push back .. %s size %d", fc::string(itr->first).c_str(), near.size() );
-      if( itr->second->is_behind_nat() ) {
-        near.back().nat_hosts.resize(1);
-      }
-      // TODO: apply search limit filter?
-      // if( limit != node::id_type() || dist < limit ) {
-      //slog( "dist: %1%  target: %2%", dist, target );
-      //  near[ dist  ] = itr->second->get_endpoint();
-     // }
-      ++itr;
-    }
-
-    lb--;
-    while( near.size() < n ) {
-      auto dist = (lb->first^my->_id)^target;
-      near.push_back( tn::host( dist, lb->second->get_endpoint() ) );
-      slog( "   near push back .. %s size %d", fc::string(lb->first).c_str(), near.size() );
-      if( lb->second && lb->second->is_behind_nat() ) {
-        near.back().nat_hosts.resize(1);
-      }
-      // TODO: apply search limit filter?
-      // if( limit != node::id_type() || dist < limit ) {
-      //slog( "dist: %1%  target: %2%", dist, target );
-      //  near[ dist  ] = itr->second->get_endpoint();
-     // }
-      if( lb == my->_dist_to_con.begin() ) break;
-      --lb;
-    }
-
-
-
-
-
-
+    slog( "returning %d nodes", near.size());
     return near;
   }
 

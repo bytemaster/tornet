@@ -27,6 +27,14 @@ namespace tn {
 
   void kbucket::set_id(const fc::sha1& id) {
     my->_node_id = id;
+    slog( "set id %1%", fc::string(id).c_str() );
+  }
+
+  int  kbucket::get_bucket_id_for_target( const fc::sha1& target ) {
+    return my->calc_bucket( target ^ my->_node_id );  
+  }
+  std::vector<connection*>&  kbucket::get_bucket_for_target( int bid ) {
+    return my->_buckets[ bid];
   }
 
   std::vector<connection*>&  kbucket::get_bucket_for_target( const fc::sha1& target ) {
@@ -39,6 +47,7 @@ namespace tn {
 
   typedef std::vector<connection*>& bref;
   void kbucket::add( connection* c ) {
+    slog( "adding %s to bucket %d", fc::string( c->get_remote_id()).c_str(), get_bucket_id_for_target( c->get_remote_id() ) );
     bref buck = get_bucket_for_target( c->get_remote_id() );
     buck.push_back(c);
     ++my->_count;

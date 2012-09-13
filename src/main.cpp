@@ -50,10 +50,10 @@ void start_services( int argc, char** argv ) {
             fc::sha1 id = node->connect_to( fc::ip::endpoint::from_string( init_connections[i].c_str() ) );
             wlog( "Connected to %s", fc::string(id).c_str() );
 
-            slog( "Starting bootstrap process by searching for my node id + 1" );
-            fc::sha1 sh;
-            sh.data()[19] = 1;
-            auto target = sh ^ node->get_id();
+            fc::sha1 target = node->get_id();;
+            target.data()[19] += 1;
+            slog( "Starting bootstrap process by searching for my node id (%s) + 1  (%s)  diff %s",
+                  fc::string(node->get_id()).c_str(), fc::string(target).c_str(), fc::string(target^node->get_id()).c_str() );
             tn::kad_search::ptr ks( new tn::kad_search( node, target ) );
             ks->start();
             ks->wait();

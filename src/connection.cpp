@@ -67,8 +67,7 @@ connection::connection( node& np, const fc::ip::endpoint& ep, const db::peer::pt
     my->_cur_state = connected;
   } else {
     wlog( "Unknown peer at %s:%d", fc::string(ep.get_address()).c_str(), ep.port() );
-    _record.last_ip   = my->_remote_ep.get_address();
-    _record.last_port = my->_remote_ep.port();
+    _record.last_ep   = my->_remote_ep;
   }
 }
 
@@ -210,17 +209,15 @@ void connection::handle_connected( const tn::buffer& b ) {
 
   if( my->_peers && _record.valid() ) { 
     wlog( "Peer at %s:%d sent invalid message, resetting IP/PORT on record and assuming new node at %s:%d", 
-          fc::string(my->_remote_ep.get_address()).c_str(), _record.last_port,
-          fc::string(my->_remote_ep.get_address()).c_str(), _record.last_port );
+          fc::string(my->_remote_ep.get_address()).c_str(), _record.last_ep.port(),
+          fc::string(my->_remote_ep.get_address()).c_str(), _record.last_ep.port() );
 
-     _record.last_ip   = 0;
-     _record.last_port = 0;
+     _record.last_ep = fc::ip::endpoint();
      memset( _record.bf_key, 0, sizeof(_record.bf_key) );
      my->_peers->store( get_remote_id(), _record );
   }
   _record           = db::peer::record();
-  _record.last_ip   = my->_remote_ep.get_address();
-  _record.last_port = my->_remote_ep.port();
+  _record.last_ep   = my->_remote_ep;
 
   reset();
   handle_uninit(b);
@@ -414,15 +411,23 @@ bool connection::decode_packet( const tn::buffer& b ) {
 /// Message In:     sha1(target_id) << uint32_t(num)  
 /// Message Out:    sha1(target_id) << uint32_t(num) << *(dist << ip << port << uin8_t(is_nat) )
 bool connection::handle_lookup_msg( const tn::buffer& b ) {
-  node_id target; uint32_t num; uint8_t l=0; node_id limit;
+  node_id target; uint32_t num; uint8_t l=0; 
+  node_id limit;
   {
       fc::datastream<const char*> ds(b.data(), b.size() );
       ds >> target >> num >> l;
-      if(l) ds >> limit; 
+      if(l) {
+        ds >> limit; 
+      }
     //  slog( "Lookup %1% near %2%  l: %3%", num, target, int(l) );
     //  if( l ) ds >> limit;
   }
-  fc::vector<host> r = my->_node.find_nodes_near( target, num, limit );
+  fc::vector<host> r;
+  if( l ) 
+    r = my->_node.find_nodes_near( target, num, limit );
+  else 
+    r = my->_node.find_nodes_near( target, num );
+  
 
   // TODO: put this on the stack to eliminate heap alloc
   fc::vector<char> rb; rb.resize(2048);
@@ -433,9 +438,10 @@ bool connection::handle_lookup_msg( const tn::buffer& b ) {
   auto itr = r.begin();
   ds.write(target.data(),sizeof(target));
   ds << num;
+  slog( "Target %s num: %d", fc::string(target).c_str(), num );
 
   for( uint32_t i = 0; i < num; ++i ) {
-    slog( "Reply with %s @ %s:%d", fc::string(itr->id).c_str(), fc::string(itr->ep.get_address()).c_str(), itr->ep.port() );
+    slog( "%d Reply with %s @ %s:%d", i, fc::string(itr->id).c_str(), fc::string(itr->ep.get_address()).c_str(), itr->ep.port() );
     ds << itr->id << uint32_t(itr->ep.get_address()) << uint16_t(itr->ep.port());
     ds << uint8_t( itr->nat_hosts.size() );
     ++itr;
@@ -451,6 +457,7 @@ bool connection::handle_route_msg( const tn::buffer& b ) {
   node_id target; uint32_t num;
   fc::datastream<const char*> ds(b.data(), b.size() );
   ds >> target >> num;
+  slog( "target %s  num %d", fc::string(target).c_str(), num );
   // make sure we still have the target.... 
 
   auto itr = my->_route_lookups.find(target);
@@ -461,13 +468,13 @@ bool connection::handle_route_msg( const tn::buffer& b ) {
   // unpack the routing table
   route_table rt;
   rt.reserve(num);
-  node_id dist; uint32_t ip; uint16_t port;
+  node_id nid; uint32_t ip; uint16_t port;
   uint8_t is_nat = 0;
   for( uint32_t i = 0; i < num; ++i ) {
-    ds >> dist >> ip >> port >> is_nat; 
-    rt.push_back( host( dist, fc::ip::endpoint( ip, port ) ) );
+    ds >> nid >> ip >> port >> is_nat; 
+    rt.push_back( host( nid, fc::ip::endpoint( ip, port ) ) );
     if( is_nat ) rt.back().nat_hosts.push_back( my->_remote_ep );
-    slog( "Response of dist: %s @ %s:%d", fc::string(dist).c_str(), fc::string(fc::ip::address(ip)).c_str(), port );
+    slog( "Response of nid: %s @ %s:%d", fc::string(nid).c_str(), fc::string(fc::ip::address(ip)).c_str(), port );
   }
   slog( "set_value..." );
   itr->second->set_value(rt);
@@ -563,8 +570,7 @@ bool connection::handle_auth_msg( const tn::buffer& b ) {
       recds << pubk;
       _record.nonce[0] = remote_nonce[0];
       _record.nonce[1] = remote_nonce[1];
-      _record.last_ip   = my->_remote_ep.get_address();
-      _record.last_port = my->_remote_ep.port();
+      _record.last_ep   = my->_remote_ep;
 
       uint64_t utc_us = fc::time_point::now().time_since_epoch().count();
       if( !_record.first_contact ) 
@@ -810,7 +816,6 @@ void connection::send_auth() {
   fc::ip::endpoint connection::get_endpoint()const { return my->_remote_ep; }
 
   bool connection::is_behind_nat()const {
-    slog( "%p", this );
     return my->_behind_nat;
   }
 

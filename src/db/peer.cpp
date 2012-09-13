@@ -58,8 +58,9 @@ namespace tn { namespace db {
   }
 
   int get_peer_ep( Db* sdb, const Dbt* key, const Dbt* data, Dbt* skey ) {
-    skey->set_data( data->get_data() );
-    skey->set_size( 6 );
+    skey->set_data(data->get_data() ); 
+    skey->set_size( sizeof( fc::ip::endpoint ) );
+    slog( "%s", fc::string(*((fc::ip::endpoint*)data->get_data())).c_str() );
     return 0;
   }
 
@@ -262,7 +263,7 @@ namespace tn { namespace db {
 
     Dbt ignore_key;
     cur->get(  &ignore_key, &idx_val, DB_GET_RECNO );
-    slog( "inserted/updated record %d", idx );
+    slog( "inserted/updated record %d  ep %s", idx, fc::string(m.last_ep).c_str() );
     cur->close();
     if( !ex )
       record_inserted(idx);
@@ -272,7 +273,7 @@ namespace tn { namespace db {
   }
 
   bool peer::fetch_by_endpoint( const fc::ip::endpoint& ep, fc::sha1& id, peer::record& m ) {
-      Dbt skey((char*)&ep, 6);
+      Dbt skey((char*)&ep, sizeof(ep));
       skey.set_flags( DB_DBT_USERMEM );
 
       Dbt pkey( id.data(), sizeof(id) );

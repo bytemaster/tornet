@@ -6,6 +6,7 @@
 #include <fc/filesystem.hpp>
 #include <fc/shared_ptr.hpp>
 #include <fc/signals.hpp>
+#include <fc/ip.hpp>
 
 namespace fc { 
   namespace ip {
@@ -32,26 +33,25 @@ namespace tn { namespace db {
         bool valid()const;
         fc::sha1 id()const;
 
-        uint32_t  last_ip;
-        uint16_t  last_port;
-        uint32_t  est_bandwidth; 
-        uint32_t  avg_rtt_us;
-        uint64_t  nonce[2];
-        uint64_t  first_contact;
-        uint64_t  last_contact;
-        uint64_t  sent_credit;            // how much did we provide them
-        uint64_t  recv_credit;            // how much did this peer provide us 
-        uint64_t  total_btc_recv;         // the total amount of btc received from this node.
-        uint64_t  total_btc_sent;         // the total amount of btc received from this node.
-        uint8_t   firewalled;             
-        uint8_t   rank;                   // the rank of this node
-        uint8_t   published_rank;         // the rank last sent to this node of my node
-        char      public_key[256];        
-        char      bf_key[56];             
-        char      recv_btc[40];           // address to recv money from node id
-        char      send_btc[40];           // address to send money to node id
-                                          
-        float     priority;               // sum of the below percentiles
+        fc::ip::endpoint last_ep;
+        uint32_t         est_bandwidth; 
+        uint32_t         avg_rtt_us;
+        uint64_t         nonce[2];
+        uint64_t         first_contact;
+        uint64_t         last_contact;
+        uint64_t         sent_credit;            // how much did we provide them
+        uint64_t         recv_credit;            // how much did this peer provide us 
+        uint64_t         total_btc_recv;         // the total amount of btc received from this node.
+        uint64_t         total_btc_sent;         // the total amount of btc received from this node.
+        uint8_t          firewalled;             
+        uint8_t          rank;                   // the rank of this node
+        uint8_t          published_rank;         // the rank last sent to this node of my node
+        char             public_key[256];        
+        char             bf_key[56];             
+        char             recv_btc[40];           // address to recv money from node id
+        char             send_btc[40];           // address to send money to node id
+                                                 
+        float            priority;               // sum of the below percentiles
       };
 
       peer( const fc::sha1& nid, const fc::path& dir );

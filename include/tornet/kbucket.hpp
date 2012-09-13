@@ -50,7 +50,10 @@ namespace tn {
 
       void  resort_buckets();
       std::vector<connection*>&  get_bucket_at_dist( const fc::sha1& dist );
+
+      int                        get_bucket_id_for_target( const fc::sha1& target );
       std::vector<connection*>&  get_bucket_for_target( const fc::sha1& target );
+      std::vector<connection*>&  get_bucket_for_target( int bid );
 
     public:
       class impl;
