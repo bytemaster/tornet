@@ -28,13 +28,15 @@ To prevent Sybil attacks and encourage long term establishment of node identies,
   node is ranked by hashing its public key with a nonce, the lower the resulting hash
   the higher the rank.   It requires significant time/cpu resources to generate a
   high-ranking identity.
+
 To optimize 'routing' nodes within a kbucket (same distance) are sorted by:
-  - how much content they have provided relative to other peers
-  - how much btc they have paid relative to other peers
-  - rank  
-  - how long the node has been connected
-  - how low the latency is
-  - how high the bandwidth is.
+    - how much content they have provided relative to other peers
+    - how much btc they have paid relative to other peers
+    - rank  
+    - how long the node has been connected
+    - how low the latency is
+    - how high the bandwidth is.
+
 To provide extensability, each connection multiplexes packets over channels which
   communicate to registered services.
 To provide high-performance gauranteed in-order delivery, some channels implement 
@@ -106,7 +108,7 @@ more expensive it naturally self-limiting.
 
 Publishing Content
 ------------------------------------
-The cost of publishing content on a nodes is proportional to opportunity cost of that
+The cost of publishing content on a node is proportional to opportunity cost of that
 node giving up a slot in its file cache for your content.  After all, nodes are in this
 for profit so each node can multiply the access frequency for a chunk by the yield of that
 chunk and the determine the expected revenue per-week.  A node must 'bump' this chunk in order
@@ -122,7 +124,7 @@ store infrequently accessed chunks.
 Distributed Key Value Store
 -----------------------------------------
 Every ID doubles as a namespace in which key/value pairs may be published on the network.  Therefore, each
-node can store 'small values', under 1KB mapped to keys under 256KB on nodes near the hash of the key.  The
+node can store 'small values', under 1KB mapped to keys under 256B on nodes near the hash of the key.  The
 publishing of key/value pairs is subject to the same market principles as the content addressable storage.
 
 Name Registration Lookup
@@ -192,7 +194,7 @@ off of the lookup time.  A chunk that is 16,000 times as popular as the 'least p
 be found in as few as 1 or 2 hops (less than 1 second).  
 
 Therefore, for browsing the 'web' it should perform reasonably well for popular sites which require
-1 initial lookup for the page data.  Latency of multiple looks would be hidden in large files through
+1 initial lookup for the page data.  Latency of multiple lookups would be hidden in large files through
 pipelining. 
 
 Clearly if a large number of nodes are hosting content on fast links with low latency (which
@@ -207,6 +209,24 @@ Note that latency for a given node depends upon that nodes priority and priority
 its contribution to the network in terms of both bandwidth, disk space, and bitcoins.  Freelaoders 
 will experience higher latencies than high-paying customers. 
 
+Another way users can boost performance is to delegate 'lookup requests' to another node that is
+closer to the internet backbone than your home DSL link. This could shave 10's of ms off of every
+hop in the search.  This would concentrate your debt to one node instead of spreading it over 
+a bunch of nodes, but would also give both you and the 'proxy' improved 'privacy' masking what
+you are searching for.
+
+Keeping things Anonymous
+-----------------------------------------
+By default the cheapest and highest performance system exposes your IP/PORT and query to
+every node in the search path.  This would allow potential attackers to participate in the network
+and gather stats about who is looking for and downloading what.  To get around this the system can
+set up 'tunnels' that route your requests through one or more nodes.  The longer the tunnel the more
+it will 'cost'.  This allows users who value privacy to 'pay for it' while also providing a smoke
+screen of 'plausable deniability' to other users who get to mix their 'direct' request in with 
+indirect requests.  
+
+In this way no one can 'prove' who published or downloaded what.  No one can prove who is using tunnels and
+who is not.  
 
 
 Search Engine
@@ -223,6 +243,17 @@ The other alternative is hidden services.  These services allow anonymous hidden
 user content and 'republish' static pages with the result.  A search engine could then generate a
 'results page' for every possible chunk and then when a user 'searches' they get the results page
 instead of the index.  This page could then imbed ads based upon the search term.  
+
+
+Marketability
+-----------------------------------------
+Why would your average internet user want to switch from the existing internet to TORNET? 
+  - Earn income from unused bandwidth 
+  - Higher download speeds
+  - No censorship
+  - Privacy
+
+
 
 
 
