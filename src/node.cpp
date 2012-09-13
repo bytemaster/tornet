@@ -69,9 +69,7 @@ namespace tn {
       my->_rank = 161 - fc::bigint( r.data(), sizeof(r) ).log2();
     }
 
-    fc::sha1::encoder sha; 
-    sha << my->_pub_key;
-    my->_id = sha.result();
+    my->_id = fc::sha1::hash(my->_pub_key); 
     my->_kbuckets.set_id(my->_id);
 
     // load peers

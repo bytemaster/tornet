@@ -37,8 +37,8 @@ namespace tn { namespace db {
         uint32_t         est_bandwidth; 
         uint32_t         avg_rtt_us;
         uint64_t         nonce[2];
-        uint64_t         first_contact;
-        uint64_t         last_contact;
+        uint64_t         first_contact;          // time first contact from this node was made
+        uint64_t         last_contact;           // last time this node 'connected'
         uint64_t         sent_credit;            // how much did we provide them
         uint64_t         recv_credit;            // how much did this peer provide us 
         uint64_t         total_btc_recv;         // the total amount of btc received from this node.

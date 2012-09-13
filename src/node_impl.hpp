@@ -86,6 +86,7 @@ namespace tn {
       db::publish::ptr _publish_db;
 
       void listen( uint16_t p ) {
+         slog( "Listening on port %d", p );
         _sock.open();
         _sock.set_receive_buffer_size( 3*1024*1024 );
         _sock.bind( fc::ip::endpoint( fc::ip::address(), p ) );

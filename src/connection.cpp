@@ -1,5 +1,6 @@
 #include <tornet/connection.hpp>
 #include <tornet/node.hpp>
+#include <tornet/fees.hpp>
 
 #include <fc/log.hpp>
 #include <fc/datastream.hpp>
@@ -310,6 +311,10 @@ void connection::request_reverse_connect( const fc::ip::endpoint& ep ) {
   fc::datastream<char*> ds(rnpt,sizeof(rnpt));
   ds << uint32_t(ep.get_address()) << ep.port();
   send( rnpt, sizeof(rnpt), req_reverse_connect_msg );
+
+  // I requeste this node send a reverse connect message to ep, so I receive the benefit
+  // of reverse connection from this node.
+  _record.recv_credit += REQUEST_REVERSE_CONNECT_FEE;
 }
 void connection::send_request_connect( const fc::ip::endpoint& ep ) {
   slog( "send request connection %s", fc::string(ep).c_str());
@@ -317,6 +322,13 @@ void connection::send_request_connect( const fc::ip::endpoint& ep ) {
   fc::datastream<char*> ds(rnpt,sizeof(rnpt));
   ds << uint32_t(ep.get_address()) << ep.port();
   send( rnpt, sizeof(rnpt), req_connect_msg );
+
+  /**
+   *  I requested that this node attempt to connect to EP, so I received the
+   *  benefit worth the REVERSE_CONNECT_FEE, this 'cost' is offset by
+   *  the REQUEST_REVERSE_CONNECT fee 
+   */
+  _record.recv_credit += REVERSE_CONNECT_FEE;
 }
 
 /**
@@ -337,6 +349,11 @@ bool connection::handle_request_reverse_connect_msg( const tn::buffer& b ) {
         }
      } 
    );
+
+   // when someone requests a reverse connect, we become liable for the cost
+   // of sending the request_connect message to the host behind the nat.  
+   // A connection usually requires 3-4 packets so could be expensive.
+   _record.sent_credit += REQUEST_REVERSE_CONNECT_FEE;
    return true;
 }
 
@@ -351,6 +368,12 @@ bool connection::handle_request_connect_msg( const tn::buffer& b ) {
    fc::ip::endpoint ep( ip, port );
    wlog( "handle reverse connect msg %s", fc::string(ep).c_str() );
    
+   /**
+    * We are making a connection attempt at the behest of someone else, we will
+    * charge them for the estimated bandwidth required.
+    */
+   _record.sent_credit += REVERSE_CONNECT_FEE;
+
    my->_node.get_thread().async( [=]() { 
         my->_node.connect_to( ep );
      } 
@@ -427,7 +450,9 @@ bool connection::handle_lookup_msg( const tn::buffer& b ) {
     r = my->_node.find_nodes_near( target, num, limit );
   else 
     r = my->_node.find_nodes_near( target, num );
-  
+ 
+  // I am processing this request, therefore I am providing them data.
+  _record.sent_credit += REQUEST_NODES_NEAR_FEE;
 
   // TODO: put this on the stack to eliminate heap alloc
   fc::vector<char> rb; rb.resize(2048);
@@ -828,6 +853,7 @@ void connection::send_auth() {
       if( _record.published_rank < my->_node.rank() )
         send_update_rank();
 
+
       fc::promise<route_table>::ptr prom( new fc::promise<route_table>() );
       uint64_t start_time_utc = fc::time_point::now().time_since_epoch().count();
 
@@ -844,9 +870,12 @@ void connection::send_auth() {
 
       uint64_t end_time_utc  = fc::time_point::now().time_since_epoch().count(); 
       elog( "latency: %lld - %lld = %lld us", end_time_utc, start_time_utc, (end_time_utc-start_time_utc) );
-      _record.avg_rtt_us =  (_record.avg_rtt_us*1 + (end_time_utc-start_time_utc)) / 2;
+      _record.avg_rtt_us =  (_record.avg_rtt_us*7 + (end_time_utc-start_time_utc)) / 8;
 
       assert( my->_route_lookups.end() == my->_route_lookups.find(target) );
+
+      // I am receiving a service from this node equal to the REQUeST_NODES_NEAR_FEE
+      _record.recv_credit += REQUEST_NODES_NEAR_FEE;
 
       return rt;
     } catch( ... ) {
