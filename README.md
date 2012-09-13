@@ -1,19 +1,218 @@
-Overview
+Introduction
 ----------------------------------
-This library provides the foundation of a P2P framework based upon UDP
-message passing and remote procedure calls.  A UDT like protocol is layered
-on top of UDP to provide flow control and retransmitting.  
+Tornet is an attempt to completely decentralize the hosting and distribution
+of content including web pages, video streams, email, chat, and voice in a manner
+that protects freedom of speech and is resistant to attack.
 
-What makes tornet different from other P2P systems is the utilization of
-a digital currency to track contributions to the network and allow anonymous
-users to purchase service.
+Imagine combining the best features of I2P, TOR, Freenet, Namecoin, Bitcoin, Bittorrent,
+VUZE and IRC into a new P2P network where users have financial incentive to contribute 
+resources to the network.  This is the ultimate in cloud computing.
 
-All traffic is encrypted to prevent deep packet insepction.
+The primary feature of Tornet that will set it apart from everything that has gone
+before it is the economic incentive to contribute to the network.  Therefore, each node
+in the network is operating on a for-profit instead of a non-profit basis.  The ability
+to make a profit is made possible via Bitcoin which will be used to anonymously tip 
+hosts that provide resources to the network.
 
-This software is still under heavy development.
+Technical Approach to Overlay Network
+----------------------------------
+To keep things anonymous and secure, all traffic is encrypted.
+To traverse NATs and handle large numbers of connections, all data is sent over UDP.  
+To keep CPU load down, the effecient 'blowfish' algorithm is used.
+  - it is good enough to prevent deep packet inspection
+  - it changes frequently enough make it econimcally unprofitable to crack it.
+  - really sensitive content is encrypted separately
+To enable effecient routing a modified kademilia routing algorithm is used.
+To prevent targeted attacks or impersonation, a node is identified by the hash of its public key (2048 bit).
+To prevent Sybil attacks and encourage long term establishment of node identies, each
+  node is ranked by hashing its public key with a nonce, the lower the resulting hash
+  the higher the rank.   It requires significant time/cpu resources to generate a
+  high-ranking identity.
+To optimize 'routing' nodes within a kbucket (same distance) are sorted by:
+  - how much content they have provided relative to other peers
+  - how much btc they have paid relative to other peers
+  - rank  
+  - how long the node has been connected
+  - how low the latency is
+  - how high the bandwidth is.
+To provide extensability, each connection multiplexes packets over channels which
+  communicate to registered services.
+To provide high-performance gauranteed in-order delivery, some channels implement 
+the UDT protocol.
+To provide unique name registration, Name Coin will be used.
 
-Information below is currently a brainstorm dump and needs to be revised to
-remove conflicts.
+Economic Incentive
+--------------------------------------
+Price negotiation is 'expensive', especially if you must negotiate with 1000's of 
+peers and the market prices change frequently.  As a general rule, most users can
+pay 'in-kind' by uploading as much or more than they download; however, some nodes have
+higher demand or are unable to serve files (because they are behind a firewall).  Other 
+services are 'asymentric' such as routing, tunneling, etc and therefor you require more 
+resources from a specific node than that node requires of you.  Some users
+simply want higher speeds and lower latencies.  
+
+Therefore, each user simply picks an amount to donate to the network.  This donation is 
+then divided among all peers proportional to the amount of service they have provided.   
+The result of donations is higher ranking in the priority queue and therefore faster
+network speed and lower latencies. 
+
+Each peer extends credit to 'new peers' proportional to their rank and past payment
+history.  Because credit is tied to 'rank' and rank requires cpu time / money to aquire it
+is not profitable to constantly create new IDs as new IDs have the lowest priority.
+
+An ID that doesn't contribute resources or BTC and uses up its credit will eventually find
+the network unusable.  
+
+Services built ontop of Overlay Network
+--------------------------------------
+
+  - Distributed File System 
+  - Distributed Key Value Store
+  - Distributed Email System
+  - TOR-like Onion Routing
+  - I2P-like Hidden Services 
+
+
+Distributed File System
+-------------------------------------
+Files are distributed across the network in 1MB (or less) chunks.  Each chunk is encrypted via
+blowfish using the hash of the unencrypted file as the key; therefore, you must know the
+unencrypted hash before you can decrypt the chunk and you must know the hash of the encrypted
+chunk to find it on the network.
+
+Each node has a financial incentive to extract the most value out of its limited bandwidth 
+and disk space.  A node with limited bandwidth but large disk storage would want to store 
+'rarely' accessed files that the users looking for them will pay a 'premium' for.  A node
+with unlimited bandwidth, but limited disk space will want to store files in high-demand until
+the demand for their smaller set of files equals the available bandwidth.
+
+At the same time that nodes want to optimize profitability, we want to ensure that nodes
+keep content close to their ID.  The closer a chunk is to a node's ID the more value that
+node realizes for providing it.  This means that instead of optimizing on access frequency,
+bandwidth, and storage each node has more incentive to offer chunks near its ID than far from 
+its ID.  
+
+The side effect of the above relationship is that each user is incentivized to find the chunk
+on a node furthest from the chunk ID.   This encourages the use of 'binary kad search' of the
+network and it is this binary search that allows nodes on the network to estimate the popularity
+of content and then opportunistically cache content that would be 'profitable' for it to host
+based upon access frequency and distance from the node ID.
+
+On the other hand, nodes that are willing to pay a 'high price' for low-latency can short-circuit 
+the lookup process and start their query much closer to the target node.  This short-circut of the
+lookup process 'harms' the network by hindering the ability of nodes further away to cache the
+content.  If every node did this then they could DOS the target node.  Fortunately, because it is
+more expensive it naturally self-limiting.  
+
+Publishing Content
+------------------------------------
+The cost of publishing content on a nodes is proportional to opportunity cost of that
+node giving up a slot in its file cache for your content.  After all, nodes are in this
+for profit so each node can multiply the access frequency for a chunk by the yield of that
+chunk and the determine the expected revenue per-week.  A node must 'bump' this chunk in order
+to pubish the content.
+
+Furthermore, each node can only publish on nodes of 'lower rank', therefore new users / IDs end up
+being 'beta-testers' for content and nodes that wish to publish to more reliable nodes must
+invest in their identity.  Market forces will then ensure that 'good' content is kept, and 
+'bad', unused, or outdated content is dropped.   Due to the large number of users with small
+upload speeds and large harddives, there should be significant incentive for them to speculatively
+store infrequently accessed chunks.
+
+Distributed Key Value Store
+-----------------------------------------
+Every ID doubles as a namespace in which key/value pairs may be published on the network.  Therefore, each
+node can store 'small values', under 1KB mapped to keys under 256KB on nodes near the hash of the key.  The
+publishing of key/value pairs is subject to the same market principles as the content addressable storage.
+
+Name Registration Lookup
+-----------------------------------------
+It will be possible to assign a human readable name to an ID via the use of Namecoin.  The combination of
+Namecoin, key/value store, and the distributed filesystem provides everything necessary to implement a
+distributed static internet that can be browsed much like the internet of the early 1990's.   
+
+Distributed Email
+-----------------------------------------
+To receive a message, a mailbox is created using the hash of its public key.  This mailbox may be created on
+one or more nodes.  By creating the mailbox you are informing others that you will be 'checking this node' for
+mail.
+
+To send a message you must first know the public key of the user you wish to mail.  This can be discovered via
+namecoin and/or the key/value store.
+
+You compose your message complete with any attachements, then archive, compress, and encrypt it with the public
+key and finally you publish the message to the web like any other file chunk.  Then you find one or more nodes
+that are hosting the mailbox for destination ID and push the message hash into the inbox along with a nonce that
+demonstrates proof of work.  The proof of work must be unique and include a token provided by the mailbox host that
+prevents spammers from publishing bogus hashes that send receviers on fishing expiditions looking for non-existant
+messages.  
+
+Because nodes can come and go at will, the sender of a message may send it to redundant mailboxes and ensure that
+the body of the message is availble on multiple nodes. (paying for storage).
+
+Upon receiving the message, the recevier signs the hash and then pushes the result back to the senders inbox to allow
+the sender to 'stop publishing' the content.
+
+Distributed Multicast Streaming
+-------------------------------------------
+Suppose a user wanted to create an internet radio station. They would create a public key for the station and then
+find one or more nodes to 'broadcast to' that are near that ID and then start 'streaming' content to that node.
+
+Someone wanting to listen to the stream would then start a kad-search looking for the stream and subscribe to the
+first node who has the stream.  That node will then earn income from both the publisher and subscriber.
+
+In the process of 'searching' for a stream, other nodes will discover the demand (via unanswerable queries), and based
+upon the demand choose to subscribe to the stream themselves.  The result is a distribution tree.  Because the 'cost' of 
+subscribing to a stream goes up the closer to the source a user is, users will be motivated to subscribe to leaf nodes 
+instead of the source nodes.  The cost of subscribing to a stream also grows with 'demand' on a given node causing clients
+to automatically 'load balance' among nodes.
+
+In this way enough bandwidth should be available to allow anyone to multi-cast a video stream to the entire network in 
+the most economically effecient manner possible.
+
+This same techinque can be used for distributed twitter, IRC, and the like.
+
+
+Performance
+---------------------------------------
+Lets assume a standard linux distribution 1GB divided into 1024 1MB chunks and with 1M nodes
+with no overlap in data, then you will have an estimated 40KB 'search' cost per 1MB of found
+data.  This will result in a 4% search overhead worst case (log(1M) search hops).  Popular files 
+are likely to be cached far from the leaf and therefore reduce overhead by a significant margin. 
+
+There is no reason to divide chunks into smaller pieces because clients can request sub-chunks
+from multiple different nodes.  Therefore, a search that yields 3 nodes hosting a particular
+chunk can download a different part of the same chunk from each node.
+
+With 1 million nodes and log2 lookup performance and 0 overlap it would take 20 hops to find
+a rare chunk.  At 0.5s average latency, that could be up to 10 seconds.  If you assume 500% 
+overlap (each chunk is hosted by at least 5 nodes then your lookup time improves by 2.5 seconds  
+or 7.5 seconds for the 'least popular' data.  Every time popularity doubles, it shaves 0.5 seconds
+off of the lookup time.  A chunk that is 16,000 times as popular as the 'least popular' data should
+be found in as few as 1 or 2 hops (less than 1 second).  
+
+Therefore, for browsing the 'web' it should perform reasonably well for popular sites which require
+1 initial lookup for the page data.  Latency of multiple looks would be hidden in large files through
+pipelining. 
+
+Clearly if a large number of nodes are hosting content on fast links with low latency (which
+there is financial incentive to do so), then you can expect latency to drop from an average of
+500ms to 50ms for most queries (like pinging google).  This would reduce the 'worst case' 
+lookup time to 1 second from 10 seconds and the best case time will be similar to DNS lookups.
+
+Because the KAD algorithm can allow you to perform lookups in 'parallel', your latency will be the
+best of 3 (or more nodes) which further increases performance.
+
+Note that latency for a given node depends upon that nodes priority and priority is based upon
+its contribution to the network in terms of both bandwidth, disk space, and bitcoins.  Freelaoders 
+will experience higher latencies than high-paying customers. 
+
+
+
+
+
+OLD OUTDATED IDEAS
+_______________________
 
 Chunk Lookup
 ----------------------------------
@@ -120,31 +319,6 @@ chunks.
    - requiring enough 'paid for' requests to cover the cost of finding the chunk
    - nodes should know most of their neighbors and thus reduce the 'search radius' for
    the desired chunk dramatically.
-
-
-Performance
----------------------------------------
-Lets assume a standard linux distribution 1GB divided into 1024 1MB chunks and with 1M nodes
-with no overlap in data, then you will have an estimated 40KB 'search' cost per 1MB of found
-data.  This will result in a 4% search overhead worst case.   Popular files are likely to
-be cached far from the leaf and therefore reduce overhead by a significant margin. 
-
-There is no reason to divide chunks into smaller pieces because clients can request sub-chunks
-from multiple different nodes.  Therefore, a search that yields 3 nodes hosting a particular
-chunk can download a different part of the same chunk from each node.
-
-With 1 million nodes and log2 lookup performance and 0 overlap it would take 20 hops to find
-a rare chunk.  At 0.5s average latency, that could be up to 10 seconds.  If you assume 500% 
-overlap (each chunk is hosted by at least 5 nodes then your lookup time improves by 2.5 seconds  
-or 7.5 seconds for the 'least popular' data.  Every time popularity doubles, it shaves 0.5 seconds
-off of the lookup time.  A chunk that is 16K times as popular as the 'least popular' data should
-be found in as few as 1 or 2 hops (less than 1 second).  
-
-Therefore, for browsing the 'web' it should perform reasonably well for popular sites which require
-1 initial lookup for the page data.  Latency would be hidden in large files.  
-
-For paying customers, they can simply use a 'super cluster' which would cache everything or a
-master index that will perform as fast as a DNS lookup.
 
 
 File Description
