@@ -43,9 +43,11 @@ namespace tn {
         fc::ip::endpoint                                      _public_ep; // endpoint remote host reported seeing from us
         bool                                                  _behind_nat;
 
+    //    std::vector<tn::buffer>                               _in_queue;
+        std::list<tn::buffer>                                 _in_queue;
+        std::vector<tn::buffer>                               _decrypt_queue;
 
         std::map<node_id,fc::promise<route_table>::ptr>       _route_lookups;
-            
         
         boost::unordered_map<std::string,fc::any>             _cached_objects;
         boost::unordered_map<uint32_t,channel>                _channels;
@@ -88,6 +90,18 @@ connection::~connection() {
   }
 }
 
+size_t connection::pending_packets()const {
+  return my->_in_queue.size();
+}
+void connection::post_packet( tn::buffer&& b ) {
+  my->_in_queue.push_back( std::move(b) );
+}
+
+void connection::process_next_message() {
+  handle_packet( my->_in_queue.front() );
+  my->_in_queue.pop_front();
+  //my->_in_queue.erase(my->_in_queue.begin());
+}
 
 /**
  *  Start of state machine, switch to the proper handler for the
@@ -279,8 +293,8 @@ void connection::send_close() {
 }
 void connection::send_punch() {
   slog( "sending punch to %s", fc::string(get_endpoint()).c_str() );
-  char resp = 1;
-  my->_node.send( &resp, 1, my->_remote_ep );
+  char* punch = "punch";
+  my->_node.send( punch, 5, my->_remote_ep );
 }
 
 
@@ -430,6 +444,9 @@ bool connection::decode_packet( const tn::buffer& b ) {
     }
     return true;
 }
+
+
+
 
 /// Message In:     sha1(target_id) << uint32_t(num)  
 /// Message Out:    sha1(target_id) << uint32_t(num) << *(dist << ip << port << uin8_t(is_nat) )

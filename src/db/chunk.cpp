@@ -165,6 +165,7 @@ namespace tn { namespace db {
     my = new chunk_private( node_id, dir );
   }
   chunk::~chunk() { 
+    slog( "...");
     try {
         close();
         my->m_thread.quit();
@@ -281,7 +282,7 @@ namespace tn { namespace db {
       FC_THROW( "sha1(data) does not match given id" );
     }
     fc::sha1 dist = id ^ my->m_node_id;
-    slog( "store chunk %1% dist %2%", id, dist );
+    slog( "store chunk %s dist %s", fc::string(id).c_str(), fc::string(dist).c_str() );
 
     DbTxn * txn=NULL;
     my->m_env.txn_begin(NULL, &txn, 0);

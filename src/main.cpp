@@ -2,9 +2,11 @@
 #include <fc/exception.hpp>
 #include <fc/log.hpp>
 #include <fc/signals.hpp>
+#include <fc/stream.hpp>
 
 #include <tornet/node.hpp>
 #include <tornet/kad.hpp>
+#include <tornet/chunk_service.hpp>
 
 
 #include <boost/program_options.hpp>
@@ -14,6 +16,8 @@
 void handle_sigint( int si );
 
 boost::signal<void()> quit;
+
+void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs );
 
 void start_services( int argc, char** argv ) {
   std::string data_dir;
@@ -44,6 +48,8 @@ void start_services( int argc, char** argv ) {
   try {
       node->init( data_dir.c_str(), node_port );
 
+      tn::chunk_service::ptr cs( new tn::chunk_service(fc::path(data_dir.c_str())/"chunks", node, "chunks", 100) );
+
       for( uint32_t i = 0; i < init_connections.size(); ++i ) {
         try {
             wlog( "Attempting to connect to %s", init_connections[i].c_str() );
@@ -72,9 +78,11 @@ void start_services( int argc, char** argv ) {
                   init_connections[i].c_str(), fc::current_exception().diagnostic_information().c_str() );
         }
       }
-      
       slog( "services started, ready for action" );
-      fc::wait(quit);
+
+      //auto cli_done = fc::async([=](){cli(node,cs);},"cli");
+      cli(node,cs);
+      //fc::wait(quit);
   } catch ( ... ) {
     elog( "%s", fc::current_exception().diagnostic_information().c_str() );
   }
@@ -82,6 +90,60 @@ void start_services( int argc, char** argv ) {
   node->close();
   wlog( "\n\nexiting services!\n\n" );
 }
+
+
+
+void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
+     fc::thread* t = new fc::thread("cin");
+     std::string line;
+     while( t->async( [&](){ return (bool)std::getline(std::cin, line); } ).wait() ) {
+      try {
+       std::stringstream ss(line);
+     
+       std::string cmd;
+       ss >> cmd;
+       if( cmd == "quit" )  {
+        return;
+       } if( cmd == "import" )  {
+
+         std::string infile;
+         ss >> infile;
+         fc::sha1 tid, check;
+         _cs->import( fc::path(infile.c_str()), tid, check );
+         std::cout<<"Created "<<infile<<".tornet with TID: "<<fc::string(tid).c_str()<<" and CHECK: "<<fc::string(check).c_str()<<std::endl;
+
+       } else if( cmd == "export_tid" ) {
+
+         std::string tid,check;
+         ss >> tid >> check;
+         _cs->export_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()) );
+
+       } else {
+         std::cerr<<"\nCommands:\n";
+         std::cerr<<"  import      FILENAME               - loads FILENAME and creates chunks and dumps FILENAME.tornet\n";
+         std::cerr<<"  export      TORNET_FILE            - loads TORNET_FILE and saves FILENAME\n";
+         std::cerr<<"  find        CHUNK_ID               - looks for the chunk and returns query rate stats for the chunk\n";
+         std::cerr<<"  export_tid  TID CHECKSUM [OUT_FILE]- loads TORNET_FILE and saves FILENAME\n";
+         std::cerr<<"  publish TID CHECKSUM                - pushes chunks from TORNET_FILE out to the network, including the TORNETFILE itself\n";
+         std::cerr<<"  show local START LIMIT [by_distance|by_revenue|by_opportunity]\n";
+         std::cerr<<"  show cache START LIMIT |by_distance|by_revenue|by_opportunity]\n";
+         std::cerr<<"  show users START LIMIT |by_balance|by_rank|...]\n";
+         std::cerr<<"  show publish \n";
+         std::cerr<<"  rankeffort EFFORT                  - percent effort to apply towoard improving rank\n";
+         std::cerr<<"  help                               - prints this menu\n\n";
+       }
+     } catch ( ... ) {
+        wlog( "%s", fc::current_exception().diagnostic_information().c_str() );
+     }
+    } 
+}
+
+
+
+
+
+
+
 
 fc::future<void> start_services_complete;
 

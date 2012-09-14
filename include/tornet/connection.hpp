@@ -130,6 +130,9 @@ namespace tn {
         float priority()const { return _record.priority; }
 //        void    cache_object( const fc::string& key, const fc::any& v );
 //        fc::any get_cached_object( const fc::string& key )const;
+        size_t pending_packets()const;
+        void post_packet( buffer&& b );
+        void process_next_message();
 
     private:
         void  goto_state( state_enum s );

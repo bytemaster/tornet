@@ -30,6 +30,9 @@ namespace tn {
     char*       data()      {  return start; }
     size_t      size()const { return len;    }
 
+    buffer& operator=( buffer&& b );
+    buffer& operator=( const buffer& b );
+
     private:
       char*              start;
       uint32_t           len;

@@ -68,6 +68,7 @@ SET( sources
     src/node.cpp
     src/kad.cpp
     src/kbucket.cpp
+    src/chunk_service.cpp
     src/main.cpp
 
  #   main.cpp

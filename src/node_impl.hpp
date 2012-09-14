@@ -57,6 +57,7 @@ namespace tn {
         _rank = 0;
         _nonce[0] = _nonce[1] = 0;
         _lookup_sock.connect( fc::ip::endpoint( fc::ip::address("74.125.228.40"), 8000 ) );
+        _processing = false;
       }
       ~impl() {
         slog( "start quit" );
@@ -82,6 +83,16 @@ namespace tn {
       std::map<fc::sha1,connection*>  _dist_to_con;
       kbucket                         _kbuckets;
 
+
+      /**
+       *  Store connections that have messages queue that need
+       *  processed.  This vector is a sorted 'priority heap' sorted
+       *  by the nodes service priority.  
+       */
+      std::vector<connection*>        _process_queue;
+      bool                            _processing;
+      static bool pq_comparer( connection* l, connection* r ) { return l->priority() > r->priority(); }
+
       db::peer::ptr    _peers;
       db::publish::ptr _publish_db;
 
@@ -91,10 +102,11 @@ namespace tn {
         _sock.set_receive_buffer_size( 3*1024*1024 );
         _sock.bind( fc::ip::endpoint( fc::ip::address(), p ) );
         _read_loop_complete = _thread.async( [=](){ read_loop(); } );
+
       }
       void read_loop() {
         try {
-          uint32_t count;
+          uint32_t count = 0;
           while( !_done ) {
              if( count % 60 == 0 )  // avoid an infinate loop flooding us!
                 fc::usleep(fc::microseconds(400));
@@ -120,11 +132,50 @@ namespace tn {
           // failing that, create
           connection::ptr c( new connection( _self, ep, _peers ) );
           _ep_to_con[ep] = c;
-          c->handle_packet(b);
+          c->post_packet(std::move(b));
+          process_connection(c.get());
         } else { 
-          itr->second->handle_packet(b); 
+          itr->second->post_packet(std::move(b)); 
+          process_connection(itr->second.get());
         }
       }
+      void process_connection( connection* c ) {
+          if( c->pending_packets() > 1 ) return;
+          _process_queue.push_back(c);
+          std::push_heap( _process_queue.begin(), _process_queue.end(), &impl::pq_comparer );
+
+          if( !_processing ) {
+            _processing = true;
+            fc::async( [=](){ process_queue(); }, "process_queue" );
+          }
+      }
+
+      /**
+       *  The read_loop fiber is pulling packets off of the network and 
+       *  posting them into their respecitve connections queues.  Each connection
+       *  is then put on a priority queue to be processed by process_queue fiber.
+       *
+       *  The process_queue fiber wants to ensure that all packets have been
+       *  received before processing subsequent packets so that they can get
+       *  processed in the proper order.
+       *
+       *  Because connections are sorted by priority incoming messages will be
+       *  processed in priority order.  
+       */
+      void process_queue() {
+         while( _process_queue.size() ) {
+            _process_queue.front()->process_next_message();
+            if( !_process_queue.front()->pending_packets() ) {
+              std::pop_heap( _process_queue.begin(), _process_queue.end(), &impl::pq_comparer );
+              _process_queue.pop_back();
+            }
+            // give the read_loop (or other running tasks a chance to make some
+            // progress before continuing to the next message.
+            fc::yield();
+         }
+         _processing = false;
+      }
+
 
       connection* get_connection( const fc::sha1& remote_id )const {
          auto itr = _dist_to_con.find( remote_id ^ _id );

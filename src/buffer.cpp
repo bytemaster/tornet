@@ -65,7 +65,7 @@ namespace tn {
     }
     void buffer::move_start( int32_t sdif ) {
       start += sdif;
-      if( sdif > len ) len = 0;
+      if( sdif > int32_t(len) ) len = 0;
       else len -= sdif;
       assert( start >= shared_data->ptr->c_array() );
       assert( start <= shared_data->ptr->c_array() + shared_data->ptr->size() );
@@ -75,5 +75,13 @@ namespace tn {
         len = s;
       else 
         FC_THROW( "Attempt to grow buffer!" );
+    }
+    buffer& buffer::operator=( buffer&& b ) {
+      fc::swap(shared_data,b.shared_data);
+      return *this;
+    }
+    buffer& buffer::operator=( const buffer& b ) {
+      shared_data = b.shared_data;
+      return *this;
     }
 } // namespace tn
