@@ -4,7 +4,7 @@
 #include <fc/sha1.hpp>
 #include <fc/value.hpp>
 #include <fc/vector.hpp>
-#include <fc/reflect_fwd.hpp>
+#include <fc/static_reflect.hpp>
 
 
 namespace tn {
@@ -31,18 +31,16 @@ struct tornet_file {
   fc::string                name;
   uint64_t                  size;
   fc::vector< chunk_data >  chunks;
-  fc::value                 properties; 
+ // fc::value                 properties; 
   fc::vector<char>          inline_data;
 };
 
 } // namespace tn
 
-/*
-FC_REFLECT( fc::tornet_file::chunk_data,
+FC_STATIC_REFLECT( tn::tornet_file::chunk_data,
   (size)(id)(slices) )
 
-FC_REFLECT( fc::tornet_file,
-  (checksum)(name)(size)(chunks)(properties)(inline_data) )
-*/
+FC_STATIC_REFLECT( tn::tornet_file,
+  (checksum)(name)(size)(chunks)(inline_data) )
 
 #endif 

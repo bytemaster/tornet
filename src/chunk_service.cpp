@@ -4,6 +4,7 @@
 #include <tornet/tornet_file.hpp>
 #include <fc/fwd_impl.hpp>
 #include <fc/buffer.hpp>
+#include <fc/raw.hpp>
 
 
 #include <boost/interprocess/file_mapping.hpp>
@@ -76,16 +77,16 @@ void chunk_service::import( const fc::path& infile,
                             const fc::path& outfile ) 
 {
   if( !fc::exists( infile ) )
-    FC_THROW_MSG( "File '%s' does not exist.", %infile.string().c_str() ); 
+    FC_THROW_MSG( "File '%s' does not exist.", infile.string() ); 
   if( fc::is_directory( infile ) )
-    FC_THROW_MSG( "'%s' is a directory, expected a file.", %infile.string().c_str() ); 
+    FC_THROW_MSG( "'%s' is a directory, expected a file.", infile.string() ); 
   if( !fc::is_regular( infile ) )
-    FC_THROW_MSG( "'%s' is not a regular file.", %infile.string().c_str() ); 
+    FC_THROW_MSG( "'%s' is not a regular file.", infile.string() ); 
 
   uint64_t file_size  = fc::file_size(infile);
   slog( "Importing %s of %lld bytes", infile.string().c_str(), file_size );
   if( file_size == 0 )
-    FC_THROW_MSG( "'%s' is an empty file.", %infile.string().c_str() );
+    FC_THROW_MSG( "'%s' is an empty file.", infile.string() );
 
   {
       using namespace boost::interprocess;
@@ -103,7 +104,7 @@ void chunk_service::import( const fc::path& infile,
 
   uint64_t rfile_size = ((file_size+7)/8)*8; // needs to be a power of 8 for FB
   uint64_t chunk_size = 1024*1024;
-  std::vector<char> chunk( (std::min)(chunk_size,rfile_size) );
+  fc::vector<char> chunk( (std::min)(chunk_size,rfile_size) );
 
   tornet_file tf(infile.filename().string(),file_size);
   int64_t r = 0;
@@ -111,12 +112,12 @@ void chunk_service::import( const fc::path& infile,
   while( r < int64_t(file_size) ) {
     int64_t c = (std::min)( uint64_t(file_size-r), (uint64_t)chunk.size() );
     if( c < int64_t(chunk.size()) ) 
-      memset( &chunk.front() + c, 0, chunk.size()-c );
-    in.read( &chunk.front(), c );
+      memset( chunk.data() + c, 0, chunk.size()-c );
+    in.read( chunk.data(), c );
     int64_t pc = c;
     c = ((c+7)/8)*8;
 
-    bf.encrypt((unsigned char*)&chunk.front(), c, fc::blowfish::CBC );
+    bf.encrypt((unsigned char*)chunk.data(), c, fc::blowfish::CBC );
 
     fc::sha1 chunk_id = fc::sha1::hash(chunk.data(), c );
     tf.chunks.push_back( tornet_file::chunk_data( pc, chunk_id ) );
@@ -137,12 +138,12 @@ void chunk_service::import( const fc::path& infile,
   tf.checksum = checksum;
 
 // TODO::: 
-  tn::rpc::raw::pack_vec( chunk, tf );
+  chunk = fc::raw::pack( tf );
 
 
   chunk.resize( ((chunk.size()+7)/8)*8 );
   bf.reset_chain();
-  bf.encrypt( (unsigned char*)&chunk.front(), chunk.size(), fc::blowfish::CBC );
+  bf.encrypt( (unsigned char*)chunk.data(), chunk.size(), fc::blowfish::CBC );
 
   tn_id = fc::sha1::hash(  chunk.data(), chunk.size() );
   my->_local_db->store_chunk( tn_id, fc::const_buffer( chunk.data(), chunk.size() ) );
@@ -155,7 +156,7 @@ void chunk_service::import( const fc::path& infile,
   std::ofstream out( of.c_str(), std::ostream::binary | std::ostream::out );
  
  // TODO:::
-  tn::rpc::raw::pack( out, tf );
+  fc::raw::pack( out, tf );
 }
 
 void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checksum ) {

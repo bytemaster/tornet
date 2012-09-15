@@ -77,7 +77,7 @@ namespace tn { namespace db {
       my->m_env.open( my->m_envdir.string().c_str(), DB_CREATE | DB_INIT_MPOOL | DB_INIT_TXN | DB_INIT_LOCK | DB_REGISTER | DB_RECOVER, 0 );
     } catch( const DbException& e ) {
       elog( "Error opening database environment: %s\n \t\t%s", my->m_envdir.string().c_str(), e.what() );
-      FC_THROW( e );
+      FC_THROW_MSG( "%s", e.what() );
     } catch( ... ) {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );
       fc::rethrow_exception( fc::current_exception() );
@@ -89,7 +89,7 @@ namespace tn { namespace db {
       my->m_peer_db->open( NULL, "peer_data", "peer_data", DB_BTREE, DB_CREATE | DB_AUTO_COMMIT, 0 );
     } catch( const DbException& e ) {
       elog( "Error opening peer_data database: %s", e.what() );
-      FC_THROW( e );
+      FC_THROW_MSG( "%s", e.what() );
     } catch( ... ) {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );
       fc::rethrow_exception( fc::current_exception() );
@@ -102,7 +102,7 @@ namespace tn { namespace db {
       my->m_peer_db->associate( NULL, my->m_ep_index_db, get_peer_ep, 0 );
     } catch( const DbException& e ) {
       elog( "Error opening peer_ep_index database: %s", e.what() );
-      FC_THROW( e );
+      FC_THROW_MSG( "%s", e.what() );
     } catch( ... ) {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );
       fc::rethrow_exception( fc::current_exception() );
@@ -130,7 +130,7 @@ namespace tn { namespace db {
         slog( "closing environment" );
         my->m_env.close(0);
     } catch ( const DbException& e ) {
-      FC_THROW(e);
+      FC_THROW_MSG("%s", e.what());
     }
   }
   void peer::sync() {
@@ -238,7 +238,7 @@ namespace tn { namespace db {
         txn->commit( DB_TXN_WRITE_NOSYNC );
     } catch ( const DbException& e ) {
       txn->abort();
-      FC_THROW( "%s", e.what() );
+      FC_THROW_MSG( "%s", e.what() );
     }
 
     Dbc*       cur;
@@ -254,7 +254,7 @@ namespace tn { namespace db {
     if( DB_NOTFOUND == cur->get( &key, &ignore_val, DB_FIRST ) ) {
       slog( "not found" );
       cur->close();
-      FC_THROW( "couldn't find key we just put in db" ); 
+      FC_THROW_MSG( "couldn't find key we just put in db" ); 
     }
     db_recno_t idx;
     Dbt        idx_val(&idx, sizeof(idx) );

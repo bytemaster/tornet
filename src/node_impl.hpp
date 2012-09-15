@@ -180,7 +180,7 @@ namespace tn {
       connection* get_connection( const fc::sha1& remote_id )const {
          auto itr = _dist_to_con.find( remote_id ^ _id );
          if( itr != _dist_to_con.end() ) return itr->second;
-         FC_THROW( "No known connection to %s", fc::string(remote_id).c_str() );
+         FC_THROW_MSG( "No known connection to %s", remote_id );
       }
   };
 

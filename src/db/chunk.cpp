@@ -330,7 +330,7 @@ namespace tn { namespace db {
         txn->commit( DB_TXN_WRITE_NOSYNC );
     } catch ( const DbException& e ) {
       txn->abort();
-      FC_THROW( "%1%", %e.what() );
+      FC_THROW_MSG( "%s", e.what() );
     }
 
     if( updated || inserted ) {

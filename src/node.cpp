@@ -93,7 +93,7 @@ namespace tn {
 
     ep_to_con_map::iterator nat_con = my->_ep_to_con.find(nat_ep);
     if( nat_con == my->_ep_to_con.end() || nat_con->second->get_state() != connection::connected ) { 
-      FC_THROW( "No active connection to NAT endpoint %s", fc::string(nat_ep).c_str() );
+      FC_THROW_MSG( "No active connection to NAT endpoint %s", nat_ep );
     }
 
     connection::ptr con(new connection( *this, ep, my->_peers ));
@@ -106,7 +106,7 @@ namespace tn {
     while ( true ) { // keep waiting for the state to change
       switch( con->get_state() ) {
         case connection::failed:
-          FC_THROW( "Attempt to connect to %s:%d failed", fc::string(ep.address()).c_str(), ep.port() );
+          FC_THROW_MSG( "Attempt to connect to %s failed", ep );
         case connection::connected:
           //slog( "returning %1%", con->get_remote_id() );
           return con->get_remote_id(); 
@@ -140,7 +140,7 @@ namespace tn {
     while ( true ) { // keep waiting for the state to change
       switch( con->get_state() ) {
         case connection::failed:
-          FC_THROW( "Attempt to connect to %s:%d failed", fc::string(ep.address()).c_str(), ep.port() );
+          FC_THROW_MSG( "Attempt to connect to %s failed", ep );
         case connection::connected:
           //slog( "returning %1%", con->get_remote_id() );
           return con->get_remote_id(); 
@@ -351,7 +351,7 @@ namespace tn {
     auto itr = my->_services.find( lcn );
     auto e = my->_services.end();
     if( itr == e ) 
-      FC_THROW( "Unable to open channel '%d', no services listening on that port", lcn );
+      FC_THROW_MSG( "Unable to open channel '%s', no services listening on that port", lcn );
     channel nc( c, rcn, lcn );
     itr->handler( nc );
     return nc;

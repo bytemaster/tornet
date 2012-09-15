@@ -67,7 +67,7 @@ namespace tn { namespace db {
       my->m_env.open( my->m_envdir.string().c_str(), DB_CREATE | DB_INIT_MPOOL | DB_INIT_TXN | DB_INIT_LOCK | DB_REGISTER | DB_RECOVER, 0 );
     } catch( const DbException& e ) {
       elog( "Error opening database environment: %s\n \t\t%s", my->m_envdir.string().c_str(), e.what() );
-      FC_THROW( e );
+      throw;
     } catch (...) {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );
       fc::rethrow_exception(fc::current_exception());
@@ -79,7 +79,7 @@ namespace tn { namespace db {
       my->m_publish_db->open( NULL, "publish_data", "publish_data", DB_BTREE, DB_CREATE | DB_AUTO_COMMIT, 0 );
     } catch( const DbException& e ) {
       elog( "Error opening publish_data database: %s", e.what() );
-      FC_THROW( e );
+      throw;
     } catch (...) {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );
       fc::rethrow_exception(fc::current_exception());
@@ -93,7 +93,7 @@ namespace tn { namespace db {
       my->m_publish_db->associate( NULL, my->m_next_index_db, get_publish_next, 0 );
     } catch( const DbException& e ) {
       elog( "Error opening publish_next_index database: %s", e.what() );
-      FC_THROW( e );
+      FC_THROW_MSG( "%s", e.what() );
     } catch (...) {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );
       fc::rethrow_exception(fc::current_exception());
@@ -121,7 +121,7 @@ namespace tn { namespace db {
         slog( "closing environment" );
         my->m_env.close(0);
     } catch ( const DbException& e ) {
-      FC_THROW(e);
+      FC_THROW_MSG("%s", e.what());
     }
   }
   void publish::sync() {
@@ -219,7 +219,7 @@ namespace tn { namespace db {
         txn->commit( DB_TXN_WRITE_NOSYNC );
     } catch ( const DbException& e ) {
       txn->abort();
-      FC_THROW( "%s", %e.what() );
+      FC_THROW_MSG( "%s", e.what() );
     }
 
     Dbc*       cur;

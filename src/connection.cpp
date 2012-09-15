@@ -293,7 +293,7 @@ void connection::send_close() {
 }
 void connection::send_punch() {
   slog( "sending punch to %s", fc::string(get_endpoint()).c_str() );
-  char* punch = "punch";
+  const char* punch = "punch";
   my->_node.send( punch, 5, my->_remote_ep );
 }
 
