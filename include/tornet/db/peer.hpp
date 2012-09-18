@@ -1,11 +1,11 @@
 #ifndef _TORNET_DB_PEER_HPP_
 #define _TORNET_DB_PEER_HPP_
 #include <stdint.h>
-#include <fc/function.hpp>
+//#include <fc/function.hpp>
 #include <fc/sha1.hpp>
 #include <fc/filesystem.hpp>
 #include <fc/shared_ptr.hpp>
-#include <fc/signals.hpp>
+//#include <fc/signals.hpp>
 #include <fc/ip.hpp>
 
 namespace fc { 
@@ -72,9 +72,11 @@ namespace tn { namespace db {
       // be sure to delegate to the proper thread and not to
       // perform any lengthy calculations in your handler or you
       // will block ongoing database operations
+      /*
       boost::signal<void(uint32_t)> record_inserted;
       boost::signal<void(uint32_t)> record_changed;
       boost::signal<void(uint32_t)> record_removed;
+      */
    private:
       class peer_private* my;
   };

@@ -2,9 +2,9 @@
 #include <tornet/channel.hpp>
 #include "node_impl.hpp"
 #include <fc/bigint.hpp>
-#include <fc/signals.hpp>
+//#include <fc/signals.hpp>
 #include <fc/error.hpp>
-#include <fstream>
+#include <fc/stream.hpp>
 
 namespace tn {
 
@@ -49,14 +49,13 @@ namespace tn {
     }
     if( !fc::exists(kf) ) {
       slog( "Creating new node identity: %s", kf.string().c_str() );
-      std::ofstream os;
-      os.open( kf.string().c_str(), std::ios::out | std::ios::binary );
+      fc::ofstream os( kf.string().c_str(), std::ios::out | std::ios::binary );
       fc::generate_keys( my->_pub_key,my->_priv_key );
       os << my->_pub_key << my->_priv_key;
       os.write( (char*)my->_nonce, sizeof(my->_nonce) );
       os.write( (char*)my->_nonce_search, sizeof(my->_nonce_search) );
     } else {
-      std::ifstream ink;
+      fc::ifstream ink;
       ink.open( kf.string().c_str(), std::ios::in | std::ios::binary );
       ink >> my->_pub_key >> my->_priv_key;
       ink.read( (char*)my->_nonce, sizeof(my->_nonce) );
@@ -292,6 +291,7 @@ namespace tn {
     */
   }
 
+/*
   void node::cache_object( const id_type& node_id, const fc::string& key, const fc::any& v ) { 
     if( !my->_thread.is_current() ) {
       my->_thread.async( [&,this](){ return cache_object(node_id,key,v); } ).wait();
@@ -305,6 +305,7 @@ namespace tn {
     }
     // TODO
   }
+  */
 
   uint32_t node::rank()const { return my->_rank; }
 

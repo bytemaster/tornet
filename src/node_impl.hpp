@@ -3,6 +3,7 @@
 #include <tornet/node.hpp>
 #include <fc/thread.hpp>
 #include <fc/udp_socket.hpp>
+#include <fc/error.hpp>
 #include <tornet/db/peer.hpp>
 #include <tornet/db/publish.hpp>
 #include <tornet/connection.hpp>
@@ -122,6 +123,7 @@ namespace tn {
                 handle_packet( fc::move(b), from ); 
              }
           }
+        } catch ( const fc::task_canceled& ) { 
         } catch ( ... ) { elog( "%s", fc::current_exception().diagnostic_information().c_str() ); }
       }
 

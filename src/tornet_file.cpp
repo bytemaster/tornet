@@ -1,0 +1,9 @@
+#include <tornet/tornet_file.hpp>
+#include <fc/reflect_impl.hpp>
+#include <fc/reflect_vector.hpp>
+
+FC_REFLECT( tn::tornet_file::chunk_data,
+  (size)(id)(slices) )
+
+FC_REFLECT( tn::tornet_file,
+  (checksum)(name)(size)(chunks)(inline_data) )

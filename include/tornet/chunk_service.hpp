@@ -3,7 +3,6 @@
 #include <fc/shared_ptr.hpp>
 #include <fc/fwd.hpp>
 #include <fc/vector_fwd.hpp>
-#include <tornet/node.hpp>
 #include <tornet/tornet_file.hpp>
 
 namespace fc {
@@ -17,7 +16,7 @@ namespace tn {
     class chunk;
     class publish;
   }
-
+  class node;
   class tornet_file;
 
   /**
@@ -39,7 +38,7 @@ namespace tn {
       typedef fc::shared_ptr<chunk_service> ptr;
 
       chunk_service( const fc::path&      dbdir,
-                     const tn::node::ptr& n,
+                     const fc::shared_ptr<tn::node>& n,
                      const fc::string&    name,
                      uint16_t             port );
 
@@ -55,7 +54,7 @@ namespace tn {
        */
       void import( const fc::path& infile, 
                    fc::sha1& tornet_id, fc::sha1& checksum,
-                   const fc::path& outfile = fc::path() );
+                   const fc::path& outfile  );
 
       /**
        *  Given a tornet_id and checksum, find the chunk, decrypt the tornetfile then find the

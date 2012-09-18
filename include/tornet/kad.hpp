@@ -1,6 +1,9 @@
 #ifndef _TORNET_NET_KAD_HPP_
 #define _TORNET_NET_KAD_HPP_
 #include <tornet/node.hpp>
+#include <fc/time.hpp>
+#include <fc/thread.hpp>
+#include <map>
 
 namespace tn {
 

@@ -5,12 +5,16 @@
 #include <fc/fwd_impl.hpp>
 #include <fc/buffer.hpp>
 #include <fc/raw.hpp>
+#include <fc/stream.hpp>
+#include <fc/json.hpp>
+#include <fc/hex.hpp>
+#include <stdio.h>
 
+#include <tornet/node.hpp>
 
-#include <boost/interprocess/file_mapping.hpp>
-#include <boost/interprocess/mapped_region.hpp>
-
-#include <fstream>
+#include <fc/interprocess/file_mapping.hpp>
+//#include <boost/interprocess/file_mapping.hpp>
+//#include <boost/interprocess/mapped_region.hpp>
 
 
 //#include "chunk_session.hpp"
@@ -55,6 +59,8 @@ chunk_service::~chunk_service(){
   slog( "%p", this );
 } 
 
+db::chunk::ptr&   chunk_service::get_cache_db() { return my->_cache_db; }
+db::chunk::ptr&   chunk_service::get_local_db() { return my->_local_db; }
 
 //fc::any chunk_service::init_connection( const tn::rpc::connection::ptr& con ) {
   /*
@@ -89,28 +95,30 @@ void chunk_service::import( const fc::path& infile,
     FC_THROW_MSG( "'%s' is an empty file.", infile.string() );
 
   {
-      using namespace boost::interprocess;
-      file_mapping  mfile(infile.string().c_str(), boost::interprocess::read_only );
-      mapped_region mregion(mfile,boost::interprocess::read_only,0,file_size);
+     // using namespace boost::interprocess;
+      fc::file_mapping  mfile(infile.string().c_str(), fc::read_only );
+      fc::mapped_region mregion(mfile,fc::read_only,0,file_size);
       checksum = fc::sha1::hash( (char*)mregion.get_address(), mregion.get_size() );
   } 
   fc::blowfish bf;
   fc::string fhstr = checksum;
   bf.start( (unsigned char*)fhstr.c_str(), fhstr.size() );
+  slog("bf key %s", (unsigned char*)fhstr.c_str() );
+
   bf.reset_chain();
   slog( "Checksum %s", fc::string(fhstr).c_str() );
 
-  std::ifstream in(infile.string().c_str(), std::ifstream::in | std::ifstream::binary );
+  fc::ifstream in(infile.string().c_str(), fc::ifstream::in | fc::ifstream::binary );
 
   uint64_t rfile_size = ((file_size+7)/8)*8; // needs to be a power of 8 for FB
   uint64_t chunk_size = 1024*1024;
-  fc::vector<char> chunk( (std::min)(chunk_size,rfile_size) );
+  fc::vector<char> chunk( (fc::min)(chunk_size,rfile_size) );
 
   tornet_file tf(infile.filename().string(),file_size);
   int64_t r = 0;
 
   while( r < int64_t(file_size) ) {
-    int64_t c = (std::min)( uint64_t(file_size-r), (uint64_t)chunk.size() );
+    int64_t c = (fc::min)( uint64_t(file_size-r), (uint64_t)chunk.size() );
     if( c < int64_t(chunk.size()) ) 
       memset( chunk.data() + c, 0, chunk.size()-c );
     in.read( chunk.data(), c );
@@ -121,12 +129,12 @@ void chunk_service::import( const fc::path& infile,
 
     fc::sha1 chunk_id = fc::sha1::hash(chunk.data(), c );
     tf.chunks.push_back( tornet_file::chunk_data( pc, chunk_id ) );
-    slog( "Chunk %1% id %2%", tf.chunks.size(), fc::string(chunk_id).c_str() );
+    slog( "Chunk %d id %s", tf.chunks.size(), fc::string(chunk_id).c_str() );
 
     // 64KB slices to allow parallel requests
     int64_t s = 0;
     while( s < c ) {
-     int64_t ss = (std::min)( int64_t(64*1024), int64_t(c-s) ); 
+     int64_t ss = (fc::min)( int64_t(64*1024), int64_t(c-s) ); 
      tf.chunks.back().slices.push_back( fc::super_fast_hash( chunk.data()+s, ss ) );
      s += ss;
     }
@@ -137,15 +145,30 @@ void chunk_service::import( const fc::path& infile,
   }
   tf.checksum = checksum;
 
-// TODO::: 
   chunk = fc::raw::pack( tf );
+      fc::datastream<size_t> ps; 
+      fc::raw::pack(ps,tf );
 
+  slog( "%s", fc::json::to_string( tf ).c_str() );
+  slog( "packsize %d", ps.tellp() );
 
+  auto old_size = chunk.size();
   chunk.resize( ((chunk.size()+7)/8)*8 );
-  bf.reset_chain();
-  bf.encrypt( (unsigned char*)chunk.data(), chunk.size(), fc::blowfish::CBC );
+  if( old_size != chunk.size() ) {
+    slog( "memset last bytes to %d", (chunk.size()-old_size) );
+    memset( chunk.data() + old_size, 0, chunk.size() - old_size );
+  } else {
+    slog( "chuunksize %d", chunk.size() );
+  }
+  slog( "old_size %d", old_size );
 
+  bf.reset_chain();
+  slog( "pre-encrypt chunk hex %s size %d", fc::to_hex(chunk.data(), chunk.size() ).c_str(), chunk.size() );
+  bf.encrypt( (unsigned char*)chunk.data(), chunk.size(), fc::blowfish::CBC );
+ 
+  slog( "chunk hex %s size %d", fc::to_hex(chunk.data(), chunk.size() ).c_str(), chunk.size() );
   tn_id = fc::sha1::hash(  chunk.data(), chunk.size() );
+  slog( "store chunk %s", fc::string(tn_id).c_str() );
   my->_local_db->store_chunk( tn_id, fc::const_buffer( chunk.data(), chunk.size() ) );
 
   fc::string of;
@@ -153,16 +176,14 @@ void chunk_service::import( const fc::path& infile,
     of = infile.string() + ".tn";
   else
     of = outfile.string();
-  std::ofstream out( of.c_str(), std::ostream::binary | std::ostream::out );
+  fc::ofstream out( of, fc::ofstream::binary | fc::ofstream::out );
  
  // TODO:::
   fc::raw::pack( out, tf );
 }
 
 void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checksum ) {
-#if 0
-  tornet_file tf;
-  fetch_tornet( tn_id, checksum, tf );
+  tornet_file tf = fetch_tornet( tn_id, checksum );
 
   fc::blowfish bf;
   fc::string fhstr = checksum;
@@ -179,30 +200,30 @@ void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checks
   fflush(f);
   fclose(f);
 
-  using namespace boost::interprocess;
-  file_mapping  mfile(tf.name.c_str(), read_write );
-  mapped_region mregion(mfile,read_write );
+  fc::file_mapping  mfile(tf.name.c_str(), fc::read_write );
+  fc::mapped_region mregion(mfile,fc::read_write );
 
   bf.reset_chain();
   char* start = (char*)mregion.get_address();
   char* pos = start;
   char* end = pos + mregion.get_size();
   for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
-    slog( "writing chunk %1% %5% at pos %2% size: %3%,   %4% remaining", i, uint64_t(pos-start), tf.chunks[i].size, uint64_t(end-pos), tf.chunks[i].id );
+    slog( "writing chunk %d %s at pos %d size: %d,   %d remaining", 
+    i, fc::string(tf.chunks[i].id).c_str() , uint64_t(pos-start), tf.chunks[i].size, uint64_t(end-pos)); 
     if( (pos + tf.chunks[i].size) > end ) {
-      TORNET_THROW( "Attempt to write beyond end of file!" );
+      FC_THROW_MSG( "Attempt to write beyond end of file!" );
     }
     int adj_size = ((tf.chunks[i].size+7)/8)*8;
     if( adj_size != tf.chunks[i].size ) {
-      std::vector<char> tmp(adj_size);
-      if( !m_local_db->fetch_chunk( tf.chunks[i].id, boost::asio::buffer(tmp) ) ) {
-        TORNET_THROW( "Error fetching chunk %1%", %tf.chunks[i].id );
+      fc::vector<char> tmp(adj_size);
+      if( !my->_local_db->fetch_chunk( tf.chunks[i].id, fc::mutable_buffer(tmp.data(),tmp.size()) ) ) {
+        FC_THROW_MSG( "Error fetching chunk %s", tf.chunks[i].id );
       }
       bf.decrypt( (unsigned char*)&tmp.front(), adj_size, fc::blowfish::CBC );
       memcpy( pos, &tmp.front(), tf.chunks[i].size );
     } else {
-      if( !m_local_db->fetch_chunk( tf.chunks[i].id, boost::asio::buffer(pos,adj_size) ) ) {
-        TORNET_THROW( "Error fetching chunk %1%", %tf.chunks[i].id );
+      if( !my->_local_db->fetch_chunk( tf.chunks[i].id, fc::mutable_buffer(pos,adj_size) ) ) {
+        FC_THROW_MSG( "Error fetching chunk %s", tf.chunks[i].id );
       }
       //assert( rcheck == tf.chunks[i].id );
       bf.decrypt( (unsigned char*)pos, adj_size, fc::blowfish::CBC );
@@ -214,20 +235,18 @@ void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checks
   }
 
   //bf.decrypt( (unsigned char*)mregion.get_address(), rsize, fc::blowfish::CBC );
-  fc::sha1 fcheck;
-  fc::sha1_hash( fcheck, (char*)mregion.get_address(), tf.size );
+  fc::sha1 fcheck = fc::sha1::hash( (char*)mregion.get_address(), tf.size );
   if( fcheck != checksum ) {
-    TORNET_THROW( "File checksum mismatch, got %1% expected %2%", %fcheck %checksum );
+    FC_THROW_MSG( "File checksum mismatch, got %s expected %s", fcheck, checksum );
   }
-  #endif
 }
 
 fc::vector<char> chunk_service::fetch_chunk( const fc::sha1& chunk_id ) {
 #if 0
   tn::db::chunk::meta met;
-  if( m_local_db->fetch_meta( chunk_id, met, false ) ) {
+  if( my->_local_db->fetch_meta( chunk_id, met, false ) ) {
       d.resize(met.size);
-      if( m_local_db->fetch_chunk( chunk_id, boost::asio::buffer(d) ) )
+      if( my->_local_db->fetch_chunk( chunk_id, boost::asio::buffer(d) ) )
         return;
   }
   if( m_cache_db->fetch_meta( chunk_id, met, false ) ) {
@@ -235,7 +254,7 @@ fc::vector<char> chunk_service::fetch_chunk( const fc::sha1& chunk_id ) {
       if( m_cache_db->fetch_chunk( chunk_id, boost::asio::buffer(d) ) ) 
         return;
   }
-  TORNET_THROW( "Unknown chunk %1%", %chunk_id );
+  FC_THROW_MSG( "Unknown chunk %1%", %chunk_id );
 #endif
   return fc::vector<char>();
 }
@@ -244,38 +263,40 @@ fc::vector<char> chunk_service::fetch_chunk( const fc::sha1& chunk_id ) {
  *  Fetch and decode the tn file description, but not the chunks
  */
 tornet_file chunk_service::fetch_tornet( const fc::sha1& tn_id, const fc::sha1& checksum ) {
-#if 0
+  tornet_file tnf;
   tn::db::chunk::meta met;
-  if( m_local_db->fetch_meta( tn_id, met, false ) ) {
-      std::vector<char> tnet(met.size);
-      if( m_local_db->fetch_chunk( tn_id, boost::asio::buffer(tnet) ) ) {
+  if( my->_local_db->fetch_meta( tn_id, met, false ) ) {
+      fc::vector<char> tnet(met.size);
+      if( my->_local_db->fetch_chunk( tn_id, fc::mutable_buffer(tnet.data(),tnet.size()) ) ) {
           fc::blowfish bf;
           fc::string fhstr = checksum;
+          slog("bf key %s", (unsigned char*)fhstr.c_str() );
+  slog( "pre decrypt chunk hex %s size %d", fc::to_hex(tnet.data(), tnet.size() ).c_str(), tnet.size() );
+
           bf.start( (unsigned char*)fhstr.c_str(), fhstr.size() );
-          bf.decrypt( (unsigned char*)&tnet.front(), tnet.size(), fc::blowfish::CBC );
+          bf.decrypt( (unsigned char*)tnet.data(), tnet.size(), fc::blowfish::CBC );
 
-          fc::sha1 check;
-          tn::rpc::raw::unpack_vec(tnet, check );
+  slog( "post decrypt chunk hex %s size %d", fc::to_hex(tnet.data(), tnet.size() ).c_str(), tnet.size() );
+          fc::sha1 check = fc::raw::unpack<fc::sha1>(tnet );
           if( check != checksum ) {
-            TORNET_THROW( "Checksum mismatch, got %1% expected %2%", %check %checksum );
+            FC_THROW_MSG( "Checksum mismatch, got %s expected %s", fc::string(check).c_str(), fc::string(checksum).c_str() );
           }
 
-          tn::rpc::raw::unpack_vec(tnet, tf );
-          if( tf.checksum != checksum ) {
-            TORNET_THROW("Checksum mismatch, got %1% tn file said %2%", %checksum %tf.checksum );
+          tnf = fc::raw::unpack<tornet_file>(tnet);
+          if( tnf.checksum != checksum ) {
+            FC_THROW_MSG("Checksum mismatch, got %s tn file said %s", checksum,tnf.checksum );
           } else {
-            slog( "Decoded checksum %1%", tf.checksum );
+            slog( "Decoded checksum %s", fc::string(tnf.checksum).c_str() );
           }
-          slog( "File name: %1%  size %2%", tf.name, tf.size );
-          return;
+          slog( "File name: %s  size %d", tnf.name.c_str(), tnf.size );
+          return tnf;
       } else { 
-        TORNET_THROW( "Unknown to find data for chunk %1%", %tn_id );
+        FC_THROW_MSG( "Unknown to find data for chunk %s", tn_id );
       }
   } else {
-    TORNET_THROW( "Unknown chunk %1%", %tn_id );
+    FC_THROW_MSG( "Unknown chunk %s", tn_id );
   }
-  #endif
-  return tornet_file();
+  return tnf;
 }
 
 /**
@@ -294,8 +315,8 @@ void chunk_service::publish_tornet( const fc::sha1& tid, const fc::sha1& cs, uin
   tornet_file tf;
   fetch_tornet( tid, cs, tf );
   for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
-    //if( !m_local_db->exists(tf.chunks[i]) && !m_cache_db->exists(tf.chunks[i] ) ) {
-    //  TORNET_THROW( "Unable to publish tn file because not all chunks are known to this node." );
+    //if( !my->_local_db->exists(tf.chunks[i]) && !m_cache_db->exists(tf.chunks[i] ) ) {
+    //  FC_THROW_MSG( "Unable to publish tn file because not all chunks are known to this node." );
     //  // TODO: Should we publish the parts we know?  Should we attempt to fetch the parts we don't?
    // }
     tn::db::publish::record rec;

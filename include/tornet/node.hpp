@@ -5,7 +5,7 @@
 #include <fc/vector.hpp>
 #include <fc/sha1.hpp>
 #include <fc/ip.hpp>
-#include <fc/any.hpp>
+//#include <fc/any.hpp>
 #include <fc/optional.hpp>
 #include <fc/pke.hpp>
 #include <tornet/db/peer.hpp>
@@ -72,8 +72,8 @@ namespace tn {
 
       void     close();
 
-      void     cache_object( const id_type& node_id, const fc::string& key, const fc::any& v );
-      fc::any  get_cached_object( const id_type& node_id, const fc::string& key )const;
+     // void     cache_object( const id_type& node_id, const fc::string& key, const fc::any& v );
+     // fc::any  get_cached_object( const id_type& node_id, const fc::string& key )const;
 
       /**
        *  Searches through active connections and returns the endpoints closest to target

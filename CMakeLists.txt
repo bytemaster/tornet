@@ -59,17 +59,18 @@ add_subdirectory(context)
 
 
 SET( sources 
+    src/main.cpp
+    src/node.cpp
+    src/connection.cpp
     src/db/chunk.cpp
     src/db/peer.cpp
     src/db/publish.cpp
     src/buffer.cpp
     src/channel.cpp
-    src/connection.cpp
-    src/node.cpp
     src/kad.cpp
     src/kbucket.cpp
     src/chunk_service.cpp
-    src/main.cpp
+    src/tornet_file.cpp
 
  #   main.cpp
  #   gui/QBind.cpp

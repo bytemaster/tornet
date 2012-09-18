@@ -64,7 +64,7 @@ void print_chunks( const tornet::db::chunk::ptr& db, int start, int limit, chunk
         for( uint32_t i = 0; i <  cnt; ++i ) {
           db->fetch_index( i+1, id, m );
           std::cerr<< std::setw(6) << i                        << "  "
-                   <<                id                        << "  " 
+                   <<                fc::string(id).c_str()    << "  " 
                    << std::setw(8)  << m.size                  << "  " 
                    << std::setw(8)  << m.query_count           << "  " 
                    << std::setw(10) << m.annual_query_count()  << "  "
@@ -84,7 +84,7 @@ void print_chunks( const tornet::db::chunk::ptr& db, int start, int limit, chunk
       db->fetch_best_opportunity( recs, 10 );
       for( uint32_t i = 0; i < recs.size(); ++i ) {
           std::cerr<< std::setw(6) << i                        << "  "
-                   <<                recs[i].key                      << "  " 
+                   <<                fc::string(recs[i].key).c_str()                      << "  " 
                    << std::setw(8)  << recs[i].value.size                  << "  " 
                    << std::setw(8)  << recs[i].value.query_count           << "  " 
                    << std::setw(10) << recs[i].value.annual_query_count()  << "  "

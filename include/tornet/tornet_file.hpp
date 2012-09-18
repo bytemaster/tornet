@@ -5,6 +5,7 @@
 #include <fc/value.hpp>
 #include <fc/vector.hpp>
 #include <fc/static_reflect.hpp>
+#include <fc/reflect.hpp>
 
 
 namespace tn {
@@ -42,5 +43,9 @@ FC_STATIC_REFLECT( tn::tornet_file::chunk_data,
 
 FC_STATIC_REFLECT( tn::tornet_file,
   (checksum)(name)(size)(chunks)(inline_data) )
+
+FC_REFLECTABLE( tn::tornet_file::chunk_data )
+
+FC_REFLECTABLE( tn::tornet_file )
 
 #endif 

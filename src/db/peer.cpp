@@ -265,10 +265,12 @@ namespace tn { namespace db {
     cur->get(  &ignore_key, &idx_val, DB_GET_RECNO );
     slog( "inserted/updated record %d  ep %s", idx, fc::string(m.last_ep).c_str() );
     cur->close();
+    /*
     if( !ex )
       record_inserted(idx);
     else 
       record_changed(idx);
+      */
     return true;
   }
 

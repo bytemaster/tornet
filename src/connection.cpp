@@ -49,7 +49,7 @@ namespace tn {
 
         std::map<node_id,fc::promise<route_table>::ptr>       _route_lookups;
         
-        boost::unordered_map<std::string,fc::any>             _cached_objects;
+   //     boost::unordered_map<std::string,fc::any>             _cached_objects;
         boost::unordered_map<uint32_t,channel>                _channels;
         db::peer::ptr                                         _peers;
   };
@@ -282,7 +282,7 @@ void connection::reset() {
   }
   close_channels();
   my->_node.update_dist_index( my->_remote_id, 0 );
-  my->_cached_objects.clear();
+//  my->_cached_objects.clear();
   goto_state(uninit); 
 }
 
