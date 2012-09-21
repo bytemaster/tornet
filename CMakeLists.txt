@@ -71,6 +71,9 @@ SET( sources
     src/kbucket.cpp
     src/chunk_service.cpp
     src/tornet_file.cpp
+    src/name_service.cpp
+    src/udt_channel.cpp
+    src/miss_list.cpp
 
  #   main.cpp
  #   gui/QBind.cpp
