@@ -61,6 +61,7 @@ chunk_service::~chunk_service(){
 
 db::chunk::ptr&   chunk_service::get_cache_db() { return my->_cache_db; }
 db::chunk::ptr&   chunk_service::get_local_db() { return my->_local_db; }
+db::publish::ptr&   chunk_service::get_publish_db() { return my->_pub_db; }
 
 //fc::any chunk_service::init_connection( const tn::rpc::connection::ptr& con ) {
   /*
@@ -310,6 +311,7 @@ tornet_file chunk_service::fetch_tornet( const fc::sha1& tn_id, const fc::sha1& 
  */
 void chunk_service::publish_tornet( const fc::sha1& tid, const fc::sha1& cs, uint32_t rep ) {
   tornet_file tf = fetch_tornet( tid, cs );
+  slog( "publish %s", fc::json::to_string( tf ).c_str() );
   for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
     //if( !my->_local_db->exists(tf.chunks[i]) && !m_cache_db->exists(tf.chunks[i] ) ) {
     //  FC_THROW_MSG( "Unable to publish tn file because not all chunks are known to this node." );
@@ -319,6 +321,8 @@ void chunk_service::publish_tornet( const fc::sha1& tid, const fc::sha1& cs, uin
     my->_pub_db->fetch( tf.chunks[i].id, rec );
     rec.desired_host_count = rep;
     rec.next_update        = 0;
+    //slog("%s", fc::string(tf.chunks[i].id).c_str() );
+
     my->_pub_db->store( tf.chunks[i].id, rec );
   }
   tn::db::publish::record rec;

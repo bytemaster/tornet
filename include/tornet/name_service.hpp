@@ -18,6 +18,7 @@ namespace tn {
    */
   class name_service : virtual public fc::retainable {
     public:
+      typedef fc::shared_ptr<name_service> ptr;
       struct record {
         enum name_state {
           unknown,      // the name is unknown to the network

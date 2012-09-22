@@ -169,7 +169,7 @@ namespace tn { namespace db {
 
     Dbt key;
     key.set_data( (char*)dist.data());
-    key.set_ulen( sizeof(dist.data()) );
+    key.set_ulen( sizeof(dist) );
     key.set_flags( DB_DBT_USERMEM );
 
     Dbt val;
@@ -190,7 +190,7 @@ namespace tn { namespace db {
     }
     fc::sha1 dist = id;
 
-    Dbt key(dist.data(),sizeof(dist.data()));
+    Dbt key(dist.data(),sizeof(dist));
     key.set_flags( DB_DBT_USERMEM );
 
     Dbt val;
@@ -202,7 +202,11 @@ namespace tn { namespace db {
   }
 
   bool publish::store( const fc::sha1& id, const record& m ) {
-    slog("storing %1%", id );
+    if( &fc::thread::current() != &my->m_thread ) {
+        return my->m_thread.async( [&,this](){ return store(id,m); } ).wait();
+    }
+
+    //slog("storing %s", fc::string(id).c_str() );
     fc::sha1 dist = id;
 
     bool ex = exists(id);
@@ -211,15 +215,19 @@ namespace tn { namespace db {
     my->m_env.txn_begin(NULL, &txn, 0);
 
     try {
-        Dbt key(dist.data(),sizeof(dist.data()));
+        Dbt key(dist.data(),sizeof(dist));
+        key.set_size(sizeof(dist));
+        key.set_ulen(sizeof(dist));
         key.set_flags( DB_DBT_USERMEM );
         Dbt val( (char*)&m, sizeof(m));
+        val.set_size( sizeof(m) );
+        val.set_ulen( sizeof(m) );
         val.set_flags( DB_DBT_USERMEM );
         my->m_publish_db->put( txn, &key, &val, 0 );
         txn->commit( DB_TXN_WRITE_NOSYNC );
     } catch ( const DbException& e ) {
       txn->abort();
-      FC_THROW_MSG( "%s", e.what() );
+      FC_THROW_MSG( "DbException %s", e.what() );
     }
 
     Dbc*       cur;
@@ -227,25 +235,28 @@ namespace tn { namespace db {
     ignore_val.set_dlen(0); 
     ignore_val.set_flags( DB_DBT_PARTIAL | DB_DBT_USERMEM );
 
-    Dbt key(dist.data(),sizeof(dist.data()));
-    key.set_ulen(sizeof(dist.data()));
+    Dbt key(dist.data(),sizeof(dist));
+    key.set_ulen(sizeof(dist));
     key.set_flags( DB_DBT_USERMEM );
 
-    slog( "");
-    my->m_publish_db->cursor( NULL, &cur, 0 );
-    if( DB_NOTFOUND == cur->get( &key, &ignore_val, DB_FIRST ) ) {
-      slog( "not found" );
-      cur->close();
-      FC_THROW( "couldn't find key we just put in db" ); 
+    try {
+        my->m_publish_db->cursor( NULL, &cur, 0 );
+        if( DB_NOTFOUND == cur->get( &key, &ignore_val, DB_FIRST ) ) {
+          cur->close();
+          FC_THROW_MSG( "couldn't find key we just put in db" ); 
+        }
+    } catch ( const DbException& e ) {
+      FC_THROW_MSG( "DbException %s", e.what() );
     }
     db_recno_t idx;
     Dbt        idx_val(&idx, sizeof(idx) );
     idx_val.set_flags( DB_DBT_USERMEM );
     idx_val.set_ulen(sizeof(idx) );
+    idx_val.set_size(sizeof(idx) );
 
     Dbt ignore_key;
     cur->get(  &ignore_key, &idx_val, DB_GET_RECNO );
-    slog( "inserted/updated record %lld", idx );
+    //slog( "inserted/updated record %lld", idx );
     cur->close();
     /*
     if( !ex )
@@ -253,6 +264,7 @@ namespace tn { namespace db {
     else 
       record_changed(idx);
       */
+
     return true;
   }
 

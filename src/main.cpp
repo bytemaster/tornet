@@ -9,7 +9,9 @@
 #include <tornet/node.hpp>
 #include <tornet/kad.hpp>
 #include <tornet/chunk_service.hpp>
+#include <tornet/name_service.hpp>
 #include <tornet/db/chunk.hpp>
+#include <tornet/db/publish.hpp>
 #include <tornet/db/peer.hpp>
 #include <string>
 #include <vector>
@@ -66,7 +68,9 @@ void start_services( int argc, char** argv ) {
   try {
       node->init( data_dir.c_str(), node_port );
 
-      tn::chunk_service::ptr cs( new tn::chunk_service(fc::path(data_dir.c_str())/"chunks", node, "chunks", 100) );
+      tn::chunk_service::ptr    cs( new tn::chunk_service(fc::path(data_dir.c_str())/"chunks", node, "chunks", 100) );
+      tn::name_service::ptr     ns( new tn::name_service(fc::path(data_dir.c_str())/"names", node ) );
+   //   tn::message_service::ptr  ms( new tn::message_service( node );
 
       for( uint32_t i = 0; i < init_connections.size(); ++i ) {
         try {
@@ -171,8 +175,26 @@ void print_chunks( const tn::db::chunk::ptr& db, int start, int limit, chunk_ord
     }
 }
 
+int calc_dist( const fc::sha1& d ) {
+  fc::bigint bi(d.data(), sizeof(d));
+  fc::sha1   mx; memset( mx.data(),0xff,sizeof(mx));
+  fc::bigint max(mx.data(),sizeof(mx));
+
+  return ((bi * fc::bigint( 1000 )) / max).to_int64();
+}
+
+
+boost::posix_time::ptime to_system_time( uint64_t utc_us ) {
+//    typedef boost::chrono::microseconds duration_t;
+//    typedef duration_t::rep rep_t;
+//    rep_t d = boost::chrono::duration_cast<duration_t>(t.time_since_epoch()).count();
+    static boost::posix_time::ptime epoch(boost::gregorian::date(1970, boost::gregorian::Jan, 1));
+    return epoch + boost::posix_time::seconds(long(utc_us/1000000)) + boost::posix_time::microseconds(long(utc_us%1000000));
+}
+
+
 void print_record_header() {
-    std::cerr<<std::setw(21) <<"Host:Port"<<" "
+    std::cerr<<std::setiosflags(std::ios::left)<< std::setw(21) <<"Host:Port"<<" "
              <<std::setw(40) <<"ID"<<" "
              <<std::setw(10) <<"Dist"<<" "
              <<std::setw(5)  <<"Rank"<<" "
@@ -193,31 +215,16 @@ void print_record_header() {
             <<"----------------------------------------------------------"
             <<"----------------------------------------------------------\n";
 }
-int calc_dist( const fc::sha1& d ) {
-  fc::bigint bi(d.data(), sizeof(d));
-  fc::sha1   mx; memset( mx.data(),0xff,sizeof(mx));
-  fc::bigint max(mx.data(),sizeof(mx));
 
-  return ((bi * fc::bigint( 1000 )) / max).to_int64();
-}
-
-
-boost::posix_time::ptime to_system_time( uint64_t utc_us ) {
-//    typedef boost::chrono::microseconds duration_t;
-//    typedef duration_t::rep rep_t;
-//    rep_t d = boost::chrono::duration_cast<duration_t>(t.time_since_epoch()).count();
-    static boost::posix_time::ptime epoch(boost::gregorian::date(1970, boost::gregorian::Jan, 1));
-    return epoch + boost::posix_time::seconds(long(utc_us/1000000)) + boost::posix_time::microseconds(long(utc_us%1000000));
-}
 void print_record( const tn::db::peer::record& rec, const tn::node::ptr& nd ) {
   std::cerr<< std::setw(21) 
-           << fc::string(rec.last_ep).c_str()
-           << rec.id() << " "
-           << std::setw(10)  << calc_dist(rec.id() ^ nd->get_id()) << " "
-           << std::setw(5)   << int(rec.rank) << " "
-           << std::setw(5)   << int(rec.published_rank) << " "
+           << fc::string(rec.last_ep).c_str() <<" "
+           << std::setw(40) << fc::string(rec.id()).c_str() << " "
+           << std::setw(10) << calc_dist(rec.id() ^ nd->get_id()) << " "
+           << std::setw(5)  << int(rec.rank) << " "
+           << std::setw(5)  << int(rec.published_rank) << " "
       //     << std::setw(8)   << double(rec.availability) / uint16_t(0xffff) <<" "
-           << std::setw(8)   << rec.priority
+           << std::setw(8)   << rec.priority << " "
            << std::setw(8)   << (rec.avg_rtt_us) <<" "
            << std::setw(10)  << rec.est_bandwidth << " "
            << std::setw(10)  << rec.sent_credit << " "
@@ -302,10 +309,10 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
               print_record( recs[i], _node );
             }
          } else if( what == "publish" ) {
-         /*
             uint32_t cnt = _cs->get_publish_db()->count(); 
             tn::db::publish::record rec;
             fc::sha1                id;
+            std::cerr<<"AI = Access Interval\n";
             std::cerr<< std::setw(40) << "ID" << " "
                      << std::setw(10) << "AI" << " "
                      << std::setw(10) << "Next" << " "
@@ -314,13 +321,12 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
             std::cerr<<"-----------------------------------------------------------------------------\n";
             for( uint32_t i = 1; i <= cnt; ++i ) {
               _cs->get_publish_db()->fetch_index( i, id, rec );
-              std::cerr << id << " " 
+              std::cerr << std::setw(40) << fc::string(id).c_str() << " " 
                         << std::setw(10) << rec.access_interval << " " 
                         << std::setw(10) << (rec.next_update == 0 ? std::string("now") : boost::posix_time::to_simple_string( to_system_time( rec.next_update ) )) << " "
-                        << std::setw(5)  << rec.host_count << " " 
-                        << std::setw(5)  << rec.desired_host_count << std::endl;
+                        << std::setw(10) << rec.host_count << " " 
+                        << std::setw(10) << rec.desired_host_count << std::endl;
             }
-        */ 
          } else if( what == "users" ) {
             print_record_header();
             tn::db::peer::ptr p = _node->get_peers();
@@ -354,6 +360,9 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
          fc::cerr<<"  help                               - prints this menu\n\n";
          fc::cerr.flush();
        }
+     } catch ( const std::exception& e ) {
+        wlog( "%s", fc::current_exception().diagnostic_information().c_str() );
+        wlog( "%s", e.what() );
      } catch ( ... ) {
         wlog( "%s", fc::current_exception().diagnostic_information().c_str() );
      }
