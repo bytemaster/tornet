@@ -124,7 +124,7 @@ void print_chunks( const tn::db::chunk::ptr& db, int start, int limit, chunk_ord
     std::cerr<<"------------------------------------------------------------------------------------\n";
         tn::db::chunk::meta m;
         fc::sha1 id;
-        for( uint32_t i = 0; i <  cnt; ++i ) {
+        for( int i = 0; i <  cnt; ++i ) {
           db->fetch_index( i+1, id, m );
           std::cerr<< std::setw(6) << i                        << "  "
                    <<                fc::string(id).c_str()    << "  " 
@@ -258,6 +258,10 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
          std::string tid,check;
          ss >> tid >> check;
          _cs->export_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()) );
+       } else if( cmd == "publish" ) {
+         std::string tid, check;
+         ss >> tid >> check;
+         _cs->publish_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()), 3 );
 
        } else if( cmd == "show" ) {
          std::string what;

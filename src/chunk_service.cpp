@@ -213,7 +213,7 @@ void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checks
     if( (pos + tf.chunks[i].size) > end ) {
       FC_THROW_MSG( "Attempt to write beyond end of file!" );
     }
-    int adj_size = ((tf.chunks[i].size+7)/8)*8;
+    uint32_t adj_size = ((tf.chunks[i].size+7)/8)*8;
     if( adj_size != tf.chunks[i].size ) {
       fc::vector<char> tmp(adj_size);
       if( !my->_local_db->fetch_chunk( tf.chunks[i].id, fc::mutable_buffer(tmp.data(),tmp.size()) ) ) {
@@ -307,30 +307,25 @@ tornet_file chunk_service::fetch_tornet( const fc::sha1& tn_id, const fc::sha1& 
  *  to the chunk and upload a copy.  If the desired number of hosts are found simply note
  *  the popularity of that chunk and schedule a time to check again.
  *
- *
- *
  */
 void chunk_service::publish_tornet( const fc::sha1& tid, const fc::sha1& cs, uint32_t rep ) {
-#if 0
-  tornet_file tf;
-  fetch_tornet( tid, cs, tf );
+  tornet_file tf = fetch_tornet( tid, cs );
   for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
     //if( !my->_local_db->exists(tf.chunks[i]) && !m_cache_db->exists(tf.chunks[i] ) ) {
     //  FC_THROW_MSG( "Unable to publish tn file because not all chunks are known to this node." );
     //  // TODO: Should we publish the parts we know?  Should we attempt to fetch the parts we don't?
    // }
     tn::db::publish::record rec;
-    m_pub_db->fetch( tf.chunks[i].id, rec );
+    my->_pub_db->fetch( tf.chunks[i].id, rec );
     rec.desired_host_count = rep;
     rec.next_update        = 0;
-    m_pub_db->store( tf.chunks[i].id, rec );
+    my->_pub_db->store( tf.chunks[i].id, rec );
   }
   tn::db::publish::record rec;
-  m_pub_db->fetch( tid, rec );
+  my->_pub_db->fetch( tid, rec );
   rec.desired_host_count = rep;
   rec.next_update        = 0;
-  m_pub_db->store( tid, rec );
-  #endif
+  my->_pub_db->store( tid, rec );
 }
 
 void chunk_service::enable_publishing( bool state ) {
