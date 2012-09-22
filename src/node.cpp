@@ -154,37 +154,16 @@ namespace tn {
     }
   }
 
-  channel node::open_channel( const id_type& nid, uint16_t remote_chan_num, bool share ) {
+  channel node::open_channel( const fc::sha1& nid, uint16_t remote_chan_num ) {
     if( !my->_thread.is_current() ) {
-      return my->_thread.async( [&,this](){ return open_channel( nid, remote_chan_num, share ); } ).wait();
+      return my->_thread.async( [&,this](){ return open_channel( nid, remote_chan_num ); } ).wait();
     }
-    auto dist = nid ^ my->_id;
-    auto itr = my->_dist_to_con.find( dist );
-    if( itr != my->_dist_to_con.end() ) { 
-      if( share ) {
-        channel ch = itr->second->find_channel( remote_chan_num );
-        if( ch ) 
-          return ch;
-      }
-      
+    connection* c = my->get_connection(nid);
       //channel ch( itr->second->shared_from_this(),  remote_chan_num, get_new_channel_num() ); 
-      channel ch( itr->second,  remote_chan_num, my->get_new_channel_num() ); 
-      itr->second->add_channel(ch);
-      return ch;
-    } 
-
-    // TODO: ?? Start KAD search for the specified node
-/*
-    connection::ptr con = kad_find( nid );
-    if( con ) {
-      channel ch( con, remote_chan_num, get_new_channel_num() ); 
-      con->add_channel(ch);
-      return ch;
-    }
-*/
-
-    FC_THROW_MSG( "No known connections to %s", nid );
-  }
+    channel ch( c,  remote_chan_num, my->get_new_channel_num() ); 
+    c->add_channel(ch);
+    return ch;
+  } 
 
 
   /**

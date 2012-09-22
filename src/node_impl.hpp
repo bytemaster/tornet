@@ -186,6 +186,7 @@ namespace tn {
          auto itr = _dist_to_con.find( remote_id ^ _id );
          if( itr != _dist_to_con.end() ) return itr->second;
          FC_THROW_MSG( "No known connection to %s", remote_id );
+         return nullptr;
       }
   };
 
