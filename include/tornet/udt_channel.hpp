@@ -13,6 +13,7 @@ namespace tn {
    */
   class udt_channel {
     public:
+      udt_channel();
       udt_channel( const channel& c, uint16_t max_window_packets = 256 );
       udt_channel( const udt_channel& u );
       udt_channel( udt_channel&& u );
@@ -43,6 +44,8 @@ namespace tn {
 
       fc::sha1 remote_node()const;
       uint8_t  remote_rank()const;
+
+      udt_channel& operator=(udt_channel&& );
 
     private:
       fc::shared_ptr<class udt_channel_private> my;

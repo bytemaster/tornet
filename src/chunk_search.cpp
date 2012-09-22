@@ -1,6 +1,7 @@
 #include <tornet/chunk_search.hpp>
 #include "chunk_service_connection.hpp"
 #include <fc/bigint.hpp>
+#include <tornet/chunk_service_client.hpp>
 
 namespace tn {
 

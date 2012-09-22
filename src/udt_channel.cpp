@@ -482,6 +482,7 @@ namespace tn {
 
 
 
+  udt_channel::udt_channel(){}
   udt_channel::udt_channel( const channel& c, uint16_t rx_win_size )
   :my(new udt_channel_private( c, rx_win_size ) ) {
   }
@@ -589,6 +590,10 @@ namespace tn {
    }
    uint8_t             udt_channel::remote_rank()const {
     return my->chan.remote_rank();
+   }
+   udt_channel& udt_channel::operator=( udt_channel&& u ) {
+    fc::swap(my,u.my);
+    return *this;
    }
 
 } // tornet

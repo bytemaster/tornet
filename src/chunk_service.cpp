@@ -24,6 +24,7 @@
 #include <fc/blowfish.hpp>
 #include <fc/super_fast_hash.hpp>
 
+#include <tornet/service_ports.hpp>
 #include "chunk_service_connection.hpp"
 
 namespace tn {
@@ -66,7 +67,7 @@ chunk_service::chunk_service( const fc::path& dbdir, const tn::node::ptr& node )
     my->_pub_db.reset( new db::publish( dbdir/"publish_db" ) );
     my->_pub_db->init();
 
-    my->_node->start_service( 2, "chunkd", [=]( const channel& c ) { this->my->on_new_connection(c); }  );
+    my->_node->start_service( chunk_service_udt_port, "chunkd", [=]( const channel& c ) { this->my->on_new_connection(c); }  );
 }
 chunk_service::~chunk_service(){
   slog( "%p", this );

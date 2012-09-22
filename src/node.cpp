@@ -154,11 +154,36 @@ namespace tn {
     }
   }
 
-  channel node::open_channel( const id_type& node_id, uint16_t remote_chan_num, bool share ) {
+  channel node::open_channel( const id_type& nid, uint16_t remote_chan_num, bool share ) {
     if( !my->_thread.is_current() ) {
-      return my->_thread.async( [&,this](){ return open_channel( node_id, remote_chan_num, share ); } ).wait();
+      return my->_thread.async( [&,this](){ return open_channel( nid, remote_chan_num, share ); } ).wait();
     }
-    // TODO
+    auto dist = nid ^ my->_id;
+    auto itr = my->_dist_to_con.find( dist );
+    if( itr != my->_dist_to_con.end() ) { 
+      if( share ) {
+        channel ch = itr->second->find_channel( remote_chan_num );
+        if( ch ) 
+          return ch;
+      }
+      
+      //channel ch( itr->second->shared_from_this(),  remote_chan_num, get_new_channel_num() ); 
+      channel ch( itr->second,  remote_chan_num, my->get_new_channel_num() ); 
+      itr->second->add_channel(ch);
+      return ch;
+    } 
+
+    // TODO: ?? Start KAD search for the specified node
+/*
+    connection::ptr con = kad_find( nid );
+    if( con ) {
+      channel ch( con, remote_chan_num, get_new_channel_num() ); 
+      con->add_channel(ch);
+      return ch;
+    }
+*/
+
+    FC_THROW_MSG( "No known connections to %s", nid );
   }
 
 
@@ -240,7 +265,9 @@ namespace tn {
       my->_thread.async( [&,this](){ return start_service( cn, name, cb ); } ).wait();
       return;
     }
-    // TODO
+    if( !my->_services.insert( service( cn, name, cb ) ).second )
+      FC_THROW_MSG( "Unable to start service '%s' on channel '%s' because channel '%s' is in use.", name.c_str(), cn, cn );
+    slog( "Starting service '%s' on channel %d", name.c_str(), cn );
   }
 
   void node::close_service( uint16_t cn ) {

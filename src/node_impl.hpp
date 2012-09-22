@@ -59,6 +59,7 @@ namespace tn {
         _nonce[0] = _nonce[1] = 0;
         _lookup_sock.connect( fc::ip::endpoint( fc::ip::address("74.125.228.40"), 8000 ) );
         _processing = false;
+        _next_chan_num = 1000;
       }
       ~impl() {
         slog( "start quit" );
@@ -83,7 +84,9 @@ namespace tn {
       fc::path                        _datadir;
       std::map<fc::sha1,connection*>  _dist_to_con;
       kbucket                         _kbuckets;
+      uint16_t                        _next_chan_num;
 
+      uint16_t get_new_channel_num() { return ++_next_chan_num; }
 
       /**
        *  Store connections that have messages queue that need
