@@ -488,6 +488,8 @@ namespace tn {
 
   udt_channel::~udt_channel() {
   }
+  udt_channel::udt_channel( const udt_channel& u )
+  :my(u.my ){}
   udt_channel::udt_channel( udt_channel&& u )
   :my( fc::move(u.my) ){}
 

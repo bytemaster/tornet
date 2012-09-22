@@ -37,10 +37,7 @@ namespace tn {
     public:
       typedef fc::shared_ptr<chunk_service> ptr;
 
-      chunk_service( const fc::path&      dbdir,
-                     const fc::shared_ptr<tn::node>& n,
-                     const fc::string&    name,
-                     uint16_t             port );
+      chunk_service( const fc::path&      dbdir, const fc::shared_ptr<tn::node>& n );
 
       virtual ~chunk_service();
        
@@ -75,7 +72,7 @@ namespace tn {
 
     private:
       class impl;
-      fc::fwd<impl,32> my;
+      fc::fwd<impl,56> my;
   };
 
 }

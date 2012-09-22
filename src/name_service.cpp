@@ -111,7 +111,7 @@ namespace tn {
   
 
   void name_service::impl::on_new_connection( const tn::channel& c ) {
-      name_service_connection::ptr con( new name_service_connection( udt_channel(c,1024) ) );
+      name_service_connection::ptr con( new name_service_connection( udt_channel(c,256) ) );
       _subscribers.push_back(con);
   }
   

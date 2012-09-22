@@ -9,6 +9,7 @@
 #include <tornet/node.hpp>
 #include <tornet/kad.hpp>
 #include <tornet/chunk_service.hpp>
+#include <tornet/chunk_search.hpp>
 #include <tornet/name_service.hpp>
 #include <tornet/db/chunk.hpp>
 #include <tornet/db/publish.hpp>
@@ -68,8 +69,8 @@ void start_services( int argc, char** argv ) {
   try {
       node->init( data_dir.c_str(), node_port );
 
-      tn::chunk_service::ptr    cs( new tn::chunk_service(fc::path(data_dir.c_str())/"chunks", node, "chunks", 100) );
-      tn::name_service::ptr     ns( new tn::name_service(fc::path(data_dir.c_str())/"names", node ) );
+      tn::chunk_service::ptr    cs( new tn::chunk_service(fc::path(data_dir.c_str())/"chunks", node) );
+      tn::name_service::ptr     ns( new tn::name_service(fc::path(data_dir.c_str())/"names", node) );
    //   tn::message_service::ptr  ms( new tn::message_service( node );
 
       for( uint32_t i = 0; i < init_connections.size(); ++i ) {
@@ -269,7 +270,32 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
          std::string tid, check;
          ss >> tid >> check;
          _cs->publish_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()), 3 );
+       } else if( cmd == "find" ) {
+         std::string cid;
+         ss >> cid;
+        
+         slog( "Starting search..." );
+         tn::chunk_search::ptr csearch( new tn::chunk_search(_node, fc::sha1(cid.c_str()), 10, 1, true ) );  
+         csearch->start();
+         csearch->wait();
 
+         slog( "Results: \n" );
+         const std::map<fc::sha1,tn::host>&  r = csearch->current_results();
+         auto itr  = r.begin(); 
+         while( itr != r.end() ) {
+           slog( "   node id: %s   distance: %s  ep: %s", 
+                     fc::string(itr->first).c_str(), fc::string(itr->second.id).c_str(), fc::string(itr->second.ep).c_str() );
+           ++itr;
+         }
+
+         slog( "Hosting Matches: \n" ); {
+           const std::map<fc::sha1,fc::sha1>&  r = csearch->hosting_nodes();
+           for( auto itr = r.begin(); itr != r.end(); ++itr ) {
+             slog( "   node id: %s   distance: %s", fc::string(itr->second).c_str(), fc::string(itr->first).c_str() );
+           }
+         }
+         wlog( "avg query rate: %f    weight: %f", csearch->avg_query_rate(), csearch->query_rate_weight() );
+       
        } else if( cmd == "show" ) {
          std::string what;
          std::string order;

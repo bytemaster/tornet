@@ -74,6 +74,8 @@ SET( sources
     src/name_service.cpp
     src/udt_channel.cpp
     src/miss_list.cpp
+    src/chunk_search.cpp
+    src/chunk_service_client.cpp
 
  #   main.cpp
  #   gui/QBind.cpp

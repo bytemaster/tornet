@@ -24,28 +24,39 @@
 #include <fc/blowfish.hpp>
 #include <fc/super_fast_hash.hpp>
 
+#include "chunk_service_connection.hpp"
+
 namespace tn {
 
   class chunk_service::impl {
     public:
-      impl() {
+      impl(chunk_service& cs)
+      :_self(cs) {
         _publishing = false;
       }
+      chunk_service&   _self;
+      tn::node::ptr    _node;
       db::chunk::ptr   _cache_db;
       db::chunk::ptr   _local_db;
       db::publish::ptr _pub_db;
       bool             _publishing;
 
+      void on_new_connection( const channel& c );
 
-
-    private:
-
+      fc::vector<chunk_service_connection::ptr> _cons;
   };
 
+  void chunk_service::impl::on_new_connection( const tn::channel& c ) {
+      chunk_service_connection::ptr con( new chunk_service_connection( udt_channel(c,1024), _self ) );
+      _cons.push_back(con);
+  }
 
-chunk_service::chunk_service( const fc::path& dbdir, const tn::node::ptr& node, const fc::string& name, uint16_t port )
+
+chunk_service::chunk_service( const fc::path& dbdir, const tn::node::ptr& node )
+:my(*this)
 {
-  slog( "%p", this );
+    slog( "%p", this );
+    my->_node = node;
     fc::create_directories(dbdir/"cache_db");
     fc::create_directories(dbdir/"local_db");
     my->_cache_db.reset( new db::chunk( node->get_id(), dbdir/"cache_db" ) );
@@ -54,6 +65,8 @@ chunk_service::chunk_service( const fc::path& dbdir, const tn::node::ptr& node, 
     my->_local_db->init();
     my->_pub_db.reset( new db::publish( dbdir/"publish_db" ) );
     my->_pub_db->init();
+
+    my->_node->start_service( 2, "chunkd", [=]( const channel& c ) { this->my->on_new_connection(c); }  );
 }
 chunk_service::~chunk_service(){
   slog( "%p", this );
