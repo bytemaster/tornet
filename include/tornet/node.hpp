@@ -10,6 +10,7 @@
 #include <fc/pke.hpp>
 #include <tornet/db/peer.hpp>
 #include <tornet/host.hpp>
+#include <tornet/service_client.hpp>
 
 namespace fc { 
   class thread;
@@ -149,7 +150,28 @@ namespace tn {
        */
       fc::ip::endpoint local_endpoint( const fc::ip::endpoint& dest = fc::ip::endpoint() )const;
 
+      
+        template<typename ServiceClientType>
+        fc::shared_ptr<ServiceClientType> get_client( const fc::sha1& id ) {
+          auto scp = get_client( id, ServiceClientType::static_name() );
+          if( !scp ) {
+             fc::shared_ptr<ServiceClientType> sc( new ServiceClientType( *this, id ) );
+             add_client( id, sc );
+             return sc;
+          }
+          return fc::dynamic_pointer_cast<ServiceClientType>(scp);
+        }
+
+
+      
+      /**
+       *  @throw if no connection to ID is currently active
+      connection& get_connection( const fc::sha1& id )const;
+       */
     private:
+      void add_client( const fc::sha1& id, const fc::shared_ptr<service_client>&  );
+      fc::shared_ptr<service_client> get_client( const fc::sha1& id, const fc::string& name );
+
       friend class connection;
       void                     update_dist_index( const id_type& id, connection* c );
       channel                  create_channel( connection* c, uint16_t rcn, uint16_t lcn );

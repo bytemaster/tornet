@@ -8,6 +8,7 @@
 #include <tornet/channel.hpp>
 #include <tornet/host.hpp>
 #include <fc/signals.hpp>
+#include <tornet/service_client.hpp>
 
 
 namespace tn {
@@ -129,13 +130,16 @@ namespace tn {
         const db::peer::record&      get_db_record()const { return _record; }
         void set_priority( float p ) { _record.priority = p; }
         float priority()const { return _record.priority; }
-//        void    cache_object( const fc::string& key, const fc::any& v );
-//        fc::any get_cached_object( const fc::string& key )const;
+
         size_t pending_packets()const;
         void post_packet( buffer&& b );
         void process_next_message();
 
+
+        void  add_client( const fc::shared_ptr<service_client>& c );
+        fc::shared_ptr<service_client> get_client( const fc::string& name );
     private:
+
         void  goto_state( state_enum s );
         db::peer::record _record;
         uint16_t         _next_chan_num;

@@ -35,18 +35,12 @@ void chunk_search::filter( const fc::sha1& id ) {
        get_node()->cache_object( id, "rpc::client<chunk_session>", chunk_client_ptr );
    }
    */
-   chunk_service_client::ptr csc( new chunk_service_client( get_node(), id ) );   
-
-   /*
-   tornet::rpc::client<chunk_session>&  chunk_client = 
-    *tornet::rpc::client<chunk_session>::get_udp_connection( get_node(), id );// *chunk_client_ptr;
-   */ 
-
+   auto csc = get_node()->get_client<chunk_service_client>(id);
 
    elog( "fetch target %1% on node %2%", target(), id );
    /// TODO: UDP connections may drop the request, this would cause this strand to block here forever...  figure out timeout?  
    // In theory KAD searchs occur in parallel and should timeout on their own... 
-   fetch_response fr = csc->fetch( target(), 0, 0 );
+   fetch_response fr = csc->fetch( target(), 0, 0 ).wait();
 
    // update avg query rate... the closer a node is to the target the more 
    // often that node should be queried and the more accurate its estimate of

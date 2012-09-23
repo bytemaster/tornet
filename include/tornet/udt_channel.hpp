@@ -46,6 +46,9 @@ namespace tn {
       uint8_t  remote_rank()const;
 
       udt_channel& operator=(udt_channel&& );
+      udt_channel& operator=(const udt_channel& c);
+
+      void flush() {} // todo implement buffered udt_channel
 
     private:
       fc::shared_ptr<class udt_channel_private> my;

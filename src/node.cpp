@@ -336,12 +336,12 @@ namespace tn {
         }
     } else {  // clear the connection
         if( itr != my->_dist_to_con.end() ) {
-    //      ep_to_con_map::iterator epitr = m_ep_to_con.find( itr->second->get_endpoint() );
-    //      if( epitr != m_ep_to_con.end() ) { 
-    //        m_ep_to_con.erase(epitr); 
-    //      }
           my->_kbuckets.remove(itr->second);
           my->_dist_to_con.erase(itr);
+          auto epitr = my->_ep_to_con.find( itr->second->get_endpoint() );
+          if( epitr != my->_ep_to_con.end() ) { 
+            my->_ep_to_con.erase(epitr); 
+          }
         }
     }
   }
@@ -383,6 +383,14 @@ namespace tn {
 
   uint64_t* node::nonce()const {
     return my->_nonce;
+  }
+
+  void node::add_client( const fc::sha1& id, const fc::shared_ptr<service_client>& c ) {
+    return my->get_connection(id)->add_client(c);
+  }
+    
+  fc::shared_ptr<service_client> node::get_client( const fc::sha1& id, const fc::string& name ) {
+    return my->get_connection(id)->get_client(name);
   }
 
 } // namespace tornet

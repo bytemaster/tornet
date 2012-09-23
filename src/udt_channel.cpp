@@ -660,5 +660,9 @@ namespace tn {
     fc::swap(my,u.my);
     return *this;
    }
+   udt_channel& udt_channel::operator=( const udt_channel& u ) {
+    my= u.my;
+    return *this;
+   }
 
 } // tornet

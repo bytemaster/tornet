@@ -48,6 +48,7 @@ namespace tn {
         std::vector<tn::buffer>                               _decrypt_queue;
 
         std::map<node_id,fc::promise<route_table>::ptr>       _route_lookups;
+        std::map<fc::string,tn::service_client::ptr>          _serv_clients;
         
    //     boost::unordered_map<std::string,fc::any>             _cached_objects;
         boost::unordered_map<uint32_t,channel>                _channels;
@@ -291,6 +292,7 @@ void connection::reset() {
   }
   close_channels();
   my->_node.update_dist_index( my->_remote_id, 0 );
+  my->_serv_clients.clear();
 //  my->_cached_objects.clear();
   goto_state(uninit); 
 }
@@ -918,6 +920,16 @@ void connection::send_auth() {
   }
   uint8_t                connection::get_remote_rank()const { return _record.rank; }
   connection::state_enum connection::get_state()const { return my->_cur_state; }
+
+  tn::service_client::ptr connection::get_client( const fc::string& n ) {
+    auto c = my->_serv_clients.find(n);
+    if( c != my->_serv_clients.end() )  return c->second;
+    return tn::service_client::ptr();
+  }
+  void connection::add_client( const tn::service_client::ptr& c ) {
+    my->_serv_clients[c->name()] = c;
+  }
+
 
   /*
   void       connection::cache_object( const std::string& key, const boost::any& v ) {

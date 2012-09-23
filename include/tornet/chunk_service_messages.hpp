@@ -1,6 +1,15 @@
 #ifndef _CHUNK_SERVICE_MESSAGES_HPP_
 #define _CHUNK_SERVICE_MESSAGES_HPP_
+#include <fc/static_reflect.hpp>
+#include <fc/sha1.hpp>
+#include <fc/vector.hpp>
+
 namespace tn {
+
+    struct message_header {
+      int16_t req_num; // positive for request, neg for response
+      uint8_t method;
+    };
 
     struct chunk_session_result {
         enum result_enum {
@@ -16,6 +25,15 @@ namespace tn {
         };
     };
 
+    struct fetch_request {
+      fetch_request( const fc::sha1& s, int32_t len, int32_t off )
+      :target(s),length(len),offset(off){}
+
+      fc::sha1                  target; ///< the target chunk we are searching for
+      int32_t                   length; ///< the number of bytes to fetch, if -1 return the entire chunk
+      int32_t                   offset; ///< the offset from the start of the chunk
+    };
+
     struct fetch_response {
       fetch_response( chunk_session_result::result_enum e = chunk_session_result::unknown, int64_t new_bal = 0 )
       :result(e),offset(0),balance(new_bal),query_interval(0),deadend_count(0){}
@@ -23,12 +41,13 @@ namespace tn {
       int8_t                    result;         ///!< see chunk_session_result::result_enum
       uint32_t                  offset;         ///!< offset from start of the data
       fc::vector<char>          data;           ///!< actual data of the chunk
-      fc::vector<fc::sha1>      references;     ///!< nodes that are known to host the content... 
-                                                ///< @todo consider removing now that a method to pay to publish is available
       int64_t                   balance;        ///!< current balance/credit on this node
       int64_t                   query_interval; ///!< how often this chunk is queried on this node
       uint32_t                  deadend_count;  ///!< number of sequential unsuccessful searches for this chunk by this node
     };
 
 }
+
+FC_STATIC_REFLECT( tn::fetch_request, (target)(length)(offset) )
+FC_STATIC_REFLECT( tn::fetch_response, (result)(offset)(data)(balance)(query_interval)(deadend_count) )
 #endif // _CHUNK_SERVICE_MESSAGES_HPP_

@@ -3,25 +3,32 @@
 #include <fc/shared_ptr.hpp>
 #include <fc/fwd.hpp>
 #include <tornet/node.hpp>
+#include <tornet/service_client.hpp>
+#include <fc/future.hpp>
 
 #include <tornet/chunk_service_messages.hpp>
 
 namespace tn {
-    class chunk_service_client : virtual public fc::retainable {
+    class connection;
+
+    class chunk_service_client : virtual public tn::service_client {
       public:
         typedef fc::shared_ptr<chunk_service_client> ptr;
-        chunk_service_client( const tn::node::ptr& n, const fc::sha1& remote_id );
+        chunk_service_client( tn::node& n, const fc::sha1& id );
         ~chunk_service_client();
+
+        virtual const fc::string& name()const  { return static_name(); }
+        static const fc::string& static_name() { static fc::string n("chunk_service_client"); return n; }
 
         /**
          *  @param bytes - if -1 then the entire chunk will be returned starting from offset
          *  
          *  Price is  (100 + bytes returned) * (160-log2((id^local_node_id)*10)) 
          */
-        fetch_response fetch( const fc::sha1& id, int32_t bytes = -1, uint32_t offset = 0 );
+        fc::future<fetch_response> fetch( const fc::sha1& id, int32_t bytes = -1, uint32_t offset = 0 );
       private:
         class impl;
-        fc::fwd<impl,16> my;
+        fc::fwd<impl,120> my;
     };
 }
 
