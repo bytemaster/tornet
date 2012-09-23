@@ -56,6 +56,7 @@ namespace tn {
 
 connection::connection( node& np, const fc::ip::endpoint& ep, const db::peer::ptr& pptr )
 :my(np) {
+  _next_chan_num = 1000;
   my->_remote_ep = ep;
   my->_cur_state = uninit;
   my->_advance_count = 0;
@@ -73,9 +74,16 @@ connection::connection( node& np, const fc::ip::endpoint& ep, const db::peer::pt
     _record.last_ep   = my->_remote_ep;
   }
 }
+uint16_t connection::get_free_channel_num() { 
+  ++_next_chan_num; 
+  if( _next_chan_num == 0 ) 
+    FC_THROW_MSG( "All channels have been used" );
+  return _next_chan_num; 
+}
 
 connection::connection( node& np, const fc::ip::endpoint& ep, const node_id& auth_id, state_enum init_state )
 :my(np) {
+   _next_chan_num = 1000;
    my->_remote_ep = ep;
    my->_remote_id = auth_id;
    my->_cur_state = init_state;
@@ -95,6 +103,7 @@ size_t connection::pending_packets()const {
 }
 void connection::post_packet( tn::buffer&& b ) {
   my->_in_queue.push_back( std::move(b) );
+//  if(my->_in_queue.size() > 2 ) { wlog( "inqueue size %d", my->_in_queue.size() ); }
 }
 
 void connection::process_next_message() {
@@ -417,6 +426,7 @@ bool connection::decode_packet( const tn::buffer& b ) {
     _record.last_contact = fc::time_point::now().time_since_epoch().count();
 
     my->_bf->reset_chain();
+
     my->_bf->decrypt( (unsigned char*)b.data(), b.size(), fc::blowfish::CBC );
 
     uint32_t checksum = fc::super_fast_hash( (char*)b.data()+4, b.size()-4 );
@@ -764,8 +774,11 @@ void connection::send_auth() {
     return true;
   }
 
-  void connection::close_channel( const channel& c ) {
-    wlog("not implemented");
+  void connection::close_channel( const channel& ch ) {
+    wlog("not implemented removing channel");
+    uint32_t k = (uint32_t(ch.local_channel_num()) << 16) | ch.remote_channel_num();
+    my->_channels.erase( my->_channels.find(k) );
+    //my->_channels[k] = ch;
   }
 
   connection::node_id connection::get_remote_id()const { return my->_remote_id; }

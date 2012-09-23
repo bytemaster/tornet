@@ -13,7 +13,9 @@ namespace tn {
     public:
        impl( connection* c )
        :con(c,true),closed(false){}
-
+       ~impl() {
+          wlog( "channel_impl" );
+        }
 
        channel::recv_handler rc;
        connection::ptr       con;   
@@ -35,7 +37,7 @@ namespace tn {
   :my(c.my){}
 
   channel::channel() { }
-  channel::~channel() {  }
+  channel::~channel() {   }
   channel& channel::operator=(const channel& c ) {
     my = c.my;
     return *this;
@@ -58,6 +60,7 @@ namespace tn {
         }
         */
       my->rc = channel::recv_handler();
+      my->closed = true;
       my.reset();
     }
   }
@@ -105,16 +108,13 @@ namespace tn {
 
   void channel::send( const tn::buffer& b ) {
     if( !my ) 
-      FC_THROW( "Channel freed!" );
+      FC_THROW_MSG( "Channel freed!" );
       my->con->send(*this,b);
   }
 
   channel::operator bool()const {
-    if( my ) {
-      //if( !my->con.expired() ) 
-      //  return true;
-      const_cast<channel*>(this)->my.reset();
-      return true;
+    if( !!my ) {
+      return !my->closed;
     }
     return false;
   }

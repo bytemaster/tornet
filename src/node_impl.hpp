@@ -112,8 +112,8 @@ namespace tn {
         try {
           uint32_t count = 0;
           while( !_done ) {
-             if( count % 60 == 0 )  // avoid an infinate loop flooding us!
-                fc::usleep(fc::microseconds(400));
+            // if( (count % 2) == 1 )  // avoid an infinate loop flooding us!
+             //   fc::yield();
 
              // allocate a new buffer for each packet... we have no idea how long it may be around
              tn::buffer b;
@@ -124,6 +124,7 @@ namespace tn {
                 b.resize( s );
                 ++count;
                 handle_packet( fc::move(b), from ); 
+                fc::yield();
              }
           }
         } catch ( const fc::task_canceled& ) { 
@@ -189,11 +190,6 @@ namespace tn {
          return nullptr;
       }
   };
-
-  
-
-
-
 
 
 }

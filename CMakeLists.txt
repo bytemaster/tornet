@@ -72,6 +72,7 @@ SET( sources
     src/chunk_service.cpp
     src/tornet_file.cpp
     src/name_service.cpp
+    src/udt_test_service.cpp
     src/udt_channel.cpp
     src/miss_list.cpp
     src/chunk_search.cpp

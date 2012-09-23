@@ -61,7 +61,7 @@ namespace tn {
         connection( node& np, const fc::ip::endpoint& ep, const node_id& auth_id, state_enum init_state = connected );
         ~connection();
         
-        node&       get_node()const;
+        node& get_node()const;
 
         fc::ip::endpoint get_endpoint()const;
         node_id          get_remote_id()const;
@@ -70,12 +70,12 @@ namespace tn {
         bool             is_behind_nat()const;
 
         // return false if state transitioned to failed, otherwise true
-        bool       auto_advance();
-        void       advance();
-        void       close();
-        void       close_channels();
+        bool auto_advance();
+        void advance();
+        void close();
+        void close_channels();
 
-        void       reset();
+        void reset();
 
         // multiplex based upon state
         void handle_packet( const tn::buffer& b );
@@ -122,6 +122,7 @@ namespace tn {
         channel find_channel( uint16_t remote_chan_num )const;
 
         fc::vector<tn::host> find_nodes_near( const node_id& target, uint32_t n, const fc::optional<node_id>& limit  );
+        uint16_t  get_free_channel_num();
 
         //fc::function<void(state_enum)> state_changed;
         boost::signal<void(state_enum)> state_changed;
@@ -137,6 +138,7 @@ namespace tn {
     private:
         void  goto_state( state_enum s );
         db::peer::record _record;
+        uint16_t         _next_chan_num;
 
         class impl;
         fc::fwd<impl,696> my;

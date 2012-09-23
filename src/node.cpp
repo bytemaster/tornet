@@ -160,7 +160,7 @@ namespace tn {
     }
     connection* c = my->get_connection(nid);
       //channel ch( itr->second->shared_from_this(),  remote_chan_num, get_new_channel_num() ); 
-    channel ch( c,  remote_chan_num, my->get_new_channel_num() ); 
+    channel ch( c,  remote_chan_num, c->get_free_channel_num() ); 
     c->add_channel(ch);
     return ch;
   } 

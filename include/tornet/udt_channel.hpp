@@ -14,7 +14,7 @@ namespace tn {
   class udt_channel {
     public:
       udt_channel();
-      udt_channel( const channel& c, uint16_t max_window_packets = 256 );
+      udt_channel( const channel& c, uint16_t max_window_packets = 4096 );
       udt_channel( const udt_channel& u );
       udt_channel( udt_channel&& u );
       ~udt_channel();

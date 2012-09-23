@@ -15,7 +15,8 @@ namespace tn {
       data = 0,
       ack  = 1,
       nack = 2,
-      ack2 = 3
+      ack2 = 3,
+      close = 4
     };
   };
 
@@ -33,12 +34,13 @@ namespace tn {
   struct ack_packet {
     ack_packet():flags(packet::ack){}
     uint8_t    flags;
-    seq_num    rx_win_start; // last data packet read (by user?)
-    uint16_t   rx_win_size;  // the size of the rx window 
-    seq_num    rx_win_end;   // last packet received (less than win_start+win_end?)
+    seq_num    rx_win_start;    // last data packet read (by user?)
+    uint16_t   rx_win_size;     // the size of the rx window 
+    seq_num    rx_win_end;      // last packet received (less than win_start+win_end?)
     seq_num    ack_seq;
     uint64_t   utc_time;
-    miss_list  missed_seq;  // any missing seq between
+
+    miss_list  missed_seq;      // any missing seq between
 
     template<typename Stream>
     friend Stream& operator << ( Stream& s, const ack_packet& n ) {
@@ -111,10 +113,12 @@ namespace tn {
       bool                      retransmitting;
 
 
+      fc::future<void>          syn_timer_complete;
       bool                      syn_timer_running;
       seq_num                   next_tx_seq;
       bool                      m_stop_syn_timer;
       fc::time_point            next_syn_time;
+      fc::time_point            last_rx_time; // last packet received
 
       typedef std::list<data_packet> dp_list;
       dp_list rx_win;
@@ -146,11 +150,35 @@ namespace tn {
       }
       
       ~udt_channel_private() {
+          if( syn_timer_running ) {
+             wlog( "waiting on syn_timer to cancel!" );
+             m_stop_syn_timer = true;
+             syn_timer_complete.cancel();
+             syn_timer_complete.wait();
+             wlog( "done!" );
+          }
+          wlog( "~udt_channel_impl %d", syn_timer_running );
+
+        assert( !syn_timer_running );
         chan.close();
       }
 
-      void close() {
+      void close(bool send_close = false) {
+        if( send_close ) {
+            if( static_cast<bool>(chan) ) {
+                tn::buffer b;
+                fc::datastream<char*> ds(b.data(),b.size());
+                ds << rx_ack_pack;
+                b.resize(1);
+                b.data()[0] = packet::close;
+
+                slog( "send close" );
+                send(b);
+            }
+        }
         chan.close();
+        rx_win_avail(); // if someone is reading...
+        tx_win_avail(); // if someone is reading...
         rx_win.clear();
         tx_win.clear();
         rx_ack_pack.missed_seq.clear();
@@ -168,9 +196,9 @@ namespace tn {
       void start_syn_timer() {
         m_stop_syn_timer = false;
         if( !syn_timer_running ) {
-     //     slog( "starting syn timer" );
+          slog( "starting syn timer" );
           next_syn_time = fc::time_point::now() + fc::milliseconds(100);
-          chan.get_node().get_thread().schedule( [this](){ on_syn(); },next_syn_time);
+          syn_timer_complete = chan.get_node().get_thread().schedule( [this](){ on_syn(); },next_syn_time, "on_syn", fc::priority::max());
           syn_timer_running = true;
         }
       }
@@ -214,12 +242,28 @@ namespace tn {
 
 
       void on_syn() {
-         // slog("tx_win_size: %1%  next_tx_seq: %2%  remote_rx_win_start: %3%  remote_rx_win_size: %4%", tx_win_size, (uint32_t)next_tx_seq, (uint32_t)last_rx_ack.rx_win_start, uint32_t(last_rx_ack.rx_win_size));
+      try {
+     //     slog("tx_win_size: %d  next_tx_seq: %d  remote_rx_win_start: %d  remote_rx_win_size: %d  time %lld", 
+      //          tx_win_size, (uint32_t)next_tx_seq, (uint32_t)last_rx_ack.rx_win_start, uint32_t(last_rx_ack.rx_win_size),
+       //         fc::time_point::now().time_since_epoch().count()
+        //        );
+          if( (fc::time_point::now() - last_rx_time) > fc::milliseconds(1000*5) ) {
+         //   wlog( "Should I disconnect?? after %lld us last_rx_time %lld", (fc::time_point::now() - last_rx_time).count(), 
+          //                                                              last_rx_time.time_since_epoch().count() );
+             slog( "channel closed!" );
+             close();
+             syn_timer_running = false;
+             m_stop_syn_timer  = false;
+             return;
+          }
           send_ack();
           if( !m_stop_syn_timer ) {
              next_syn_time += fc::milliseconds(100);
-             chan.get_node().get_thread().schedule( [this](){ on_syn(); },next_syn_time);
+             syn_timer_complete = chan.get_node().get_thread().schedule( [this](){ on_syn(); },next_syn_time, "on_syn", fc::priority::max());
           } else { syn_timer_running = false; m_stop_syn_timer = false; }
+        } catch ( ... ) {
+          wlog( "caught %s", fc::current_exception().diagnostic_information().c_str() );
+        }
       }
       
       // called from node thread
@@ -229,17 +273,21 @@ namespace tn {
              close();
              return;
          }
+         last_rx_time = fc::time_point::now();
          switch( b[0] ) {
            case packet::data: handle_data(b); return;
            case packet::ack:  handle_ack(b);  return;
            case packet::nack: handle_nack(b); return;
            case packet::ack2: handle_ack2(b); return;
+           case packet::close: handle_close(b); return;
            default:
              elog( "Unknown packet type (%1%)", int(b[0]) );
              return;
          }
       }
-
+      void handle_close( const tn::buffer& b ) {
+        fc::async([=](){close();},"udt_channel::close");
+      }
       void handle_data( const tn::buffer& b ) {
         start_syn_timer();
         fc::datastream<const char*> ds(b.data(),b.size());
@@ -361,8 +409,8 @@ namespace tn {
         
          // send ack2 if our tx buffer is not full
          if( could_send ) {
-            //slog( "sending ack2 rx_win_start %1% ack_seq %2%", 
-            //       (uint32_t)next_tx_seq, (uint32_t)ap.ack_seq );
+            slog( "sending ack2 rx_win_start %d ack_seq %d  RT %lld", 
+                   (uint32_t)next_tx_seq, (uint32_t)ap.ack_seq, utc_now_us() - ap.utc_time );
             tn::buffer b;
             fc::datastream<char*> ds(b.data(),b.size());
             ds << tx_ack2_pack;
@@ -427,8 +475,8 @@ namespace tn {
         fc::datastream<const char*> ds(b.data(), b.size() );
         ds >> rx_ack2_pack;
         //uint64_t utc_now = utc_now_us();
-        //slog( "RTT: %3%  rx_ack2_pack.rx_win_start %1%  next_tx_seq %2%",
-        //      (uint16_t)rx_ack2_pack.rx_win_start, (uint16_t)next_tx_seq , utc_now - rx_ack2_pack.utc_time );
+        slog( "RTT: %d  rx_ack2_pack.rx_win_start %d  next_tx_seq %d", utc_now_us() - rx_ack2_pack.utc_time,
+              (uint16_t)rx_ack2_pack.rx_win_start, (uint16_t)next_tx_seq );
         // TODO: update rtt with weighted avg
 
         // stop sending 10hz acks
@@ -463,7 +511,7 @@ namespace tn {
         ds << rx_ack_pack;
         b.resize(ds.tellp());
 
-    //    slog( "send ack  ack_seq: %1%    rx_win_start %2%  rx_win_end %3%", rx_ack_pack.ack_seq.value(),
+    //    slog( "send ack  ack_seq: %d    rx_win_start %d  rx_win_end %d", rx_ack_pack.ack_seq.value(),
     //                rx_ack_pack.rx_win_start.value(), rx_ack_pack.rx_win_end.value() );
         send(b);
       }
@@ -505,9 +553,13 @@ namespace tn {
 
     while( len ) {
       while( !my->rx_win.size() || my->rx_win.front().seq != my->rx_ack_pack.rx_win_start ) {
-//        slog( "waiting for data!  %1% != %2%", my->rx_win.front().seq.value(),  my->rx_ack_pack.rx_win_start.value() );
+        //slog( "waiting for data!  %d != %d", my->rx_win.front().seq.value(),  my->rx_ack_pack.rx_win_start.value() );
         fc::wait( my->rx_win_avail );
-//        slog( "data avail!" );
+        if( !static_cast<bool>(my->chan) ) {
+          elog( "channel closed!" );
+          FC_THROW_MSG( "Channel Closed" );
+        }
+        //slog( "data avail!" );
       }
       data_packet& dp = my->rx_win.front();
       uint32_t clen = (std::min)(size_t(len),size_t(dp.data.size()));
@@ -541,6 +593,7 @@ namespace tn {
     uint32_t    len  = b.size;
 //    slog( "Start write %1% bytes", len );
 
+    int count = 0;
     while( len ) {
        tn::buffer  pbuf;
        data_packet     dp( pbuf.subbuf( 5 ) );
@@ -563,17 +616,29 @@ namespace tn {
        // it is possible for other senders (retrans) to wake up 
        // first and steal our slot, so we must check again
        while( !my->can_send() ) {
-//          wlog( "tx win full... wait for ack...  tx_win.used: %1%  tx_win size %2%  ", my->tx_win.size(), my->tx_win_size );
+          //wlog( "tx win full... wait for ack...  tx_win.used: %d  tx_win size %d  ", my->tx_win.size(), my->tx_win_size );
           //slog( "next_tx_seq %1%   rx_win_start %2%  rx_win_end %3%", my->next_tx_seq.value(), 
           //      my->tx_ack2_pack.rx_win_start.value(), (my->tx_ack2_pack.rx_win_start + my->tx_win_size).value() );
-          fc::wait( my->tx_win_avail );
-//          wlog( "Done waiting... tx_win_avail!" );
+          fc::wait( my->tx_win_avail, fc::milliseconds(10000)  );
+          count = 0;
+
+          //wlog( "Done waiting... tx_win_avail!" );
+          if( !static_cast<bool>(my->chan) ) {
+            elog( "channel closed!" );
+            FC_THROW_MSG( "Channel Closed" );
+          }
+
        }
        my->tx_ack2_pack.missed_seq.add(dp.seq,dp.seq);
        my->tx_win.push_back(dp);
 
 //       slog( "send seq %1%  size: %2% ", dp.seq.value(), dp.data.size() );
        my->send(pbuf);
+       ++count;
+       fc::yield();
+       //if( count % 60 == 59 ) {
+       //   fc::usleep(fc::microseconds(100)); // give it a rest..
+      // }
     }
 //    slog( "Wrote %1%", fc::buffer_size(b) );
     return b.size;
@@ -581,7 +646,7 @@ namespace tn {
 
 
   void udt_channel::close() {
-    my->close();
+    if( my ) my->close(true);
   }
 
 

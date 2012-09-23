@@ -74,7 +74,7 @@ namespace tn {
       if( s <= len ) 
         len = s;
       else 
-        FC_THROW( "Attempt to grow buffer!" );
+        FC_THROW_MSG( "Attempt to grow buffer!" );
     }
     buffer& buffer::operator=( buffer&& b ) {
       fc::swap(shared_data,b.shared_data);

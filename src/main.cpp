@@ -11,9 +11,11 @@
 #include <tornet/chunk_service.hpp>
 #include <tornet/chunk_search.hpp>
 #include <tornet/name_service.hpp>
+#include <tornet/udt_test_service.hpp>
 #include <tornet/db/chunk.hpp>
 #include <tornet/db/publish.hpp>
 #include <tornet/db/peer.hpp>
+#include <tornet/udt_channel.hpp>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -22,6 +24,8 @@
 
 #include <fc/program_options.hpp>
 #include <boost/program_options.hpp>
+
+#include <tornet/service_ports.hpp>
 
 #include <signal.h>
 
@@ -71,6 +75,7 @@ void start_services( int argc, char** argv ) {
 
       tn::chunk_service::ptr    cs( new tn::chunk_service(fc::path(data_dir.c_str())/"chunks", node) );
       tn::name_service::ptr     ns( new tn::name_service(fc::path(data_dir.c_str())/"names", node) );
+      tn::udt_test_service::ptr udt_ts( new tn::udt_test_service(node) );
    //   tn::message_service::ptr  ms( new tn::message_service( node );
 
       for( uint32_t i = 0; i < init_connections.size(); ++i ) {
@@ -370,7 +375,27 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
            std::string tid,check; 
            ss >> tid >> check;
          }
+       } else if( cmd == "udt_test" ) {
+          auto start = fc::time_point::now();
+          std::string node_id;
+          ss >> node_id;
+          /**  This test will open a channel, send 1MB, recv 1MB and then close it. */
+         
+          fc::vector<char> buf(1024*1024);
+          size_t tot = 0;
+          slog( "open channel" );
+          tn::udt_channel c(_node->open_channel( fc::sha1(node_id.c_str()), tn::udt_test_port ) );
 
+          for( int i = 0; i < 1000; ++i ) {
+             c.write( fc::const_buffer( buf.data(), buf.size() ) );
+             tot += buf.size(); 
+             //fc::vector<char> rbuf(1024*200);
+             //c.read( fc::mutable_buffer(rbuf.data(),rbuf.size()) );
+             //tot += rbuf.size(); 
+          }
+          c.close();
+          auto done = fc::time_point::now();
+          slog( "%f kbs", (tot/1024.0) / ((done-start).count()/1000000.0) );
        } else {
          fc::cerr<<"\nCommands:\n";
          fc::cerr<<"  import      FILENAME               - loads FILENAME and creates chunks and dumps FILENAME.tornet\n";
@@ -382,6 +407,7 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
          fc::cerr<<"  show cache START LIMIT |by_distance|by_revenue|by_opportunity]\n";
          fc::cerr<<"  show users START LIMIT |by_balance|by_rank|...]\n";
          fc::cerr<<"  show publish \n";
+         fc::cerr<<"  udt_test node_id port \n";
          fc::cerr<<"  rankeffort EFFORT                  - percent effort to apply towoard improving rank\n";
          fc::cerr<<"  help                               - prints this menu\n\n";
          fc::cerr.flush();
