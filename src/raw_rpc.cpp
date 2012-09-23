@@ -11,9 +11,11 @@ FC_STATIC_REFLECT( tn::rpc_message, (id)(type)(method)(data) )
 namespace tn { 
     class raw_rpc::impl {
       public:
+        impl( raw_rpc& s ):_self(s){}
+
         void recv( rpc_message&& m );
         void read_loop();
-
+        raw_rpc&         _self;
         promise_base*    _pending_head;
         promise_base*    _pending_tail;
         udt_channel      _chan;
@@ -45,10 +47,14 @@ namespace tn {
     };
 
     raw_rpc::~raw_rpc() {
+      slog( "~raw_rpc" );
       try {
+          my->_chan.close();
           if( my->_read_loop_done.valid() ) {
             my->_read_loop_done.cancel();
+            slog( "wait for read loop" );
             my->_read_loop_done.wait();
+            slog( "... done waiting for read loop" );
           }
       } catch ( ... ) {}
       while( my->_pending_head ) {
@@ -59,7 +65,8 @@ namespace tn {
       }
     }
 
-    raw_rpc::raw_rpc() {
+    raw_rpc::raw_rpc()
+    :my(*this) {
       _req_id = 0;
       my->_pending_tail = nullptr;
       my->_pending_head = nullptr;
@@ -97,9 +104,12 @@ namespace tn {
     }
 
     void raw_rpc::impl::read_loop() {
+      slog( "read loop!" );
+      try {
       while( true ) {
         rpc_message m;
         fc::raw::unpack( _chan, m );
+        wlog( "message id %d  method %d", m.id, m.method );
 
         switch( m.type ) {
           case tn::rpc_message::result: {
@@ -117,8 +127,22 @@ namespace tn {
           case rpc_message::notice: {
           }  break;
           case rpc_message::call: {
+            rpc_message reply;
+            reply.type   = rpc_message::result;
+            reply.id     = m.id;
+            reply.method = m.method;
+            auto itr = _methods.find( m.method );
+            if( itr != _methods.end() ) {
+              reply.data = itr->second->call( m.data );
+            } else {
+              wlog( "Unknown method id %d", m.method );
+            }
+            _self.send( fc::move(reply) );
           }  break;
         }
+      }
+      } catch ( ... ) {
+        wlog( "Exit read loop with error %s", fc::current_exception().diagnostic_information().c_str() );
       }
     }
 } // namespace tn

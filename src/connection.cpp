@@ -93,7 +93,7 @@ connection::connection( node& np, const fc::ip::endpoint& ep, const node_id& aut
 }
 
 connection::~connection() {
-  elog( "~connection" );
+  elog( "~connection %p", this );
   if( my->_peers && _record.valid() ) {
     my->_peers->store( my->_remote_id, _record );
   }
@@ -290,10 +290,13 @@ void connection::reset() {
   if( my->_peers && _record.valid() ) {
     my->_peers->store( my->_remote_id, _record );
   }
+  slog( "%p",this );
   close_channels();
+  slog( "%p",this );
   my->_node.update_dist_index( my->_remote_id, 0 );
+  slog( "%p",this );
   my->_serv_clients.clear();
-//  my->_cached_objects.clear();
+  slog( "%p",this );
   goto_state(uninit); 
 }
 
@@ -915,6 +918,7 @@ void connection::send_auth() {
       auto ritr = my->_route_lookups.find(target);
       if( ritr != my->_route_lookups.end() )
           my->_route_lookups.erase( ritr );
+      fc::async([this](){ close(); });
       throw;
     }
   }

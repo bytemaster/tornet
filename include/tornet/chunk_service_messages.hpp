@@ -1,6 +1,7 @@
 #ifndef _CHUNK_SERVICE_MESSAGES_HPP_
 #define _CHUNK_SERVICE_MESSAGES_HPP_
 #include <fc/static_reflect.hpp>
+#include <fc/reflect_fwd.hpp>
 #include <fc/sha1.hpp>
 #include <fc/vector.hpp>
 
@@ -10,6 +11,9 @@ namespace tn {
       int16_t req_num; // positive for request, neg for response
       uint8_t method;
     };
+    enum chunk_service_methods {
+      fetch_method_id = 1 
+    };
 
     struct chunk_session_result {
         enum result_enum {
@@ -17,15 +21,17 @@ namespace tn {
           available            = 1,
           invalid_rank         = 2,
           invalid_size         = 3,
-          credit_limit_reached = 4,
-          unknown_chunk        = 5,
-          already_stored       = 6,
-          rejected             = 7,
-          unknown              = 8
+          invalid_range        = 4,
+          credit_limit_reached = 5,
+          unknown_chunk        = 6,
+          already_stored       = 7,
+          rejected             = 8,
+          unknown              = 9
         };
     };
 
     struct fetch_request {
+      fetch_request(){}
       fetch_request( const fc::sha1& s, int32_t len, int32_t off )
       :target(s),length(len),offset(off){}
 
@@ -50,4 +56,6 @@ namespace tn {
 
 FC_STATIC_REFLECT( tn::fetch_request, (target)(length)(offset) )
 FC_STATIC_REFLECT( tn::fetch_response, (result)(offset)(data)(balance)(query_interval)(deadend_count) )
+FC_REFLECTABLE( tn::fetch_request )
+FC_REFLECTABLE( tn::fetch_response )
 #endif // _CHUNK_SERVICE_MESSAGES_HPP_

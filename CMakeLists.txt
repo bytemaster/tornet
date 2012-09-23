@@ -77,6 +77,7 @@ SET( sources
     src/miss_list.cpp
     src/chunk_search.cpp
     src/chunk_service_client.cpp
+    src/chunk_service_messages.cpp
     src/raw_rpc.cpp
 
  #   main.cpp

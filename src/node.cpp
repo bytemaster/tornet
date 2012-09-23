@@ -139,6 +139,9 @@ namespace tn {
     while ( true ) { // keep waiting for the state to change
       switch( con->get_state() ) {
         case connection::failed:
+
+          //my->_ep_to_con.erase(ep); //[ep] = c;
+          con->close();
           FC_THROW_MSG( "Attempt to connect to %s failed", ep );
         case connection::connected:
           //slog( "returning %1%", con->get_remote_id() );
@@ -338,10 +341,13 @@ namespace tn {
         if( itr != my->_dist_to_con.end() ) {
           my->_kbuckets.remove(itr->second);
           my->_dist_to_con.erase(itr);
-          auto epitr = my->_ep_to_con.find( itr->second->get_endpoint() );
-          if( epitr != my->_ep_to_con.end() ) { 
-            my->_ep_to_con.erase(epitr); 
-          }
+
+          fc::async( [=]() { 
+           auto epitr = my->_ep_to_con.find( itr->second->get_endpoint() );
+           if( epitr != my->_ep_to_con.end() ) { 
+             my->_ep_to_con.erase(epitr); 
+           }
+          } ); 
         }
     }
   }

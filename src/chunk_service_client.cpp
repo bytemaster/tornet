@@ -6,9 +6,6 @@
 
 namespace tn {
   
-  enum chunk_service_method {
-    fetch_method_id = 1 
-  };
 
 
 

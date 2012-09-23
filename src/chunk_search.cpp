@@ -37,7 +37,7 @@ void chunk_search::filter( const fc::sha1& id ) {
    */
    auto csc = get_node()->get_client<chunk_service_client>(id);
 
-   elog( "fetch target %1% on node %2%", target(), id );
+   elog( "fetch target %s on node %s", to_string(target()).c_str(), to_string(id).c_str() );
    /// TODO: UDP connections may drop the request, this would cause this strand to block here forever...  figure out timeout?  
    // In theory KAD searchs occur in parallel and should timeout on their own... 
    fetch_response fr = csc->fetch( target(), 0, 0 ).wait();

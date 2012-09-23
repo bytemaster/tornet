@@ -51,7 +51,8 @@ namespace tn {
     slog("close!!" );
     if( my ) {
     //  boost::unique_lock<fc::mutex> lock( my->mtx );
-        my->con->close_channel(*this);
+        elog( "close channel ~connection %p", my->con.get() );
+        if( my->con ) my->con->close_channel(*this);
         /*
         if( !my->con.expired() ) {
             connection::ptr c(my->con);

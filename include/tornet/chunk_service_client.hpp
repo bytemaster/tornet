@@ -28,7 +28,7 @@ namespace tn {
         fc::future<fetch_response> fetch( const fc::sha1& id, int32_t bytes = -1, uint32_t offset = 0 );
       private:
         class impl;
-        fc::fwd<impl,120> my;
+        fc::fwd<impl,128> my;
     };
 }
 

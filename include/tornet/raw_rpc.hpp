@@ -89,6 +89,11 @@ namespace tn {
 
       void connect( const udt_channel& c );
 
+      template<typename C, typename R, typename A>
+      void add_method( uint32_t mid, C* c, R (C::*meth)(const A&) ) {
+          add_method<A>( mid, [=]( const A& a ) { return (c->*meth)(a); } ); 
+      }
+
       template<typename Arg, typename Functor>
       void add_method( uint32_t method_id, Functor&& f ) {
           method_base::ptr m( new method<Arg,Functor>(f) );
@@ -101,7 +106,7 @@ namespace tn {
       void send( rpc_message&& m );
 
       class impl;
-      fc::fwd<impl,72>  my;
+      fc::fwd<impl,80>  my;
 
       uint16_t         _req_id;
   };
