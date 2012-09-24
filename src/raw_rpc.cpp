@@ -47,7 +47,6 @@ namespace tn {
     };
 
     raw_rpc::~raw_rpc() {
-      slog( "~raw_rpc" );
       try {
           my->_chan.close();
           if( my->_read_loop_done.valid() ) {
@@ -104,12 +103,11 @@ namespace tn {
     }
 
     void raw_rpc::impl::read_loop() {
-      slog( "read loop!" );
       try {
       while( true ) {
         rpc_message m;
         fc::raw::unpack( _chan, m );
-        wlog( "message id %d  method %d", m.id, m.method );
+      //  wlog( "message id %d  method %d", m.id, m.method );
 
         switch( m.type ) {
           case tn::rpc_message::result: {

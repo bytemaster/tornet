@@ -23,7 +23,7 @@ namespace tn {
   void kad_search::start() {
      m_current_results.clear();
      m_cur_status   = searching;
-     slog( "searching for %d nodes near %s", m_n, fc::string(m_target).c_str() );
+//     slog( "searching for %d nodes near %s", m_n, fc::string(m_target).c_str() );
      auto nn = m_node->find_nodes_near( m_target, m_n );
      auto i = nn.begin();
      auto e = nn.end();
@@ -44,13 +44,13 @@ namespace tn {
     try {
       if( d == fc::microseconds::max() ) { 
           for( uint32_t i = 0; i < m_pending.size(); ++i )  {
-            slog( "waiting... %d", i );
+            //slog( "waiting... %d", i );
             m_pending[i].wait();
           }
       } else {
           auto timeout_time = fc::time_point::now() + d;
           for( uint32_t i = 0; i < m_pending.size(); ++i )  {
-            slog( "waiting... %d", i );
+            //slog( "waiting... %d", i );
             m_pending[i].wait_until( timeout_time );
           }
       }
@@ -71,13 +71,13 @@ namespace tn {
    *  farthest result once the maximum number of results have been found.
    */
   void kad_search::search_thread() {
-    slog( "search thread.... queue size %d", m_search_queue.size() );
+    //slog( "search thread.... queue size %d", m_search_queue.size() );
     while( m_search_queue.size() && m_cur_status == kad_search::searching ) {
         auto  cur_item = m_search_queue.begin()->second;
         fc::ip::endpoint ep  = m_search_queue.begin()->second.ep;
         fc::sha1  nid        = m_search_queue.begin()->first ^ m_target;
         m_search_queue.erase(m_search_queue.begin());
-        slog( "search thread.... queue size %d", m_search_queue.size() );
+     //   slog( "search thread.... queue size %d", m_search_queue.size() );
         
         try {
           fc::sha1 rtn;
@@ -90,11 +90,11 @@ namespace tn {
              rtn    = m_node->connect_to(ep);
           }
 
-          slog( "node %s found at %s", fc::string(rtn).c_str(), fc::string(ep).c_str() );
+          //slog( "node %s found at %s", fc::string(rtn).c_str(), fc::string(ep).c_str() );
 
           // This filter may involve RPC calls.... 
           filter( rtn );
-          slog( "    adding node %s to result list", fc::string(rtn).c_str() );
+          //slog( "    adding node %s to result list", fc::string(rtn).c_str() );
           m_current_results[m_target^rtn] = host( rtn, ep );
           if( m_current_results.size() > m_n )  {
             m_current_results.erase( --m_current_results.end() );
@@ -118,37 +118,37 @@ namespace tn {
           */
           fc::optional<fc::sha1> limit;
           if( m_current_results.size() >= m_n && m_n ) {
-              slog( "result size %d > target size %d", m_current_results.size(), m_n );
+              //slog( "result size %d > target size %d", m_current_results.size(), m_n );
               limit = (--m_current_results.end())->first; 
           }
-
+/*
           slog( "finding %d nodes known by %s near target %s within limit %s  sqsize: %d", 
                   m_n, 
                   fc::string(rtn).c_str(), 
                   fc::string(m_target).c_str(), 
                   !!limit ? fc::string(*limit).c_str() : "_none_", 
                   m_search_queue.size() 
-                  );
+                  ); */
           auto rr =  m_node->remote_nodes_near( rtn, m_target, m_n, limit );
           auto rri = rr.begin();
           while( rri != rr.end() ) {
-            wlog( "Remote node reported %s at %s", fc::string( rri->ep ).c_str(), fc::string(rri->id).c_str() );
+ //           wlog( "Remote node reported %s at %s", fc::string( rri->ep ).c_str(), fc::string(rri->id).c_str() );
             // if the node is not in the current results 
             if( m_current_results.find( rri->id ^ m_target ) == m_current_results.end() ) {
               // if current results is not 'full' or the new result is less than the last
               // current result
               if( m_current_results.size() < m_n ) {
-                slog( "   adding to search queue" );
+  //              slog( "   adding to search queue" );
                 m_search_queue[rri->id^m_target] = *rri;
               } else { // assume m_current_results.size() > 1 because m_n >= 1
                 auto ritr = m_current_results.end();
                 --ritr;
                 if( ritr->first > rri->id ) { // only search the node if it is closer than current results
-                  slog( "   adding to search queue" );
+   //               slog( "   adding to search queue" );
                   m_search_queue[rri->id^m_target] = *rri;
                 }
                 else {
-                  wlog( "   NOT adding to search queue" );
+    //              wlog( "   NOT adding to search queue" );
                 }
               }
             }

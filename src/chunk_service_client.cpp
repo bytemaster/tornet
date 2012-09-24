@@ -34,6 +34,7 @@ namespace tn {
    *  Price is  (100 + bytes returned) * (160-log2((id^local_node_id)*10)) 
    */
   fc::future<fetch_response> chunk_service_client::fetch( const fc::sha1& id, int32_t bytes, uint32_t offset ) {
+    slog( "fetch chunk %s size %d offset %d on %s", fc::string( id ).c_str(), bytes, offset, fc::string(my->_id).c_str() );
     return my->_rpc.invoke<fetch_response>( fetch_method_id, fetch_request( id, bytes, offset ) );
   }
 
@@ -42,7 +43,8 @@ namespace tn {
    *  
    *  Price is  (100 + bytes returned) * (160-log2((id^local_node_id)*10)) 
    */
-  fc::future<store_response> chunk_service_client::store( fc::vector<char>& data ) {
+  fc::future<store_response> chunk_service_client::store( const fc::vector<char>& data ) {
+    slog( "store chunk %s size %d on %s", fc::string( fc::sha1::hash( data.data(), data.size() ) ).c_str(), data.size(), fc::string(my->_id).c_str() );
     return my->_rpc.invoke<store_response>( store_method_id, data );
   }
 }

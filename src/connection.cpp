@@ -286,17 +286,13 @@ bool connection::handle_close_msg( const tn::buffer& b ) {
 }
 
 void connection::reset() {
-  wlog( "?" );
+  wlog( "%p", this );
   if( my->_peers && _record.valid() ) {
     my->_peers->store( my->_remote_id, _record );
   }
-  slog( "%p",this );
   close_channels();
-  slog( "%p",this );
   my->_node.update_dist_index( my->_remote_id, 0 );
-  slog( "%p",this );
   my->_serv_clients.clear();
-  slog( "%p",this );
   goto_state(uninit); 
 }
 
@@ -873,7 +869,7 @@ void connection::send_auth() {
     my->_channels[k] = ch;
   }
 
-  fc::ip::endpoint connection::get_endpoint()const { slog( "%p", this); return my->_remote_ep; }
+  fc::ip::endpoint connection::get_endpoint()const { return my->_remote_ep; }
 
   bool connection::is_behind_nat()const {
     return my->_behind_nat;
@@ -900,11 +896,11 @@ void connection::send_auth() {
       if( !!limit ) { ds << *limit; }
       send( &buf.front(), buf.size(), route_lookup_msg );
 
-      wlog( "waiting on remote response!\n");
+      //wlog( "waiting on remote response!\n");
       const route_table& rt = prom->wait( fc::seconds(5) );
 
       uint64_t end_time_utc  = fc::time_point::now().time_since_epoch().count(); 
-      elog( "latency: %lld - %lld = %lld us", end_time_utc, start_time_utc, (end_time_utc-start_time_utc) );
+      //elog( "latency: %lld - %lld = %lld us", end_time_utc, start_time_utc, (end_time_utc-start_time_utc) );
       _record.avg_rtt_us =  (_record.avg_rtt_us*7 + (end_time_utc-start_time_utc)) / 8;
 
       assert( my->_route_lookups.end() == my->_route_lookups.find(target) );

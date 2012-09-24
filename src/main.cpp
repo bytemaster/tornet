@@ -379,6 +379,12 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
            std::string tid,check; 
            ss >> tid >> check;
          }
+       } else if( cmd == "start_pub" ) {
+        slog( "starting publish loop");
+        _cs->enable_publishing(true);
+       } else if( cmd == "stop_pub" ) {
+        slog( "stoping publish loop");
+        _cs->enable_publishing(false);
        } else if( cmd == "store" ) {
           std::string chunk_id;
           std::string node_id;
@@ -428,6 +434,8 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
          fc::cerr<<"  show cache START LIMIT |by_distance|by_revenue|by_opportunity]\n";
          fc::cerr<<"  show users START LIMIT |by_balance|by_rank|...]\n";
          fc::cerr<<"  show publish \n";
+         fc::cerr<<"  start_pub\n";
+         fc::cerr<<"  stop_pub\n";
          fc::cerr<<"  udt_test node_id port \n";
          fc::cerr<<"  rankeffort EFFORT                  - percent effort to apply towoard improving rank\n";
          fc::cerr<<"  help                               - prints this menu\n\n";

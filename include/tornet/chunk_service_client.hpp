@@ -25,7 +25,7 @@ namespace tn {
          *  Price is  (100 + bytes returned) * (160-log2((id^local_node_id)*10)) 
          */
         fc::future<fetch_response> fetch( const fc::sha1& id, int32_t bytes = -1, uint32_t offset = 0 );
-        fc::future<store_response> store( fc::vector<char>& d );
+        fc::future<store_response> store( const fc::vector<char>& d );
 
       protected:
         ~chunk_service_client();

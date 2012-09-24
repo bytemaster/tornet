@@ -37,7 +37,7 @@ void chunk_search::filter( const fc::sha1& id ) {
    */
    auto csc = get_node()->get_client<chunk_service_client>(id);
 
-   elog( "fetch target %s on node %s", to_string(target()).c_str(), to_string(id).c_str() );
+   //elog( "fetch target %s on node %s", to_string(target()).c_str(), to_string(id).c_str() );
    /// TODO: UDP connections may drop the request, this would cause this strand to block here forever...  figure out timeout?  
    // In theory KAD searchs occur in parallel and should timeout on their own... 
    fetch_response fr = csc->fetch( target(), 0, 0 ).wait();
@@ -59,7 +59,7 @@ void chunk_search::filter( const fc::sha1& id ) {
    // but because it is so far away, there is more error so its significance
    // is less than closer nodes.
    double weight = 1.0 / (1<<(level-1));
-   elog( "weight: %1%  adj_rate: %2%  level: %3%", weight, adj_rate, level );
+   //elog( "weight: %f  adj_rate: %f  level: %d", weight, adj_rate, level );
 
    // calculate the new running weighted average query rate
    avg_qr = (avg_qr * qr_weight + adj_rate) / (qr_weight + weight);

@@ -411,7 +411,7 @@ namespace tn { namespace db {
     }
     //Dbc*       cur;
     fc::sha1 dist = id ^ my->m_node_id;
-    slog( "fetch chunk %s dist %s bufsize %d offset %d", fc::string(id).c_str(), fc::string(dist).c_str(), b.size, offset );
+    //slog( "fetch chunk %s dist %s bufsize %d offset %d", fc::string(id).c_str(), fc::string(dist).c_str(), b.size, offset );
 
     Dbt key(dist.data(),sizeof(dist));
     /*
@@ -435,8 +435,8 @@ namespace tn { namespace db {
     }
     if( rtn == EINVAL ) { elog( "Invalid get" ); }
 
-    wlog( "fetch return data '%s'", fc::to_hex( (char*)val.get_data(), 64 ).c_str() );
-    wlog( "fetch return data '%s'", fc::to_hex( b.data, 64 ).c_str() );
+    //wlog( "fetch return data '%s'", fc::to_hex( (char*)val.get_data(), 64 ).c_str() );
+    //wlog( "fetch return data '%s'", fc::to_hex( b.data, 64 ).c_str() );
     return true;
   }
 
@@ -446,7 +446,7 @@ namespace tn { namespace db {
     }
     Dbc*       cur;
     fc::sha1 dist = id ^ my->m_node_id;
-    slog( "fetch meta chunk %s dist %s", fc::string(id).c_str(), fc::string(dist).c_str() );
+    //slog( "fetch meta chunk %s dist %s", fc::string(id).c_str(), fc::string(dist).c_str() );
 
     Dbt key(dist.data(),sizeof(dist));
     /*
@@ -475,11 +475,11 @@ namespace tn { namespace db {
       return true;
     }
     if( rtn == DB_NOTFOUND )  {
-      wlog( "not found && !auto inc" );
+     // wlog( "not found && !auto inc" );
       return false;
     }
     if( auto_inc ) {
-      slog( "found && auto inc" );
+      //slog( "found && auto inc" );
       m.query_count++;
       m.last_update = m.now();
       store_meta( id, m );

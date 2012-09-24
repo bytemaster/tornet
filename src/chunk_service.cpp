@@ -1,6 +1,8 @@
 #include <tornet/chunk_service.hpp>
 #include <tornet/db/chunk.hpp>
 #include <tornet/db/publish.hpp>
+#include <tornet/chunk_search.hpp>
+#include <tornet/chunk_service_client.hpp>
 #include <tornet/tornet_file.hpp>
 #include <fc/fwd_impl.hpp>
 #include <fc/buffer.hpp>
@@ -8,6 +10,7 @@
 #include <fc/stream.hpp>
 #include <fc/json.hpp>
 #include <fc/hex.hpp>
+#include <fc/thread.hpp>
 #include <stdio.h>
 
 #include <tornet/node.hpp>
@@ -41,8 +44,10 @@ namespace tn {
       db::chunk::ptr   _local_db;
       db::publish::ptr _pub_db;
       bool             _publishing;
+      fc::future<void> _pub_loop_complete;
 
       void on_new_connection( const channel& c );
+      void publish_loop();
 
       fc::vector<chunk_service_connection::ptr> _cons;
   };
@@ -255,20 +260,19 @@ void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checks
 }
 
 fc::vector<char> chunk_service::fetch_chunk( const fc::sha1& chunk_id ) {
-#if 0
+  fc::vector<char> d;
   tn::db::chunk::meta met;
   if( my->_local_db->fetch_meta( chunk_id, met, false ) ) {
       d.resize(met.size);
-      if( my->_local_db->fetch_chunk( chunk_id, boost::asio::buffer(d) ) )
-        return;
+      if( my->_local_db->fetch_chunk( chunk_id, fc::mutable_buffer(d.data(),met.size) ) )
+        return d;
   }
-  if( m_cache_db->fetch_meta( chunk_id, met, false ) ) {
+  if( my->_cache_db->fetch_meta( chunk_id, met, false ) ) {
       d.resize(met.size);
-      if( m_cache_db->fetch_chunk( chunk_id, boost::asio::buffer(d) ) ) 
-        return;
+      if( my->_cache_db->fetch_chunk( chunk_id, fc::mutable_buffer(d.data(),met.size) ) )
+        return d;
   }
-  FC_THROW_MSG( "Unknown chunk %1%", %chunk_id );
-#endif
+  FC_THROW_MSG( "Unknown chunk %s", chunk_id );
   return fc::vector<char>();
 }
 
@@ -345,13 +349,19 @@ void chunk_service::publish_tornet( const fc::sha1& tid, const fc::sha1& cs, uin
 }
 
 void chunk_service::enable_publishing( bool state ) {
+  if( my->_publishing != state ) {
+    my->_publishing = state;
+    if( state ) {
+        my->_pub_loop_complete = fc::async([this](){ my->publish_loop(); } );
+    }
+  }
 #if 0
   if( &boost::cmt::thread::current() != get_thread() ) {
     get_thread()->sync( boost::bind( &chunk_service::enable_publishing, this, state ) );
     return;
   }
-  if( state != m_publishing ) {
-      m_publishing = state;
+  if( state != my->_publishing ) {
+      my->m_publishing = state;
       slog( "state %1%", state );
       if( state ) { 
         wlog( "async!" );
@@ -366,6 +376,89 @@ bool chunk_service::publishing_enabled()const {
   return my->_publishing;
 }
 
+
+void chunk_service::impl::publish_loop() {
+  while( _publishing ) {
+    fc::sha1 cid; 
+    tn::db::publish::record next_pub;
+    if ( _pub_db->fetch_next( cid, next_pub ) ) {
+
+       auto time_till_update = next_pub.next_update - fc::time_point::now().time_since_epoch().count();
+
+       if( time_till_update > 0 ) {
+          slog( "waiting %lld us for next publish update.", time_till_update );
+          fc::usleep( fc::microseconds(time_till_update) );
+       }
+
+       // TODO: increase parallism of search?? This should be a background task 
+       // so latency is not an issue... 
+
+       slog( "Searching for chunk %s", fc::string(cid).c_str() );
+       tn::chunk_search::ptr csearch(new tn::chunk_search(_node,cid, 10, 1, true )); 
+       csearch->start();
+       csearch->wait();
+
+      
+       typedef std::map<fc::sha1,tn::host> chunk_map;
+       typedef std::map<fc::sha1,fc::sha1> host_map;
+       const host_map&  hn = csearch->hosting_nodes();
+
+       next_pub.host_count = hn.size();
+       // if the chunk was not found on the desired number of nodes, we need to find a node
+       // to push it to.
+       if( hn.size() < next_pub.desired_host_count ) {
+            wlog( "Published chunk %s found on at least %d hosts, desired replication is %d",
+                 to_string(cid).c_str(), hn.size(), next_pub.desired_host_count );
+
+            slog( "Hosting nodes: " );
+            auto itr = hn.begin();
+            while( itr != hn.end() ) {
+              slog( "    node-dist: %s  node id: %s", 
+                          fc::string(itr->first).c_str(), fc::string(itr->second).c_str() );
+              ++itr;
+            }
+            slog( "Near nodes: " );
+
+            fc::optional<fc::sha1> store_on_node;
+
+            const chunk_map  nn = csearch->current_results();
+            for( auto nitr = nn.begin(); nitr != nn.end(); ++nitr ) {
+              slog( "    node-dist: %s  node id: %s  %s", fc::string(nitr->first).c_str(), fc::string(nitr->second.id).c_str(), fc::string(nitr->second.ep).c_str() );
+              if( hn.find( nitr->first ) == hn.end() && !store_on_node ) {
+                if( !store_on_node ) store_on_node = nitr->second.id; 
+              }
+            }
+
+            if( !store_on_node ) { wlog( "No new hosts available to store chunk" ); }
+            else {
+                slog( "Storing chunk %s on node %s", fc::string(cid).c_str(), fc::string(*store_on_node).c_str() );
+                auto csc   = _node->get_client<tn::chunk_service_client>(*store_on_node);
+                store_response r = csc->store( _self.fetch_chunk(cid) ).wait();
+                if( r.result == 0 ) next_pub.host_count++;
+                slog( "Response: %d", int(r.result));
+            }
+            next_pub.next_update = (fc::time_point::now() + fc::microseconds(30*1000*1000)).time_since_epoch().count();
+            _pub_db->store( cid, next_pub );
+       } else {
+            wlog( "Published chunk %s found on at least %d hosts, desired replication is %d",
+                 to_string(cid).c_str(), hn.size(), next_pub.desired_host_count );
+
+         // TODO: calculate next update interval for this chunk based upon its current popularity
+         //       and host count and how far away the closest host was found.
+         next_pub.next_update = 
+          (fc::time_point::now() + fc::microseconds(30*1000*1000)).time_since_epoch().count();
+         _pub_db->store( cid, next_pub );
+      }
+    
+    } else {
+      // TODO: do something smarter, like exit publish loop until there is something to publish
+      fc::usleep( fc::microseconds(1000 * 1000)  );
+      wlog( "nothing to publish..." );
+    }
+
+
+  }
+}
 
 /**
  *  

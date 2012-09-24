@@ -72,7 +72,7 @@ namespace tn {
 
     private:
       class impl;
-      fc::fwd<impl,56> my;
+      fc::fwd<impl,64> my;
   };
 
 }

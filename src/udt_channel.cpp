@@ -172,7 +172,7 @@ namespace tn {
                 b.resize(1);
                 b.data()[0] = packet::close;
 
-                slog( "send close" );
+                //slog( "send close" );
                 send(b);
             }
         }
@@ -196,7 +196,7 @@ namespace tn {
       void start_syn_timer() {
         m_stop_syn_timer = false;
         if( !syn_timer_running ) {
-          slog( "starting syn timer" );
+          //slog( "starting syn timer" );
           next_syn_time = fc::time_point::now() + fc::milliseconds(100);
           syn_timer_complete = chan.get_node().get_thread().schedule( [this](){ on_syn(); },next_syn_time, "on_syn", fc::priority::max());
           syn_timer_running = true;
@@ -409,8 +409,8 @@ namespace tn {
         
          // send ack2 if our tx buffer is not full
          if( could_send ) {
-            slog( "sending ack2 rx_win_start %d ack_seq %d  RT %lld", 
-                   (uint32_t)next_tx_seq, (uint32_t)ap.ack_seq, utc_now_us() - ap.utc_time );
+          //  slog( "sending ack2 rx_win_start %d ack_seq %d  RT %lld", 
+           //        (uint32_t)next_tx_seq, (uint32_t)ap.ack_seq, utc_now_us() - ap.utc_time );
             tn::buffer b;
             fc::datastream<char*> ds(b.data(),b.size());
             ds << tx_ack2_pack;
@@ -475,8 +475,8 @@ namespace tn {
         fc::datastream<const char*> ds(b.data(), b.size() );
         ds >> rx_ack2_pack;
         //uint64_t utc_now = utc_now_us();
-        slog( "RTT: %d  rx_ack2_pack.rx_win_start %d  next_tx_seq %d", utc_now_us() - rx_ack2_pack.utc_time,
-              (uint16_t)rx_ack2_pack.rx_win_start, (uint16_t)next_tx_seq );
+        //slog( "RTT: %d  rx_ack2_pack.rx_win_start %d  next_tx_seq %d", utc_now_us() - rx_ack2_pack.utc_time,
+        //      (uint16_t)rx_ack2_pack.rx_win_start, (uint16_t)next_tx_seq );
         // TODO: update rtt with weighted avg
 
         // stop sending 10hz acks
@@ -556,7 +556,7 @@ namespace tn {
         //slog( "waiting for data!  %d != %d", my->rx_win.front().seq.value(),  my->rx_ack_pack.rx_win_start.value() );
         fc::wait( my->rx_win_avail );
         if( !static_cast<bool>(my->chan) ) {
-          elog( "channel closed!" );
+          //elog( "channel closed!" );
           FC_THROW_MSG( "Channel Closed" );
         }
         //slog( "data avail!" );
