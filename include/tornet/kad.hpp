@@ -36,7 +36,7 @@ namespace tn {
        *  @param P - the level of parallelism, default 3
        */
       kad_search( const node::ptr& local_node, const fc::sha1& target, uint32_t N = 20, uint32_t P = 3 );
-      virtual ~kad_search(){ wlog( "................%p",this ); }
+      virtual ~kad_search(){}// wlog( "................%p",this ); }
 
       void   start();
       void   cancel();

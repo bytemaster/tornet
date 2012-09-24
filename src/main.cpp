@@ -78,35 +78,38 @@ void start_services( int argc, char** argv ) {
       tn::udt_test_service::ptr udt_ts( new tn::udt_test_service(node) );
    //   tn::message_service::ptr  ms( new tn::message_service( node );
 
+      wlog( "services started, ready for action" );
+
       for( uint32_t i = 0; i < init_connections.size(); ++i ) {
         try {
             wlog( "Attempting to connect to %s", init_connections[i].c_str() );
             fc::sha1 id = node->connect_to( fc::ip::endpoint::from_string( init_connections[i].c_str() ) );
             wlog( "Connected to %s", fc::string(id).c_str() );
 
-            fc::sha1 target = node->get_id();;
-            target.data()[19] += 1;
-            slog( "Starting bootstrap process by searching for my node id (%s) + 1  (%s)  diff %s",
-                  fc::string(node->get_id()).c_str(), fc::string(target).c_str(), fc::string(target^node->get_id()).c_str() );
-            tn::kad_search::ptr ks( new tn::kad_search( node, target ) );
-            ks->start();
-            ks->wait();
-
-            slog( "Results: \n" );
-            //const std::map<fc::sha1,tn::host>&
-            auto r = ks->current_results();
-            auto itr  = r.begin(); 
-            while( itr != r.end() ) {
-              slog( "   distance: %s   node: %s  endpoint: %s", 
-                       fc::string(itr->first).c_str(), fc::string(itr->second.id).c_str(), fc::string(itr->second.ep).c_str() );
-              ++itr;
-            }
         } catch ( ... ) {
             wlog( "Unable to connect to node %s, %s", 
                   init_connections[i].c_str(), fc::current_exception().diagnostic_information().c_str() );
         }
       }
-      slog( "services started, ready for action" );
+
+      fc::sha1 target = node->get_id();
+      target.data()[19] += 1;
+      slog( "Bootstrap, searching for self...", fc::string(node->get_id()).c_str(), fc::string(target).c_str()  );
+      tn::kad_search::ptr ks( new tn::kad_search( node, target ) );
+      ks->start();
+      ks->wait();
+
+      slog( "Results: \n" );
+      //const std::map<fc::sha1,tn::host>&
+      auto r = ks->current_results();
+      auto itr  = r.begin(); 
+      while( itr != r.end() ) {
+        slog( "   distance: %s   node: %s  endpoint: %s", 
+                 fc::string(itr->first).c_str(), fc::string(itr->second.id).c_str(), fc::string(itr->second.ep).c_str() );
+        ++itr;
+      }
+
+
 
       //auto cli_done = fc::async([=](){cli(node,cs);},"cli");
       cli(node,cs);

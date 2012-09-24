@@ -54,9 +54,7 @@ namespace tn {
 
 
 chunk_service::chunk_service( const fc::path& dbdir, const tn::node::ptr& node )
-:my(*this)
-{
-    slog( "%p", this );
+:my(*this) {
     my->_node = node;
     fc::create_directories(dbdir/"cache_db");
     fc::create_directories(dbdir/"local_db");
@@ -70,7 +68,7 @@ chunk_service::chunk_service( const fc::path& dbdir, const tn::node::ptr& node )
     my->_node->start_service( chunk_service_udt_port, "chunkd", [=]( const channel& c ) { this->my->on_new_connection(c); }  );
 }
 chunk_service::~chunk_service(){
-  slog( "%p", this );
+//  slog( "%p", this );
 } 
 
 db::chunk::ptr&   chunk_service::get_cache_db() { return my->_cache_db; }

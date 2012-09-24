@@ -16,7 +16,7 @@ namespace tn {
   kad_search::kad_search( const node::ptr& local_node, const fc::sha1& target, uint32_t n, uint32_t p ) 
   :m_n(n),m_p(p),m_node(local_node),m_target(target),m_target_dist( local_node->get_id()^target )
   {
-    slog( "%p", this );
+    //slog( "%p", this );
      m_cur_status = idle;
   }
 

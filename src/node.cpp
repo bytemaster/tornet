@@ -15,7 +15,10 @@ namespace tn {
   }
 
   node::~node() {
+    slog( "node %p", this );
+    slog( "node::my %p", my );
     delete my;
+    my = 0;
   }
 
   fc::thread&          node::get_thread()const { return my->_thread; }
@@ -27,11 +30,13 @@ namespace tn {
       return;
     }
     // TODO ... 
+   
     auto itr = my->_ep_to_con.begin();
     while( itr != my->_ep_to_con.end() ) {
       itr->second->close();
       ++itr;
     }
+    my->_ep_to_con.clear();
   }
 
 
@@ -185,13 +190,12 @@ namespace tn {
     if( !my->_thread.is_current() ) {
       return my->_thread.async( [&,this](){ return find_nodes_near( target, n, limit ); } ).wait();
     }
-    slog( "%s n: %d  limit: %s", fc::string(target).c_str(), n, (!!limit?fc::string(*limit).c_str():"none") );
+    //slog( "%s n: %d  limit: %s", fc::string(target).c_str(), n, (!!limit?fc::string(*limit).c_str():"none") );
 
     fc::vector<host> near;
     near.reserve(n);
 
     int bid = my->_kbuckets.get_bucket_id_for_target( target );
-    slog( ".");
     while( bid >= 0 && n > near.size() ) {
         std::vector<connection*>& buck = my->_kbuckets.get_bucket_for_target(bid);
         //slog( "bucket id %d  size %d", bid, buck.size() );
@@ -202,7 +206,7 @@ namespace tn {
             ++b;
             continue;
           }
-          slog( "found node %s", fc::string((*b)->get_remote_id()).c_str() ); 
+     //     slog( "found node %s", fc::string((*b)->get_remote_id()).c_str() ); 
           near.push_back( host( (*b)->get_remote_id(), 
                                 (*b)->get_endpoint() ) );;
 
@@ -213,7 +217,7 @@ namespace tn {
         }
         --bid;
     }
-    slog( "returning %d nodes", near.size());
+ //   slog( "returning %d nodes", near.size());
     return near;
   }
 
@@ -323,7 +327,7 @@ namespace tn {
    *  The connection is responsible for updating the node index that maps ids to active connections.
    */
   void                     node::update_dist_index( const id_type& nid, connection* c ) {
-    elog( "%s %p", fc::string(nid).c_str(), c );
+    //elog( "%s %p", fc::string(nid).c_str(), c );
     auto dist = nid ^ my->_id;
     auto itr = my->_dist_to_con.find(dist);
     if( c ) {
@@ -339,13 +343,15 @@ namespace tn {
         }
     } else {  // clear the connection
         if( itr != my->_dist_to_con.end() ) {
+          auto ep = itr->second->get_endpoint();
           my->_kbuckets.remove(itr->second);
           my->_dist_to_con.erase(itr);
 
-          fc::async( [=]() { 
-           auto epitr = my->_ep_to_con.find( itr->second->get_endpoint() );
-           if( epitr != my->_ep_to_con.end() ) { 
-             my->_ep_to_con.erase(epitr); 
+          node::ptr me(this,true); 
+          fc::async( [me,ep]() { 
+           auto epitr = me->my->_ep_to_con.find( ep );
+           if( epitr != me->my->_ep_to_con.end() ) { 
+             me->my->_ep_to_con.erase(epitr); 
            }
           } ); 
         }

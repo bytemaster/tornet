@@ -64,7 +64,7 @@ namespace tn {
       ~impl() {
         slog( "start quit" );
         _thread.quit();
-        slog( "don quit" );
+        slog( "done quit %d", _ep_to_con.size() );
       }
 
       node&                           _self;

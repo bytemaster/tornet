@@ -495,10 +495,10 @@ bool connection::handle_lookup_msg( const tn::buffer& b ) {
   auto itr = r.begin();
   ds.write(target.data(),sizeof(target));
   ds << num;
-  slog( "Target %s num: %d", fc::string(target).c_str(), num );
+//  slog( "Target %s num: %d", fc::string(target).c_str(), num );
 
   for( uint32_t i = 0; i < num; ++i ) {
-    slog( "%d Reply with %s @ %s:%d", i, fc::string(itr->id).c_str(), fc::string(itr->ep.get_address()).c_str(), itr->ep.port() );
+ //   slog( "%d Reply with %s @ %s:%d", i, fc::string(itr->id).c_str(), fc::string(itr->ep.get_address()).c_str(), itr->ep.port() );
     ds << itr->id << uint32_t(itr->ep.get_address()) << uint16_t(itr->ep.port());
     ds << uint8_t( itr->nat_hosts.size() );
     ++itr;
@@ -514,7 +514,7 @@ bool connection::handle_route_msg( const tn::buffer& b ) {
   node_id target; uint32_t num;
   fc::datastream<const char*> ds(b.data(), b.size() );
   ds >> target >> num;
-  slog( "target %s  num %d", fc::string(target).c_str(), num );
+ // slog( "target %s  num %d", fc::string(target).c_str(), num );
   // make sure we still have the target.... 
 
   auto itr = my->_route_lookups.find(target);
@@ -531,9 +531,9 @@ bool connection::handle_route_msg( const tn::buffer& b ) {
     ds >> nid >> ip >> port >> is_nat; 
     rt.push_back( host( nid, fc::ip::endpoint( ip, port ) ) );
     if( is_nat ) rt.back().nat_hosts.push_back( my->_remote_ep );
-    slog( "Response of nid: %s @ %s:%d", fc::string(nid).c_str(), fc::string(fc::ip::address(ip)).c_str(), port );
+  //  slog( "Response of nid: %s @ %s:%d", fc::string(nid).c_str(), fc::string(fc::ip::address(ip)).c_str(), port );
   }
-  slog( "set_value..." );
+ // slog( "set_value..." );
   itr->second->set_value(rt);
   my->_route_lookups.erase(itr);
   return true;
@@ -681,7 +681,7 @@ void connection::generate_dh() {
 
 
 void connection::send_dh() {
-  slog("");
+  //slog("");
   BOOST_ASSERT( my->_dh );
   int init_size = my->_dh->pub_key.size();
   my->_dh->pub_key.resize(my->_dh->pub_key.size()+ rand()%7+1 );
@@ -697,7 +697,7 @@ void connection::send_dh() {
  *
  */
 void connection::send_auth() {
-    slog("");
+   // slog("");
     BOOST_ASSERT( my->_dh );
     BOOST_ASSERT( my->_dh->shared_key.size() == 56 );
     uint64_t utc_us = fc::time_point::now().time_since_epoch().count();
@@ -763,7 +763,7 @@ void connection::send_auth() {
   }
 
   bool connection::process_dh( const tn::buffer& b ) {
-    slog( "" );
+   // slog( "" );
     BOOST_ASSERT( b.size() >= 56 );
     my->_dh->compute_shared_key( b.data(), 56 );
     while( my->_dh->shared_key.size() < 56 ) 
@@ -780,7 +780,7 @@ void connection::send_auth() {
   }
 
   void connection::close_channel( const channel& ch ) {
-    wlog("not implemented removing channel");
+    //wlog("not implemented removing channel");
     uint32_t k = (uint32_t(ch.local_channel_num()) << 16) | ch.remote_channel_num();
     my->_channels.erase( my->_channels.find(k) );
     //my->_channels[k] = ch;
@@ -873,7 +873,7 @@ void connection::send_auth() {
     my->_channels[k] = ch;
   }
 
-  fc::ip::endpoint connection::get_endpoint()const { return my->_remote_ep; }
+  fc::ip::endpoint connection::get_endpoint()const { slog( "%p", this); return my->_remote_ep; }
 
   bool connection::is_behind_nat()const {
     return my->_behind_nat;
