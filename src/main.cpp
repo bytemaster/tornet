@@ -8,6 +8,7 @@
 
 #include <tornet/node.hpp>
 #include <tornet/kad.hpp>
+#include <tornet/chunk_service_client.hpp>
 #include <tornet/chunk_service.hpp>
 #include <tornet/chunk_search.hpp>
 #include <tornet/name_service.hpp>
@@ -378,6 +379,22 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
            std::string tid,check; 
            ss >> tid >> check;
          }
+       } else if( cmd == "store" ) {
+          std::string chunk_id;
+          std::string node_id;
+          ss >> chunk_id >> node_id;
+          fc::sha1 cid( chunk_id.c_str() );
+
+          tn::db::chunk::meta met;
+          _cs->get_local_db()->fetch_meta( cid, met, false ); 
+          if( met.size ) {
+              fc::vector<char> tmp(met.size);
+              _cs->get_local_db()->fetch_chunk( cid,fc::mutable_buffer(tmp.data(),tmp.size() ), 0 );
+
+              auto csc   = _node->get_client<tn::chunk_service_client>(fc::sha1(node_id.c_str()));
+              auto reply = csc->store(tmp).wait();
+              slog( "reply %d", int(reply.result) );
+          }
        } else if( cmd == "udt_test" ) {
           auto start = fc::time_point::now();
           std::string node_id;
@@ -404,6 +421,7 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
          fc::cerr<<"  import      FILENAME               - loads FILENAME and creates chunks and dumps FILENAME.tornet\n";
          fc::cerr<<"  export      TORNET_FILE            - loads TORNET_FILE and saves FILENAME\n";
          fc::cerr<<"  find        CHUNK_ID               - looks for the chunk and returns query rate stats for the chunk\n";
+         fc::cerr<<"  store       CHUNK_ID   NODE_ID     - stores the given chunk from local_cache on node_id\n";
          fc::cerr<<"  export_tid  TID CHECKSUM [OUT_FILE]- loads TORNET_FILE and saves FILENAME\n";
          fc::cerr<<"  publish TID CHECKSUM                - pushes chunks from TORNET_FILE out to the network, including the TORNETFILE itself\n";
          fc::cerr<<"  show local START LIMIT [by_distance|by_revenue|by_opportunity]\n";

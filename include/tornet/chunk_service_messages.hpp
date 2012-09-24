@@ -12,7 +12,8 @@ namespace tn {
       uint8_t method;
     };
     enum chunk_service_methods {
-      fetch_method_id = 1 
+      fetch_method_id = 1, 
+      store_method_id = 2 
     };
 
     struct chunk_session_result {
@@ -52,10 +53,17 @@ namespace tn {
       uint32_t                  deadend_count;  ///!< number of sequential unsuccessful searches for this chunk by this node
     };
 
+    struct store_response {
+      store_response( int8_t r = 0 ):result(r){}
+      int8_t result;
+    };
+
 }
 
 FC_STATIC_REFLECT( tn::fetch_request, (target)(length)(offset) )
 FC_STATIC_REFLECT( tn::fetch_response, (result)(offset)(data)(balance)(query_interval)(deadend_count) )
+FC_STATIC_REFLECT( tn::store_response, (result) )
 FC_REFLECTABLE( tn::fetch_request )
 FC_REFLECTABLE( tn::fetch_response )
+FC_REFLECTABLE( tn::store_response )
 #endif // _CHUNK_SERVICE_MESSAGES_HPP_

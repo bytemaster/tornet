@@ -17,6 +17,7 @@ namespace tn {
         chunk_service_connection( const tn::udt_channel& c, chunk_service& cs ) 
         :_cs(cs),_chan(c){ 
           _rpc.add_method( fetch_method_id, this, &chunk_service_connection::fetch );
+          _rpc.add_method( store_method_id, this, &chunk_service_connection::store );
           _rpc.connect(_chan);
         }
 
@@ -26,7 +27,7 @@ namespace tn {
          *  Price is  (100 + bytes returned) * (160-log2((id^local_node_id)*10)) 
          */
         fetch_response fetch( const fetch_request& r ) {
-          slog( "request %s", fc::json::to_string(r).c_str() );
+         // slog( "request %s", fc::json::to_string(r).c_str() );
           fetch_response reply;
           tn::db::chunk::meta met;
           bool found = _cs.get_cache_db()->fetch_meta( r.target, met, true );
@@ -34,7 +35,7 @@ namespace tn {
             reply.result = chunk_session_result::unknown_chunk;
             reply.query_interval = 0;
             reply.offset = 0;
-            slog( "response %s", fc::json::to_string(reply).c_str() );
+          //  slog( "response %s", fc::json::to_string(reply).c_str() );
             return reply;
           }
 
@@ -60,8 +61,27 @@ namespace tn {
           }
           _cs.get_cache_db()->store_meta( r.target, met );
 
-          slog( "response %s", fc::json::to_string(reply).c_str() );
+        //  slog( "response %s", fc::json::to_string(reply).c_str() );
           return reply;
+        }
+
+        store_response store( const fc::vector<char>& data ) {
+            auto cdb = _cs.get_cache_db();
+            
+            if( data.size() > 1024 * 1024 ) {
+              wlog( "Data size too big %lld", data.size() );
+              return store_response( chunk_session_result::invalid_size );
+            }
+            
+            fc::sha1 cid = fc::sha1::hash( data.data(), data.size() );
+            
+            db::chunk::meta met;
+            cdb->fetch_meta( cid, met, true );
+            
+            if( met.size == 0 )
+                cdb->store_chunk( cid, fc::const_buffer(data.data(), data.size() ) );
+            
+            return store_response( chunk_session_result::ok );
         }
    
    
