@@ -184,7 +184,7 @@ void connection::handle_generated_dh( const tn::buffer& b ) {
 }
 
 void connection::handle_received_dh( const tn::buffer& b ) {
-  slog("");
+  slog("%p", this);
   BOOST_ASSERT( my->_cur_state == received_dh );
   if( b.size() % 8 && b.size() > 56 ) { // pub key
     send_dh();
@@ -280,7 +280,7 @@ bool connection::handle_update_rank_msg( const tn::buffer& b ) {
 }
 
 bool connection::handle_close_msg( const tn::buffer& b ) {
-  wlog("closed msg" );
+  //wlog("closed msg" );
   reset();
   return true;
 }
@@ -297,7 +297,7 @@ void connection::reset() {
 }
 
 void connection::send_close() {
-  slog( "sending close" );
+  //slog( "sending close" );
   char resp = 1;
   send( &resp, sizeof(resp), close_msg );
 }

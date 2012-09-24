@@ -347,13 +347,14 @@ namespace tn {
           my->_kbuckets.remove(itr->second);
           my->_dist_to_con.erase(itr);
 
+          /*
           node::ptr me(this,true); 
           fc::async( [me,ep]() { 
            auto epitr = me->my->_ep_to_con.find( ep );
            if( epitr != me->my->_ep_to_con.end() ) { 
              me->my->_ep_to_con.erase(epitr); 
            }
-          } ); 
+          } ); */ 
         }
     }
   }

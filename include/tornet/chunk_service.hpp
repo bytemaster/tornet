@@ -8,6 +8,7 @@
 namespace fc {
   class path;
   class sha1;
+  class ostream;
 }
 
 namespace tn {
@@ -18,6 +19,8 @@ namespace tn {
   }
   class node;
   class tornet_file;
+  class chunk_service;
+  class download_status;
 
   /**
    *  Provides an interface to two chunk databases, one local and one cache.
@@ -58,6 +61,11 @@ namespace tn {
        *  chunks from the tornet file and finally reconstruct the file on disk.
        */
       void export_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum );
+
+      /**
+       *  Starts a new download operation.
+       */
+      fc::shared_ptr<download_status> download_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, fc::ostream& out );
      
       /**
        *  Reads the data for the chunk from the cache or local database.
