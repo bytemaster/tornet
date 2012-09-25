@@ -60,7 +60,7 @@ namespace tn { namespace db {
   int get_peer_ep( Db* sdb, const Dbt* key, const Dbt* data, Dbt* skey ) {
     skey->set_data(data->get_data() ); 
     skey->set_size( sizeof( fc::ip::endpoint ) );
-//    slog( "%s", fc::string(*((fc::ip::endpoint*)data->get_data())).c_str() );
+    //slog( "%s", fc::string(*((fc::ip::endpoint*)data->get_data())).c_str() );
     return 0;
   }
 
@@ -216,7 +216,7 @@ namespace tn { namespace db {
         return my->m_thread.async( [=](){ return store(id,m); } ).wait();
         //return my->m_thread.async( [&,this](){ return store(id,m); } ).wait();
     }
-    slog("storing %s", fc::string(id).c_str() );
+    slog("storing %s at ep %s", fc::string(id).c_str(), fc::string(m.last_ep).c_str() );
 
     fc::sha1 check = fc::sha1::hash( m.public_key, sizeof(m.public_key) );
     if( check != id ) {
@@ -265,6 +265,7 @@ namespace tn { namespace db {
     cur->get(  &ignore_key, &idx_val, DB_GET_RECNO );
     //slog( "inserted/updated record %d  ep %s", idx, fc::string(m.last_ep).c_str() );
     cur->close();
+
     /*
     if( !ex )
       record_inserted(idx);

@@ -41,8 +41,8 @@ namespace tn {
        *
        *  @return nullptr if the file is not known, otherwise a pointer to the file.
        */
-      tornet_file* get_tornet_file()const;
-      double       percent_complete()const;
+      const tornet_file* get_tornet_file()const;
+      double             percent_complete()const;
       
       /**
        *  Every time an event occurs while downloading this signal is emited.
@@ -54,7 +54,7 @@ namespace tn {
 
     private:
       class impl;
-      fc::fwd<impl,512> my;
+      fc::fwd<impl,544> my;
   };
 
 }  // namespace tn

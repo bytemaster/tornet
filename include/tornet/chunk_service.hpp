@@ -47,6 +47,7 @@ namespace tn {
       fc::shared_ptr<tn::db::chunk>&    get_cache_db();
       fc::shared_ptr<tn::db::chunk>&    get_local_db();
       fc::shared_ptr<tn::db::publish>&  get_publish_db();
+      fc::shared_ptr<tn::node>&         get_node();
 
       /**
        *  Loads infile from disk, creates a tornet file and returns the tornet_id and thechecksum.

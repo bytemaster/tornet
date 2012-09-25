@@ -7,7 +7,7 @@ namespace tn {
 
 chunk_search::chunk_search( const node::ptr& local_node, const fc::sha1& target, 
                             uint32_t N, uint32_t P, bool fn )
-:kad_search( local_node, target, N, P ), find_nm(fn), avg_qr(0), qr_weight(0), deadend_count(0) {
+:kad_search( local_node, target, N, P ), find_nm(fn), avg_qr(0), qr_weight(0), deadend_count(0), chunk_size(0) {
 
 }
 
@@ -21,26 +21,13 @@ chunk_search::chunk_search( const node::ptr& local_node, const fc::sha1& target,
  *  TODO: Find out why things do get cleaned up
  */
 void chunk_search::filter( const fc::sha1& id ) {
- 
-    /*
-   tornet::rpc::client<chunk_session>::ptr  chunk_client_ptr;
-   boost::any accp  = get_node()->get_cached_object( id, "rpc::client<chunk_session>" );
-   if( boost::any_cast<tornet::rpc::client<chunk_session>::ptr>(&accp) ) {
-      chunk_client_ptr = boost::any_cast<tornet::rpc::client<chunk_session>::ptr>(accp); 
-   } else {
-      elog( "creating new channel / connection" );
-       tornet::channel                chan = get_node()->open_channel( id, 100 );
-       tornet::rpc::connection::ptr   con  = boost::make_shared<tornet::rpc::connection>(chan);
-       chunk_client_ptr = boost::make_shared<tornet::rpc::client<chunk_session> >(con);
-       get_node()->cache_object( id, "rpc::client<chunk_session>", chunk_client_ptr );
-   }
-   */
    auto csc = get_node()->get_client<chunk_service_client>(id);
 
    //elog( "fetch target %s on node %s", to_string(target()).c_str(), to_string(id).c_str() );
    /// TODO: UDP connections may drop the request, this would cause this strand to block here forever...  figure out timeout?  
    // In theory KAD searchs occur in parallel and should timeout on their own... 
-   fetch_response fr = csc->fetch( target(), 0, 0 ).wait();
+   const fetch_response& fr = csc->fetch( target(), 0, 0 ).wait();
+   if( fr.total_size ) chunk_size = fr.total_size;
 
    // update avg query rate... the closer a node is to the target the more 
    // often that node should be queried and the more accurate its estimate of
@@ -72,6 +59,7 @@ void chunk_search::filter( const fc::sha1& id ) {
      }
    } 
 }
+uint32_t chunk_search::get_chunk_size()const    { return chunk_size;    }
 
 double   chunk_search::avg_query_rate()const    { return avg_qr;        }
 double   chunk_search::query_rate_weight()const { return qr_weight;     }

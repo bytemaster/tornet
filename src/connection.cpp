@@ -25,8 +25,16 @@
 #include "node_impl.hpp"
 
 namespace tn { 
-
   typedef fc::vector<host> route_table;
+  struct route_lookup_request {
+      route_lookup_request(){}
+      route_lookup_request( const fc::promise<route_table>::ptr& p, int _n, const fc::optional<fc::sha1>& l )
+      :prom(p),n(_n),limit(l){}
+      fc::promise<route_table>::ptr prom; // promise
+      int n;                        // max number to return 
+      fc::optional<fc::sha1> limit; // faurthest distance 
+  };
+
   class connection::impl {
     public:
         impl( node& n ):_node(n),_behind_nat(false){}
@@ -47,7 +55,8 @@ namespace tn {
         std::list<tn::buffer>                                 _in_queue;
         std::vector<tn::buffer>                               _decrypt_queue;
 
-        std::map<node_id,fc::promise<route_table>::ptr>       _route_lookups;
+        //std::map<fc::sha1,fc::promise<route_table>::ptr>      _route_lookups;
+        std::map<fc::sha1,route_lookup_request>               _route_lookups;
         std::map<fc::string,tn::service_client::ptr>          _serv_clients;
         
    //     boost::unordered_map<std::string,fc::any>             _cached_objects;
@@ -65,11 +74,12 @@ connection::connection( node& np, const fc::ip::endpoint& ep, const db::peer::pt
 
   if( my->_peers->fetch_by_endpoint( ep, my->_remote_id, _record )  ) {
     my->_bf.reset( new fc::blowfish() );
-    wlog( "Known peer at %s:%d start bf %s",  fc::string(ep.get_address()).c_str(), ep.port(),
-        fc::to_hex( _record.bf_key, 56 ).c_str() );
+    wlog( "Known peer at %s start bf %s",  fc::string(ep).c_str(), fc::to_hex( _record.bf_key, 56 ).c_str() );
     my->_bf->start( (unsigned char*)_record.bf_key, 56 );
     my->_node.update_dist_index( my->_remote_id, this );
     my->_cur_state = connected;
+    _record.connected = true;
+    my->_peers->store( my->_remote_id, _record );
   } else {
     wlog( "Unknown peer at %s:%d", fc::string(ep.get_address()).c_str(), ep.port() );
     _record.last_ep   = my->_remote_ep;
@@ -95,6 +105,7 @@ connection::connection( node& np, const fc::ip::endpoint& ep, const node_id& aut
 connection::~connection() {
   elog( "~connection %p", this );
   if( my->_peers && _record.valid() ) {
+    _record.connected = 0;
     my->_peers->store( my->_remote_id, _record );
   }
 }
@@ -103,6 +114,7 @@ size_t connection::pending_packets()const {
   return my->_in_queue.size();
 }
 void connection::post_packet( tn::buffer&& b ) {
+  //slog( "received on connection to %s", fc::string(my->_remote_ep).c_str() );
   my->_in_queue.push_back( std::move(b) );
 //  if(my->_in_queue.size() > 2 ) { wlog( "inqueue size %d", my->_in_queue.size() ); }
 }
@@ -136,16 +148,19 @@ void connection::handle_packet( const tn::buffer& b ) {
  *  generated public key.
  */
 void connection::handle_uninit( const tn::buffer& b ) {
-  slog("");
   if( my->_peers->fetch_by_endpoint( my->_remote_ep, my->_remote_id, _record )  ) {
     my->_bf.reset( new fc::blowfish() );
     wlog( "Known peer at %s:%d start bf %s",  fc::string(my->_remote_ep.get_address()).c_str(), my->_remote_ep.port(),
         fc::to_hex( _record.bf_key, 56 ).c_str() );
     my->_bf->start( (unsigned char*)_record.bf_key, 56 );
     my->_node.update_dist_index( my->_remote_id, this );
+    _record.connected = true;
+    my->_peers->store( my->_remote_id, _record );
     goto_state(connected);
     handle_connected( b );
     return;
+  } else {
+    slog( "No known peers with endpoint %s", fc::string(my->_remote_ep).c_str() );
   }
 
   BOOST_ASSERT( my->_cur_state == uninit );
@@ -170,7 +185,7 @@ void connection::handle_uninit( const tn::buffer& b ) {
  *  until we get their public key.
  */
 void connection::handle_generated_dh( const tn::buffer& b ) {
-  slog("");
+ // slog("");
   BOOST_ASSERT( my->_cur_state == generated_dh );
   if( b.size() % 8 && b.size() > 56 ) { // pub key
    //  send_dh();
@@ -184,7 +199,7 @@ void connection::handle_generated_dh( const tn::buffer& b ) {
 }
 
 void connection::handle_received_dh( const tn::buffer& b ) {
-  slog("%p", this);
+  //slog("%p", this);
   BOOST_ASSERT( my->_cur_state == received_dh );
   if( b.size() % 8 && b.size() > 56 ) { // pub key
     send_dh();
@@ -208,7 +223,7 @@ void connection::handle_received_dh( const tn::buffer& b ) {
 }
 
 void connection::handle_authenticated( const tn::buffer& b ) {
-  slog("");
+  //slog("");
   BOOST_ASSERT( my->_cur_state == authenticated );
   if( 0 == b.size() % 8 ) { // not dh pub key
     if( !decode_packet( b ) ) {
@@ -239,6 +254,7 @@ void connection::handle_connected( const tn::buffer& b ) {
 
      _record.last_ep = fc::ip::endpoint();
      memset( _record.bf_key, 0, sizeof(_record.bf_key) );
+     _record.connected = 0;
      my->_peers->store( get_remote_id(), _record );
   }
   _record           = db::peer::record();
@@ -280,14 +296,16 @@ bool connection::handle_update_rank_msg( const tn::buffer& b ) {
 }
 
 bool connection::handle_close_msg( const tn::buffer& b ) {
-  //wlog("closed msg" );
+  wlog("closed msg %s", fc::string(my->_remote_ep).c_str() );
   reset();
   return true;
 }
 
 void connection::reset() {
-  wlog( "%p", this );
+  wlog( "%s  %s", fc::string(my->_remote_ep).c_str(), fc::string(my->_remote_id).c_str() );
   if( my->_peers && _record.valid() ) {
+    slog( "_record ep %s", fc::string(_record.last_ep).c_str() );
+    _record.connected = 0;
     my->_peers->store( my->_remote_id, _record );
   }
   close_channels();
@@ -530,7 +548,7 @@ bool connection::handle_route_msg( const tn::buffer& b ) {
   //  slog( "Response of nid: %s @ %s:%d", fc::string(nid).c_str(), fc::string(fc::ip::address(ip)).c_str(), port );
   }
  // slog( "set_value..." );
-  itr->second->set_value(rt);
+  itr->second.prom->set_value(rt);
   my->_route_lookups.erase(itr);
   return true;
 }
@@ -612,7 +630,8 @@ bool connection::handle_auth_msg( const tn::buffer& b ) {
       }
       
 
-      slog( "Authenticated!" );
+      slog( "Authenticated! %s with dh key %s", fc::string(my->_remote_ep).c_str(), 
+                fc::to_hex( my->_dh->shared_key.data(), my->_dh->shared_key.size()).c_str()  );
 
       fc::sha1::encoder pkds; pkds << pubk;
       set_remote_id( pkds.result() );
@@ -637,12 +656,24 @@ bool connection::handle_auth_msg( const tn::buffer& b ) {
       _record.rank = 161 - fc::bigint( r.data(), sizeof(r) ).log2();
 
       send_auth_response(true);
+      _record.connected = 1;
       my->_peers->store( my->_remote_id, _record );
 
       my->_node.update_dist_index( my->_remote_id, this );
 
       // auth resp tru
       goto_state( connected );
+
+      slog( "Resending Route lookup requests" );
+      auto rlr = my->_route_lookups.begin();
+      while( rlr != my->_route_lookups.end() ) {
+        fc::vector<char> buf( !!rlr->second.limit ? 45 : 25 ); 
+        fc::datastream<char*> ds(&buf.front(), buf.size());
+        ds << rlr->first << rlr->second.n << uint8_t(!!rlr->second.limit);
+        if( !!rlr->second.limit ) { ds << *rlr->second.limit; }
+        send( &buf.front(), buf.size(), route_lookup_msg );
+        ++rlr;
+      }
     }
     return true;
 }
@@ -879,7 +910,7 @@ void connection::send_auth() {
    *  Sends a message requesting a node lookup and waits up to 1s for a response.  If no
    *  response in 1 second, then a timeout exception is thrown.  
    */
-  fc::vector<tn::host> connection::find_nodes_near( const node::id_type& target, uint32_t n, const fc::optional<node::id_type>& limit  ) {
+  fc::vector<tn::host> connection::find_nodes_near( const node::id_type& target, uint32_t n, const fc::optional<fc::sha1>& limit  ) {
     try {                                                                        
       if( _record.published_rank < my->_node.rank() )
         send_update_rank();
@@ -888,7 +919,7 @@ void connection::send_auth() {
       fc::promise<route_table>::ptr prom( new fc::promise<route_table>() );
       uint64_t start_time_utc = fc::time_point::now().time_since_epoch().count();
 
-      my->_route_lookups[ target ] = prom;
+      my->_route_lookups[ target ] = route_lookup_request( prom, n, limit );
 
       fc::vector<char> buf( !!limit ? 45 : 25 ); 
       fc::datastream<char*> ds(&buf.front(), buf.size());

@@ -33,7 +33,7 @@ namespace tn { namespace db {
         bool valid()const;
         fc::sha1 id()const;
 
-        fc::ip::endpoint last_ep;
+        fc::ip::endpoint last_ep; // must be first
         uint32_t         est_bandwidth; 
         uint32_t         avg_rtt_us;
         uint64_t         nonce[2];
@@ -50,8 +50,8 @@ namespace tn { namespace db {
         char             bf_key[56];             
         char             recv_btc[40];           // address to recv money from node id
         char             send_btc[40];           // address to send money to node id
-                                                 
         float            priority;               // sum of the below percentiles
+        char             connected;              // 0 if not connected, else 1
       };
 
       peer( const fc::sha1& nid, const fc::path& dir );

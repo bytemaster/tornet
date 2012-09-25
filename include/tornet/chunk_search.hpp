@@ -44,6 +44,8 @@ namespace tn {
        */
       uint32_t get_deadend_count()const;
 
+      uint32_t get_chunk_size()const;
+
       /**
        *  Nodes close to the chunk that host the chunk
        */
@@ -51,6 +53,7 @@ namespace tn {
     private:
       bool                                        find_nm; 
       uint32_t                                    deadend_count;
+      uint32_t                                    chunk_size;
       double                                      avg_qr;
       double                                      qr_weight;
       std::map<node::id_type, node::id_type>      m_host_results;

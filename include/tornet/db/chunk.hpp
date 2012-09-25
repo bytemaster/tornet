@@ -88,6 +88,7 @@ namespace tn { namespace db {
       void init();
       void close();
 
+      bool store_chunk( const fc::sha1& id, const fc::vector<char>& b  );
       bool store_chunk( const fc::sha1& id, const fc::const_buffer& b  );
       bool fetch_chunk( const fc::sha1& id, const fc::mutable_buffer& b, uint64_t offset = 0 );
 

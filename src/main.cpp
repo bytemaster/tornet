@@ -1,7 +1,7 @@
 #include <fc/thread.hpp>
 #include <fc/exception.hpp>
 #include <fc/log.hpp>
-//#include <fc/signals.hpp>
+#include <fc/signals.hpp>
 #include <fc/stream.hpp>
 #include <fc/bigint.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -9,6 +9,7 @@
 #include <tornet/node.hpp>
 #include <tornet/kad.hpp>
 #include <tornet/chunk_service_client.hpp>
+#include <tornet/download_status.hpp>
 #include <tornet/chunk_service.hpp>
 #include <tornet/chunk_search.hpp>
 #include <tornet/name_service.hpp>
@@ -21,6 +22,7 @@
 #include <vector>
 #include <sstream>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 
 #include <fc/program_options.hpp>
@@ -205,6 +207,7 @@ boost::posix_time::ptime to_system_time( uint64_t utc_us ) {
 
 void print_record_header() {
     std::cerr<<std::setiosflags(std::ios::left)<< std::setw(21) <<"Host:Port"<<" "
+             <<"C "
              <<std::setw(40) <<"ID"<<" "
              <<std::setw(10) <<"Dist"<<" "
              <<std::setw(5)  <<"Rank"<<" "
@@ -229,6 +232,7 @@ void print_record_header() {
 void print_record( const tn::db::peer::record& rec, const tn::node::ptr& nd ) {
   std::cerr<< std::setw(21) 
            << fc::string(rec.last_ep).c_str() <<" "
+           << (rec.connected ? 'C' : ' ') << ' '
            << std::setw(40) << fc::string(rec.id()).c_str() << " "
            << std::setw(10) << calc_dist(rec.id() ^ nd->get_id()) << " "
            << std::setw(5)  << int(rec.rank) << " "
@@ -275,6 +279,19 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
          std::string tid,check;
          ss >> tid >> check;
          _cs->export_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()) );
+       } else if( cmd == "download" ) {
+         std::string tid, check, filename;
+         ss >> tid >> check >> filename;
+         std::ofstream out(filename.c_str(), std::ios::binary );
+         fc::ostream   outf(out);
+         auto stat = _cs->download_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()), outf );
+         slog( "waiting for download to complete");
+         stat->progress.connect( [](double per, const fc::string& st) {
+                slog( "%f complete   %s", per, st.c_str() ); 
+             } );
+
+         fc::wait(stat->complete);
+         slog( "download complete" );
        } else if( cmd == "publish" ) {
          std::string tid, check;
          ss >> tid >> check;
@@ -424,12 +441,13 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
           slog( "%f kbs", (tot/1024.0) / ((done-start).count()/1000000.0) );
        } else {
          fc::cerr<<"\nCommands:\n";
-         fc::cerr<<"  import      FILENAME               - loads FILENAME and creates chunks and dumps FILENAME.tornet\n";
-         fc::cerr<<"  export      TORNET_FILE            - loads TORNET_FILE and saves FILENAME\n";
-         fc::cerr<<"  find        CHUNK_ID               - looks for the chunk and returns query rate stats for the chunk\n";
-         fc::cerr<<"  store       CHUNK_ID   NODE_ID     - stores the given chunk from local_cache on node_id\n";
-         fc::cerr<<"  export_tid  TID CHECKSUM [OUT_FILE]- loads TORNET_FILE and saves FILENAME\n";
+         fc::cerr<<"  import      FILENAME                - loads FILENAME and creates chunks and dumps FILENAME.tornet\n";
+         fc::cerr<<"  export      TORNET_FILE             - loads TORNET_FILE and saves FILENAME\n";
+         fc::cerr<<"  find        CHUNK_ID                - looks for the chunk and returns query rate stats for the chunk\n";
+         fc::cerr<<"  store       CHUNK_ID   NODE_ID      - stores the given chunk from local_cache on node_id\n";
+         fc::cerr<<"  export_tid  TID CHECKSUM [OUT_FILE] - loads TORNET_FILE and saves FILENAME\n";
          fc::cerr<<"  publish TID CHECKSUM                - pushes chunks from TORNET_FILE out to the network, including the TORNETFILE itself\n";
+         fc::cerr<<"  download TID CHECKSUM FILE          - fetches the tornet file at TID with CHECKSUM and saves it to disk as FILE\n";
          fc::cerr<<"  show local START LIMIT [by_distance|by_revenue|by_opportunity]\n";
          fc::cerr<<"  show cache START LIMIT |by_distance|by_revenue|by_opportunity]\n";
          fc::cerr<<"  show users START LIMIT |by_balance|by_rank|...]\n";

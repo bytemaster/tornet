@@ -167,7 +167,6 @@ namespace tn { namespace db {
     my = new chunk_private( node_id, dir );
   }
   chunk::~chunk() { 
-    slog( "...");
     try {
         close();
         my->m_thread.quit();
@@ -266,6 +265,9 @@ namespace tn { namespace db {
 
 
 
+  bool chunk::store_chunk( const fc::sha1& id, const fc::vector<char>& b ) {
+    return store_chunk( id, fc::const_buffer( b.data(), b.size() ) );
+  }
   /**
    *  Attempts to store data in buffer b.  
    *
@@ -285,7 +287,7 @@ namespace tn { namespace db {
     }
     fc::sha1 dist = id ^ my->m_node_id;
     slog( "store chunk %s dist %s", fc::string(id).c_str(), fc::string(dist).c_str() );
-    slog( "store data '%s'", fc::to_hex( b.data, 64 ).c_str() );
+    //slog( "store data '%s'", fc::to_hex( b.data, 64 ).c_str() );
 
     DbTxn * txn=NULL;
     my->m_env.txn_begin(NULL, &txn, 0);
@@ -321,7 +323,6 @@ namespace tn { namespace db {
 
         //bool inserted = false;
         if( DB_NOTFOUND == my->m_meta_db->get( txn, &key, &mval, 0 ) ) {
-          slog( "initialize meta here, key %s" );
           // initialize met here... 
           met.first_update = met.now(); 
           met.distance_rank = 161 - fc::bigint( (const char*)dist.data(), sizeof(dist) ).log2();
@@ -330,11 +331,9 @@ namespace tn { namespace db {
         if( met.size == 0 ) {
           met.size        = b.size;
           met.last_update = met.now();
-          slog( "put db" );
           my->m_meta_db->put( txn, &key, &mval, 0 );
           updated    = true;
         }
-        slog( "commit" );
         txn->commit( DB_TXN_WRITE_NOSYNC );
     } catch ( const DbException& e ) {
       txn->abort();
@@ -342,7 +341,6 @@ namespace tn { namespace db {
     }
 
     if( updated || inserted ) {
-      slog(">");
         Dbc*       cur;
         Dbt ignore_val; 
         ignore_val.set_dlen(0); 
@@ -355,24 +353,19 @@ namespace tn { namespace db {
         key.set_flags( DB_DBT_USERMEM );
         key.set_ulen( sizeof(dist) );
 
-        slog("..");
         auto rtn = my->m_meta_db->cursor( NULL, &cur, 0 );
         if( rtn != 0 ) { FC_THROW_MSG( "Invalid DB cursor" ); }
 
         rtn = cur->get( &key, &ignore_val, DB_SET );
         if( rtn != 0 ) { FC_THROW_MSG( "Invalid DB Set %s  key %s", rtn, dist ); }
-        slog("..");
 
         db_recno_t idx;
         Dbt        idx_val(&idx, sizeof(idx) );
         idx_val.set_flags( DB_DBT_USERMEM );
         idx_val.set_ulen(sizeof(idx) );
-        slog("get recno");
 
         cur->get(  &ignore_val, &idx_val, DB_GET_RECNO );
-        slog("..");
         cur->close();
-        slog("..");
         /*
         if( inserted )
           record_inserted(idx);
@@ -422,7 +415,7 @@ namespace tn { namespace db {
 
     Dbt val; 
     val.set_data( b.data );
-   // val.set_size( b.size );
+    val.set_size( b.size );
     val.set_ulen( b.size );
     val.set_dlen( b.size );
     val.set_flags( DB_DBT_PARTIAL | DB_DBT_USERMEM );

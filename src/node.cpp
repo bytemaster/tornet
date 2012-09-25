@@ -347,7 +347,9 @@ namespace tn {
           my->_kbuckets.remove(itr->second);
           my->_dist_to_con.erase(itr);
 
-          /*
+          /*  Keep one connection around for the endpoint, we will
+           *  just recylce it instead of 'removing it'. 
+           *
           node::ptr me(this,true); 
           fc::async( [me,ep]() { 
            auto epitr = me->my->_ep_to_con.find( ep );

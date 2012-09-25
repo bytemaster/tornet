@@ -47,6 +47,7 @@ namespace tn {
                 if( r.offset >= met.size ) {
                   reply.result = chunk_session_result::invalid_range;
                 } else {
+                  slog( "met size %d - offset %d", met.size, r.offset );  
                   reply.data.resize( met.size - r.offset );
                 }
               } else {
@@ -56,12 +57,15 @@ namespace tn {
                   reply.data.resize( fc::min( size_t(r.length), size_t(met.size - r.offset) ) );
                 }
               }
-              if(reply.result != chunk_session_result::invalid_range )
+              if(reply.result != chunk_session_result::invalid_range ) {
+                  slog( "%s size %d  off %d ", fc::string( r.target ).c_str(), reply.data.size(), r.offset );
                   _cs.get_cache_db()->fetch_chunk( r.target, fc::mutable_buffer( reply.data.data(), reply.data.size() ), r.offset ); 
+                  slog( "fetched %s from DB", fc::string(fc::sha1::hash(reply.data.data(), reply.data.size() ) ).c_str() );
+              }
           }
           _cs.get_cache_db()->store_meta( r.target, met );
 
-        //  slog( "response %s", fc::json::to_string(reply).c_str() );
+//          slog( "response %s", fc::json::to_string(reply).c_str() );
           return reply;
         }
 

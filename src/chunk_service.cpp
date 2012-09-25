@@ -4,6 +4,7 @@
 #include <tornet/chunk_search.hpp>
 #include <tornet/chunk_service_client.hpp>
 #include <tornet/tornet_file.hpp>
+#include <tornet/download_status.hpp>
 #include <fc/fwd_impl.hpp>
 #include <fc/buffer.hpp>
 #include <fc/raw.hpp>
@@ -79,6 +80,7 @@ chunk_service::~chunk_service(){
 db::chunk::ptr&   chunk_service::get_cache_db() { return my->_cache_db; }
 db::chunk::ptr&   chunk_service::get_local_db() { return my->_local_db; }
 db::publish::ptr&   chunk_service::get_publish_db() { return my->_pub_db; }
+node::ptr&          chunk_service::get_node() { return my->_node; }
 
 //fc::any chunk_service::init_connection( const tn::rpc::connection::ptr& con ) {
   /*
@@ -262,16 +264,20 @@ void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checks
 fc::vector<char> chunk_service::fetch_chunk( const fc::sha1& chunk_id ) {
   fc::vector<char> d;
   tn::db::chunk::meta met;
+  try {
   if( my->_local_db->fetch_meta( chunk_id, met, false ) ) {
       d.resize(met.size);
       if( my->_local_db->fetch_chunk( chunk_id, fc::mutable_buffer(d.data(),met.size) ) )
         return d;
   }
+  } catch(...) {}
+  try {
   if( my->_cache_db->fetch_meta( chunk_id, met, false ) ) {
       d.resize(met.size);
       if( my->_cache_db->fetch_chunk( chunk_id, fc::mutable_buffer(d.data(),met.size) ) )
         return d;
   }
+  } catch(...) {}
   FC_THROW_MSG( "Unknown chunk %s", chunk_id );
   return fc::vector<char>();
 }
@@ -374,6 +380,13 @@ void chunk_service::enable_publishing( bool state ) {
 
 bool chunk_service::publishing_enabled()const { 
   return my->_publishing;
+}
+
+
+fc::shared_ptr<download_status> chunk_service::download_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, fc::ostream& out ) {
+  download_status::ptr down( new download_status( chunk_service::ptr(this,true), tornet_id, checksum, out ) );
+  down->start();
+  return down;
 }
 
 
