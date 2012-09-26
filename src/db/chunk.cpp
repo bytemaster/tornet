@@ -211,7 +211,7 @@ namespace tn { namespace db {
       my->m_chunk_db = new Db(&my->m_env, 0);
       my->m_chunk_db->open( NULL, "chunk_data", "chunk_data", DB_BTREE, DB_CREATE | DB_AUTO_COMMIT, 0 );
     } catch( const DbException& e ) {
-      elog( "Error opening chunk_data database: %1%", e.what() );
+      elog( "Error opening chunk_data database: %s", e.what() );
       FC_THROW( e );
     } catch( ... ) {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );

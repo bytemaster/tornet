@@ -19,28 +19,7 @@ namespace tn {
   class name_service : virtual public fc::retainable {
     public:
       typedef fc::shared_ptr<name_service> ptr;
-      struct record {
-        enum name_state {
-          unknown,      // the name is unknown to the network
-          generating,   // actively searching for a nonce for this name
-          allocating,   // a nonce has been found, attempting to publish the allocation
-          allocated,    // the name has been anonymously allocated and included by 6 blocks
-          publishing,   // after the name has been allocated, we must publish the name
-          published,    // the publish update has been validated by 6 blocks
-          expired,      // the name has expired
-          in_use,       // the given name is already in use.
-          transfering,
-          transfered,
-        };
-        fc::string                      name;
-        fc::sha1                        value;
-        fc::public_key_t                pub_key;
-        fc::optional<fc::private_key_t> priv_key;
-        fc::sha1                        alloc_block_id;  
-        fc::sha1                        publish_block_id;  
-        uint64_t                        nonce[2];
-        uint32_t                        state;
-      };
+
       name_service( const fc::path& sdir, const fc::shared_ptr<tn::node>& n );
       ~name_service();
 
@@ -53,22 +32,23 @@ namespace tn {
        *  Instructs the names service to attempt to reserve a given name.  Returns the
        *  state of the reservation process.
        */
-      record::name_state   reserve_name( const fc::string& name, const fc::sha1& value = fc::sha1() );
+      void   reserve_name( const fc::string& name, const fc::sha1& value = fc::sha1(), 
+                                                                 const fc::sha1& key = fc::sha1()  );
 
       /**
        *  This will make the name available to other users.
        */
-      void         release_name( const fc::string& name );            
+      void   release_name( const fc::string& name );            
 
       /**
        *  Return the value assigned to a given name.
        */
-      fc::sha1     get_value_for_name( const fc::string& name );
+      void   get_value_for_name( const fc::string& name, fc::sha1& val_id, fc::sha1& key_id );
 
       /**
        *  Get the name record.
        */
-      record       get_record_for_name( const fc::string& name );
+      //record       get_record_for_name( const fc::string& name );
 
       /** 
        *  Used to sign a digest gwith the given name.  Throws an exception
@@ -96,7 +76,7 @@ namespace tn {
       float        getProcessingEffort();
     private:
       class impl;
-      fc::fwd<impl,40> my;
+      fc::fwd<impl,48> my;
   };
 
 }

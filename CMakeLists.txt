@@ -65,6 +65,7 @@ SET( sources
     src/db/chunk.cpp
     src/db/peer.cpp
     src/db/publish.cpp
+    src/db/name.cpp
     src/buffer.cpp
     src/channel.cpp
     src/kad.cpp

@@ -69,7 +69,13 @@ namespace tn {
           return reply;
         }
 
-        store_response store( const fc::vector<char>& data ) {
+        store_response store( const fc::vector<char>& data ) {  
+            // TODO: calculate entropy of data, only store data of high-entropy. 
+            //       to prevent 'hackers' from distributing unencrypted data that
+            //       could get the individual hosting the data in trouble. 
+            //
+            //       we need to charge the uploader for this calculation
+
             auto cdb = _cs.get_cache_db();
             
             if( data.size() > 1024 * 1024 ) {
@@ -82,6 +88,14 @@ namespace tn {
             
             db::chunk::meta met;
             cdb->fetch_meta( cid, met, true );
+
+            // TODO: verify that the individual storing the chunk has equal or higher rank
+            //
+            // TODO: optionally only allow paying customers to 'store' data
+
+            // TODO: determine whether this chunk is 'profitable to store' and how
+            //       much we will charge the individual uploading the chunk for the 
+            //       storage.  
             
             if( met.size == 0 )
                 cdb->store_chunk( cid, fc::const_buffer(data.data(), data.size() ) );
