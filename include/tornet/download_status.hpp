@@ -25,7 +25,7 @@ namespace tn {
 
       download_status( const fc::shared_ptr<chunk_service>& cs, 
                        const fc::sha1& tornet_id, 
-                       const fc::sha1& check_sum, fc::ostream& out );
+                       const fc::sha1& check_sum, uint64_t seed, fc::ostream& out );
 
       ~download_status();
 
@@ -54,7 +54,7 @@ namespace tn {
 
     private:
       class impl;
-      fc::fwd<impl,544> my;
+      fc::fwd<impl,552> my;
   };
 
 }  // namespace tn

@@ -7,6 +7,12 @@
 #include <tornet/chunk_service_messages.hpp>
 #include <tornet/db/chunk.hpp>
 #include <fc/json.hpp>
+extern "C" {
+double pochisq(
+    	const double ax,    /* obtained chi-square value */
+     	const int df	    /* degrees of freedom */
+     	);
+}
 
 namespace tn {
 
@@ -69,12 +75,13 @@ namespace tn {
           return reply;
         }
 
+
         store_response store( const fc::vector<char>& data ) {  
-            // TODO: calculate entropy of data, only store data of high-entropy. 
-            //       to prevent 'hackers' from distributing unencrypted data that
-            //       could get the individual hosting the data in trouble. 
-            //
-            //       we need to charge the uploader for this calculation
+            // verify entropy of data, only store data of high-entropy. 
+            // to prevent 'hackers' from distributing unencrypted data that
+            // could get the individual hosting the data in trouble. 
+            if( !is_random( data ) )
+              return store_response( chunk_session_result::data_not_random );
 
             auto cdb = _cs.get_cache_db();
             

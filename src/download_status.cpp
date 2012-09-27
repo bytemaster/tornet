@@ -26,6 +26,7 @@ namespace tn {
       chunk_service::ptr         _cs;
       fc::sha1                   _tid;
       fc::sha1                   _checksum;
+      uint64_t                   _seed;
       fc::optional<tornet_file>  _tf;
 
 
@@ -96,7 +97,7 @@ namespace tn {
               _status   = "Downloading file chunks";
               uint64_t downloaded = 0;
               // decode the tornet chunk
-              _tf = _cs->fetch_tornet( _tid, _checksum );
+              _tf = _cs->fetch_tornet( _tid, _checksum, _seed );
 
               // download every chunk that is part of the tornet file
               auto itr = _tf->chunks.begin();
@@ -125,6 +126,7 @@ namespace tn {
               itr = _tf->chunks.begin();
               while( itr != _tf->chunks.end() ) {
                 auto cdata = _cs->fetch_chunk( itr->id );
+                derandomize( itr->seed, cdata );
                 bf.decrypt( (unsigned char*)cdata.data(), cdata.size(), fc::blowfish::CBC );
                 // the decoded chunk size may be different than the DB size because 
                 // blowfish requires 8 byte blocks.
@@ -149,11 +151,12 @@ namespace tn {
 
   download_status::download_status( const fc::shared_ptr<chunk_service>& cs, 
                    const fc::sha1& tornet_id, 
-                   const fc::sha1& check_sum, fc::ostream& out )
+                   const fc::sha1& check_sum, uint64_t seed, fc::ostream& out )
   :my(*this,out) {
     my->_cs = cs;
     my->_tid = tornet_id;
     my->_checksum = check_sum;
+    my->_seed = seed;
     my->_per_comp = 0;
     my->_status   = "idle";
   }

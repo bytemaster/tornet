@@ -17,11 +17,33 @@ namespace tn {
 struct tornet_file {
   struct chunk_data {
     chunk_data():size(0){}
-    chunk_data( uint32_t s, const fc::sha1& i  )
-    :size(s),id(i){}
+    chunk_data( uint32_t s, uint64_t se, const fc::sha1& i  )
+    :size(s),seed(se),id(i){}
 
-    uint32_t            size;
-    fc::sha1            id;
+    uint32_t              size;   // the usable size of the chunk (chunks must be a multiple of 8 bytes)
+
+    /**
+     *  The random seed used to randomize the encrypted data.  To prevent users from
+     *  uploading 'unencrypted' data, only chunks that contain statistically random 
+     *  data as measured by the chi squared algorithm may be uploaded.  The threshold for
+     *  this is that the chi-sq propbability must be between 20 and 80 which means that
+     *  multiple seeds may need to be tried before the desired chi-sq distribution is 
+     *  achieved as 40% of all random distributions will fail to satisify this 
+     *  measure of randomness. 
+     *
+     *  The seed is applied after the chunk is 'encrypted' via blowfish and must be
+     *  unapplied before decrypting with blowfish. 
+     *
+     *  The random algorithm used is mt19937
+     */
+    uint64_t              seed;   
+
+    /**
+     *  This is the hash by which the data can be found in the DHT.
+     *
+     *  sha1( randomize(seed, blowfish( data ) ) )
+     */
+    fc::sha1              id;
     fc::vector<uint32_t>  slices;
   };
   tornet_file():size(0){}
@@ -39,7 +61,7 @@ struct tornet_file {
 } // namespace tn
 
 FC_STATIC_REFLECT( tn::tornet_file::chunk_data,
-  (size)(id)(slices) )
+  (size)(seed)(id)(slices) )
 
 FC_STATIC_REFLECT( tn::tornet_file,
   (checksum)(name)(size)(chunks)(inline_data) )

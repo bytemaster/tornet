@@ -14,6 +14,7 @@
 #include <fc/thread.hpp>
 #include <stdio.h>
 
+#include <boost/random/mersenne_twister.hpp>
 #include <tornet/node.hpp>
 
 #include <fc/interprocess/file_mapping.hpp>
@@ -99,7 +100,7 @@ node::ptr&          chunk_service::get_node() { return my->_node; }
  *
  */
 void chunk_service::import( const fc::path& infile, 
-                            fc::sha1& tn_id, fc::sha1& checksum,
+                            fc::sha1& tn_id, fc::sha1& checksum, uint64_t& seed,
                             const fc::path& outfile ) 
 {
   if( !fc::exists( infile ) )
@@ -143,12 +144,22 @@ void chunk_service::import( const fc::path& infile,
       memset( chunk.data() + c, 0, chunk.size()-c );
     in.read( chunk.data(), c );
     int64_t pc = c;
+
+    // minimum chunk size is 32K + some random additional amount to
+    // prevent end pieces from 'stick out' at 32K even.   32K is needed
+    // to ensure proper entropy at the randomize step.
+    if( c < 1024*32 ) c = 1024*32 + (rand() % (1024*16)) ;
+
     c = ((c+7)/8)*8;
+
 
     bf.encrypt((unsigned char*)chunk.data(), c, fc::blowfish::CBC );
 
+    // ensure that the encrypted chunk is properly random
+    uint64_t seed = randomize(chunk);
+
     fc::sha1 chunk_id = fc::sha1::hash(chunk.data(), c );
-    tf.chunks.push_back( tornet_file::chunk_data( pc, chunk_id ) );
+    tf.chunks.push_back( tornet_file::chunk_data( pc, seed, chunk_id ) );
     slog( "Chunk %d id %s", tf.chunks.size(), fc::string(chunk_id).c_str() );
 
     // 64KB slices to allow parallel requests
@@ -169,26 +180,30 @@ void chunk_service::import( const fc::path& infile,
       fc::datastream<size_t> ps; 
       fc::raw::pack(ps,tf );
 
-  slog( "%s", fc::json::to_string( tf ).c_str() );
-  slog( "packsize %d", ps.tellp() );
+
+ // slog( "%s", fc::json::to_string( tf ).c_str() );
+ // slog( "packsize %d", ps.tellp() );
 
   auto old_size = chunk.size();
+
+  // You cannot get 'random' data if your chunk size is near the size of your keyspace (256)
+  // so this places a minimum size on our chunks to something around 
+  if( chunk.size() < 32*1024 ) chunk.resize(32*1024 + (rand() % (1024*16)) );
+
   chunk.resize( ((chunk.size()+7)/8)*8 );
-  if( old_size != chunk.size() ) {
-    slog( "memset last bytes to %d", (chunk.size()-old_size) );
+
+  if( old_size != chunk.size() ) 
     memset( chunk.data() + old_size, 0, chunk.size() - old_size );
-  } else {
-    slog( "chuunksize %d", chunk.size() );
-  }
-  slog( "old_size %d", old_size );
 
   bf.reset_chain();
-  slog( "pre-encrypt chunk hex %s size %d", fc::to_hex(chunk.data(), chunk.size() ).c_str(), chunk.size() );
+ // slog( "pre-encrypt chunk hex %s size %d", fc::to_hex(chunk.data(), chunk.size() ).c_str(), chunk.size() );
   bf.encrypt( (unsigned char*)chunk.data(), chunk.size(), fc::blowfish::CBC );
+
+  seed = randomize(chunk);
  
-  slog( "chunk hex %s size %d", fc::to_hex(chunk.data(), chunk.size() ).c_str(), chunk.size() );
+//  slog( "chunk hex %s size %d", fc::to_hex(chunk.data(), chunk.size() ).c_str(), chunk.size() );
   tn_id = fc::sha1::hash(  chunk.data(), chunk.size() );
-  slog( "store chunk %s", fc::string(tn_id).c_str() );
+ // slog( "store chunk %s", fc::string(tn_id).c_str() );
   my->_local_db->store_chunk( tn_id, fc::const_buffer( chunk.data(), chunk.size() ) );
 
   fc::string of;
@@ -202,8 +217,8 @@ void chunk_service::import( const fc::path& infile,
   fc::raw::pack( out, tf );
 }
 
-void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checksum ) {
-  tornet_file tf = fetch_tornet( tn_id, checksum );
+void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checksum, uint64_t seed ) {
+  tornet_file tf = fetch_tornet( tn_id, checksum, seed );
 
   fc::blowfish bf;
   fc::string fhstr = checksum;
@@ -239,12 +254,16 @@ void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checks
       if( !my->_local_db->fetch_chunk( tf.chunks[i].id, fc::mutable_buffer(tmp.data(),tmp.size()) ) ) {
         FC_THROW_MSG( "Error fetching chunk %s", tf.chunks[i].id );
       }
+
+      derandomize( tf.chunks[i].seed, tmp );
       bf.decrypt( (unsigned char*)&tmp.front(), adj_size, fc::blowfish::CBC );
       memcpy( pos, &tmp.front(), tf.chunks[i].size );
     } else {
       if( !my->_local_db->fetch_chunk( tf.chunks[i].id, fc::mutable_buffer(pos,adj_size) ) ) {
         FC_THROW_MSG( "Error fetching chunk %s", tf.chunks[i].id );
       }
+      derandomize( tf.chunks[i].seed, fc::mutable_buffer(pos,adj_size) );
+
       //assert( rcheck == tf.chunks[i].id );
       bf.decrypt( (unsigned char*)pos, adj_size, fc::blowfish::CBC );
     }
@@ -285,12 +304,13 @@ fc::vector<char> chunk_service::fetch_chunk( const fc::sha1& chunk_id ) {
 /**
  *  Fetch and decode the tn file description, but not the chunks
  */
-tornet_file chunk_service::fetch_tornet( const fc::sha1& tn_id, const fc::sha1& checksum ) {
+tornet_file chunk_service::fetch_tornet( const fc::sha1& tn_id, const fc::sha1& checksum, uint64_t seed ) {
   tornet_file tnf;
   tn::db::chunk::meta met;
   if( my->_local_db->fetch_meta( tn_id, met, false ) ) {
       fc::vector<char> tnet(met.size);
       if( my->_local_db->fetch_chunk( tn_id, fc::mutable_buffer(tnet.data(),tnet.size()) ) ) {
+          derandomize( seed, tnet );
           fc::blowfish bf;
           fc::string fhstr = checksum;
           slog("bf key %s", (unsigned char*)fhstr.c_str() );
@@ -331,8 +351,8 @@ tornet_file chunk_service::fetch_tornet( const fc::sha1& tn_id, const fc::sha1& 
  *  the popularity of that chunk and schedule a time to check again.
  *
  */
-void chunk_service::publish_tornet( const fc::sha1& tid, const fc::sha1& cs, uint32_t rep ) {
-  tornet_file tf = fetch_tornet( tid, cs );
+void chunk_service::publish_tornet( const fc::sha1& tid, const fc::sha1& cs, uint64_t seed, uint32_t rep ) {
+  tornet_file tf = fetch_tornet( tid, cs, seed );
   slog( "publish %s", fc::json::to_string( tf ).c_str() );
   for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
     //if( !my->_local_db->exists(tf.chunks[i]) && !m_cache_db->exists(tf.chunks[i] ) ) {
@@ -383,8 +403,8 @@ bool chunk_service::publishing_enabled()const {
 }
 
 
-fc::shared_ptr<download_status> chunk_service::download_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, fc::ostream& out ) {
-  download_status::ptr down( new download_status( chunk_service::ptr(this,true), tornet_id, checksum, out ) );
+fc::shared_ptr<download_status> chunk_service::download_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint64_t seed, fc::ostream& out ) {
+  download_status::ptr down( new download_status( chunk_service::ptr(this,true), tornet_id, checksum, seed, out ) );
   down->start();
   return down;
 }
@@ -472,6 +492,91 @@ void chunk_service::impl::publish_loop() {
 
   }
 }
+
+
+
+/**
+ *  Calculate how frequently each byte occurs in data.
+ *  If every possible byte occurs with the same frequency then the
+ *  data is perfectly random. 
+ *
+ *  The expected occurence of each possible byte is data.size / 256
+ *
+ *  If one byte occurs more often than another you get a small error
+ *  (1*1) / expected.  If it occurs much more the error grows by
+ *  the square.
+ */
+bool is_random( const fc::vector<char>& data ) {
+   fc::vector<uint16_t> buckets(256);
+   memset( buckets.data(), 0, buckets.size() * sizeof(uint16_t) );
+   for( auto itr = data.begin(); itr != data.end(); ++itr )
+     buckets[(uint8_t)*itr]++;
+   
+   double expected = data.size() / 256;
+   
+   double x2 = 0;
+   for( auto itr = buckets.begin(); itr != buckets.end(); ++itr ) {
+       double de = *itr - expected;
+       x2 +=  (de*de) / expected;
+   } 
+   slog( "%s", fc::to_hex( data.data(), 128 ).c_str() );
+   slog( "%d", data.size() );
+   float prob = pochisq( x2, 255 );
+   slog( "Prob %f", prob );
+
+   // smaller chunks have a higher chance of 'low' entrempy
+   return prob < .80 && prob > .20;
+}
+
+uint64_t randomize( fc::vector<char>& data ) {
+  uint64_t seed;
+  fc::vector<char> tmp(data.size());
+  do {
+      seed = rand();
+
+      boost::random::mt19937 gen(seed);
+      uint32_t* src = (uint32_t*)data.data();
+      uint32_t* end = src +(data.size()/sizeof(uint32_t)); 
+      uint32_t* dst = (uint32_t*)tmp.data();
+      gen.generate( dst, dst + (data.size()/sizeof(uint32_t)) );
+      while( src != end ) {
+        *dst = *src ^ *dst;
+        ++dst; 
+        ++src;
+      }
+  } while (!is_random(tmp) );
+  fc::swap(data,tmp);
+  return seed;
+}
+
+void derandomize( uint64_t seed, const fc::mutable_buffer& b ) {
+  boost::random::mt19937 gen(seed);
+  fc::vector<char> tmp(b.size);
+  uint32_t* src = (uint32_t*)b.data;
+  uint32_t* end = src +(b.size/sizeof(uint32_t)); 
+  uint32_t* dst = (uint32_t*)tmp.data();
+  gen.generate( dst, dst + (tmp.size()/sizeof(uint32_t)) );
+  while( src != end ) {
+    *src = *src ^ *dst;
+    ++dst; 
+    ++src;
+  }
+}
+void derandomize( uint64_t seed, fc::vector<char>& data ) {
+  boost::random::mt19937 gen(seed);
+  fc::vector<char> tmp(data.size());
+  uint32_t* src = (uint32_t*)data.data();
+  uint32_t* end = src +(data.size()/sizeof(uint32_t)); 
+  uint32_t* dst = (uint32_t*)tmp.data();
+  gen.generate( dst, dst + (data.size()/sizeof(uint32_t)) );
+  while( src != end ) {
+    *dst = *src ^ *dst;
+    ++dst; 
+    ++src;
+  }
+  fc::swap(data,tmp);
+}
+
 
 /**
  *  

@@ -42,7 +42,7 @@ enum chunk_order{
 };
 
 
-void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs );
+void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs, const tn::name_service::ptr& _ns );
 //#include <iostream>
 
 void start_services( int argc, char** argv ) {
@@ -115,7 +115,7 @@ void start_services( int argc, char** argv ) {
 
 
       //auto cli_done = fc::async([=](){cli(node,cs);},"cli");
-      cli(node,cs);
+      cli(node,cs,ns);
       //fc::wait(quit);
   } catch ( ... ) {
     elog( "%s", fc::current_exception().diagnostic_information().c_str() );
@@ -251,7 +251,7 @@ void print_record( const tn::db::peer::record& rec, const tn::node::ptr& nd ) {
 }
 
 
-void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
+void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs, const tn::name_service::ptr& _ns ) {
      fc::thread* t = new fc::thread("cin");
      std::string line;
      while( t->async( [&](){ return (bool)std::getline(std::cin, line); } ).wait() ) {
@@ -267,24 +267,33 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
          std::string infile;
          ss >> infile;
          fc::sha1 tid, check;
-         _cs->import( fc::path(infile.c_str()), tid, check, fc::path() );
-         std::cout<<"Created "<<infile<<".tn with TID: "<<fc::string(tid).c_str()<<" and CHECK: "<<fc::string(check).c_str()<<"\n";
+         uint64_t seed;
+         _cs->import( fc::path(infile.c_str()), tid, check, seed, fc::path() );
+         std::cout<<"Created "<<infile<<".tn with TID: "<<fc::string(tid).c_str()<<" and CHECK: "<<fc::string(check).c_str()<<" seed: "<<seed<<"\n";
 
        } else if( cmd == "export" ) {
          std::string infile;
          ss >> infile;
          elog( "not implemented" );
+       } else if( cmd == "reserve" ) {
+         std::string n;
+         ss >> n;
+
+         _ns->reserve_name( n.c_str() );
+
        } else if( cmd == "export_tid" ) {
 
          std::string tid,check;
-         ss >> tid >> check;
-         _cs->export_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()) );
+         uint64_t seed;
+         ss >> tid >> check >> seed;
+         _cs->export_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()), seed );
        } else if( cmd == "download" ) {
          std::string tid, check, filename;
-         ss >> tid >> check >> filename;
+         uint64_t seed;
+         ss >> tid >> check >> seed >> filename;
          std::ofstream out(filename.c_str(), std::ios::binary );
          fc::ostream   outf(out);
-         auto stat = _cs->download_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()), outf );
+         auto stat = _cs->download_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()), seed, outf );
          slog( "waiting for download to complete");
          stat->progress.connect( [](double per, const fc::string& st) {
                 slog( "%f complete   %s", per, st.c_str() ); 
@@ -445,15 +454,16 @@ void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs ) {
          fc::cerr<<"  export      TORNET_FILE             - loads TORNET_FILE and saves FILENAME\n";
          fc::cerr<<"  find        CHUNK_ID                - looks for the chunk and returns query rate stats for the chunk\n";
          fc::cerr<<"  store       CHUNK_ID   NODE_ID      - stores the given chunk from local_cache on node_id\n";
-         fc::cerr<<"  export_tid  TID CHECKSUM [OUT_FILE] - loads TORNET_FILE and saves FILENAME\n";
+         fc::cerr<<"  export_tid  TID CHECKSUM SEED [OUT_FILE] - loads TORNET_FILE and saves FILENAME\n";
          fc::cerr<<"  publish TID CHECKSUM                - pushes chunks from TORNET_FILE out to the network, including the TORNETFILE itself\n";
-         fc::cerr<<"  download TID CHECKSUM FILE          - fetches the tornet file at TID with CHECKSUM and saves it to disk as FILE\n";
+         fc::cerr<<"  download TID CHECKSUM SEED FILE          - fetches the tornet file at TID with CHECKSUM and saves it to disk as FILE\n";
          fc::cerr<<"  show local START LIMIT [by_distance|by_revenue|by_opportunity]\n";
          fc::cerr<<"  show cache START LIMIT |by_distance|by_revenue|by_opportunity]\n";
          fc::cerr<<"  show users START LIMIT |by_balance|by_rank|...]\n";
          fc::cerr<<"  show publish \n";
          fc::cerr<<"  start_pub\n";
          fc::cerr<<"  stop_pub\n";
+         fc::cerr<<"  reserve NAME                        - if the name is not in use, attempts to reserve it.\n";
          fc::cerr<<"  udt_test node_id port \n";
          fc::cerr<<"  rankeffort EFFORT                  - percent effort to apply towoard improving rank\n";
          fc::cerr<<"  help                               - prints this menu\n\n";

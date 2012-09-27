@@ -9,6 +9,7 @@ namespace fc {
   class path;
   class sha1;
   class ostream;
+  class mutable_buffer;
 }
 
 namespace tn {
@@ -21,6 +22,26 @@ namespace tn {
   class tornet_file;
   class chunk_service;
   class download_status;
+
+  /**
+   *  Determins if data is sufficiently random for the purposes of
+   *  the chunk service.
+   */
+  bool      is_random( const fc::vector<char>& data );
+  /**
+   *  Takes arbitrary data and 'randomizes' it returning the MT19937 key
+   *  that results in a random sequence that satisifies is_random()
+   *
+   *  Modifies data using the random sequence.
+   */
+  uint64_t  randomize( fc::vector<char>& data );
+
+  /**
+   *  Reverses the randomization performed by randomize
+   *  @param seed - the value returned by randomize.
+   */
+  void      derandomize( uint64_t seed, fc::vector<char>& data );
+  void      derandomize( uint64_t seed, const fc::mutable_buffer& b );
 
   /**
    *  Provides an interface to two chunk databases, one local and one cache.
@@ -54,27 +75,27 @@ namespace tn {
        *  Optionally writes the tornet file to disk as outfile.
        */
       void import( const fc::path& infile, 
-                   fc::sha1& tornet_id, fc::sha1& checksum,
+                   fc::sha1& tornet_id, fc::sha1& checksum, uint64_t& seed,
                    const fc::path& outfile  );
 
       /**
        *  Given a tornet_id and checksum, find the chunk, decrypt the tornetfile then find the
        *  chunks from the tornet file and finally reconstruct the file on disk.
        */
-      void export_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum );
+      void export_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint64_t seed );
 
       /**
        *  Starts a new download operation.
        */
-      fc::shared_ptr<download_status> download_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, fc::ostream& out );
+      fc::shared_ptr<download_status> download_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint64_t seed, fc::ostream& out );
      
       /**
        *  Reads the data for the chunk from the cache or local database.
        */
       fc::vector<char> fetch_chunk( const fc::sha1& chunk_id );
-      tornet_file      fetch_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum );
+      tornet_file      fetch_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint64_t seed );
 
-      void publish_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint32_t rep = 3 );
+      void publish_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint64_t seed, uint32_t rep = 3 );
 
       void enable_publishing( bool state );
       bool publishing_enabled()const;

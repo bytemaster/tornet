@@ -27,7 +27,8 @@ namespace tn {
           unknown_chunk        = 6,
           already_stored       = 7,
           rejected             = 8,
-          unknown              = 9
+          data_not_random      = 9,
+          unknown              = 10 
         };
     };
 

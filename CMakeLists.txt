@@ -80,6 +80,7 @@ SET( sources
     src/chunk_service_client.cpp
     src/chunk_service_messages.cpp
     src/download_status.cpp
+    src/chisq.c
     src/raw_rpc.cpp
 
  #   main.cpp
