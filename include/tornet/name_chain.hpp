@@ -39,8 +39,9 @@ namespace tn {
     fc::sha1               reserve_trx_id; 
     fc::array<char,128>    name; // null term name (max width 128 chars)
     fc::array<uint64_t,2>  rand; 
-    fc::sha1                chunk_id;  
-    fc::sha1                chunk_key;
+    fc::sha1               chunk_id;  
+    fc::sha1               chunk_key;
+    uint64_t               seed;
   };
   struct name_update_trx {
     enum type_num { id = 3 };
@@ -50,6 +51,7 @@ namespace tn {
     uint32_t           update_count;  // increments every time the name updates
     fc::sha1           chunk_id;
     fc::sha1           chunk_key;
+    uint64_t           seed;
   };
 
   struct name_transfer_trx {
@@ -98,8 +100,8 @@ namespace tn {
 
 FC_STATIC_REFLECT( tn::name_trx_header,   (base)(nonce)(type)(signature) )
 FC_STATIC_REFLECT( tn::name_reserve_trx,  (head)(pub_key)(res_id) )
-FC_STATIC_REFLECT( tn::name_publish_trx,  (head)(name)(rand)(chunk_id)(chunk_key) )
-FC_STATIC_REFLECT( tn::name_update_trx,   (head)(name_id)(chunk_id)(chunk_key) )
+FC_STATIC_REFLECT( tn::name_publish_trx,  (head)(name)(rand)(chunk_id)(chunk_key)(seed) )
+FC_STATIC_REFLECT( tn::name_update_trx,   (head)(name_id)(chunk_id)(chunk_key)(seed) )
 FC_STATIC_REFLECT( tn::name_transfer_trx, (head)(name_id)(to_pub_key) )
 FC_STATIC_REFLECT( tn::name_block,        (prev_block_id)(block_num)(transactions)(gen_transaction) )
 

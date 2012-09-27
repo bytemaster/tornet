@@ -23,6 +23,8 @@ namespace tn {
       name_service( const fc::path& sdir, const fc::shared_ptr<tn::node>& n );
       ~name_service();
 
+      void  download_block_chain();
+
       /**
        *  @return a list of all names reserved by this node.
        */

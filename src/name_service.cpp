@@ -2,6 +2,7 @@
 #include <tornet/node.hpp>
 #include <tornet/udt_channel.hpp>
 #include <tornet/db/name.hpp>
+#include <tornet/raw_rpc.hpp>
 #include <fc/fwd_impl.hpp>
 #include <fc/exception.hpp>
 #include <fc/time.hpp>
@@ -19,6 +20,7 @@ namespace tn {
     protected:
       virtual ~name_service_connection(){}
       udt_channel _chan;
+      raw_rpc     _rpc;
   };
 
   class name_service::impl {
@@ -58,6 +60,38 @@ namespace tn {
   fc::vector<fc::string> name_service::get_reserved_names()const{
     fc::vector<fc::string> names;
     return names;
+  }
+
+
+  /**
+   *  Perform a KAD search for a RANDOM ID and ask each node for the
+   *  head block.  The head-block selected will be the one with the
+   *  longest chain. 
+   *
+   *  Then after downloading the head block, I will randomly select
+   *  nodes from my contact list and request all of the transactions
+   *  for the head node.
+   *
+   *  Then I will randomly pick a node to request the previous block and
+   *  its transactions from and I wll repeat this process until
+   *  I come to the gensis block or a block that I already know.
+   *
+   *  After downloading all transactions and blocks, then I will replay
+   *  the transactions and validate the results updating the name_record
+   *  database in the process.
+   *
+   *  After everything has been validated and my 'root node' is the same
+   *  as the rest of the network then I can start generating my own 
+   *  transactions.
+   *
+   *  Downloading is a long-running process with many intermediate states 
+   *  and is therefore maintained in its own state object.
+   *
+   *  Once connected to the network, this node will be receiving live 
+   *  transaction updates.  These transactions get logged and broadcast.
+   */
+  void name_service::download_block_chain() {
+
   }
 
   void name_service::reserve_name( const fc::string& name, const fc::sha1& value_id, const fc::sha1& key ){
@@ -120,27 +154,41 @@ namespace tn {
   float                  name_service::getProcessingEffort(){
     return my->_effort;
   }
-
   
-  /**
-   *  Attempt to find N independent nodes and subscribe to their stream. All incoming
-   *  messages should come from these three nodes and all three nodes should be forwarding
-   *  the same messages... if not then someone 'filtered' a message... the node should be
-   *  flagged and a new node found.  The nodes producing the most traffic are most 
-   *  trustworthy. 
-   *
-   *  We know a message has throughly 'propagated' when a full circle is made and all of
-   *  the nodes we subscribe to have echoed the message on to us.
-   *
-   *  Each node sends every message M times and receives it N times where M is the
-   *  number of subscribers and N is the number of nodes this node is subscribed to.
-   */
-  void name_service::impl::subscribe_to_network() {
-
-  }
 
   name_service_connection::name_service_connection( tn::udt_channel&& c )
   :_chan(fc::move(c)) {
+     _rpc.add_method( broadcast_id,    this, &name_service_connection::broadcast_msg );
+     _rpc.add_method( fetch_blocks_id, this, &name_service_connection::fetch_blocks );
+     _rpc.add_method( fetch_trxs_id,   this, &name_service_connection::fetch_transactions );
+     _rpc.add_method( resolve_name_id, this, &name_service_connection::resolve_name );
+     _rpc.connect(_chan);
+  }
+  void name_service_connection::broadcast( const broadcast_msg& msg ) {
+  }
+
+  /**
+   *  Fetch a block by either hash or number (or max)
+   *  Return the block and all transactions in the block.
+   */
+  fetch_block_reply name_service_connection::fetch_blocks( const fetch_block_request& req ) {
+    fetch_block_reply reply;
+    return reply;
+  }
+
+  fetch_transactions_reply name_service_connection::fetch_transactions( const fetch_transactions_request& req ) {
+    fetch_transactions_reply reply;
+    return reply; 
+  }
+
+  /**
+   *  Until users have synchronoized with the block chain, they can ask other nodes to resolve the
+   *  name for them.
+   */
+  resolve_name_reply name_service_connection::resolve_name( const resolve_name_request& req ) {
+    resolve_name_reply reply;
+
+    return reply;
   }
   
 
