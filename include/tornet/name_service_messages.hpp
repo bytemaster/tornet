@@ -1,5 +1,10 @@
 #ifndef _TORNET_NAME_SERVICE_MESSAGES_HPP_
 #define _TORNET_NAME_SERVICE_MESSAGES_HPP_
+#include <fc/optional.hpp>
+#include <fc/vector.hpp>
+#include <fc/sha1.hpp>
+#include <fc/pke.hpp>
+#include <tornet/name_chain.hpp>
 
 namespace tn {
 
@@ -20,11 +25,6 @@ namespace tn {
    *
    *
    */
-  struct broadcast_msg {
-      uint8_t                      depth;
-      fc::optional<name_block>     block;
-      fc::vector<name_transaction> trxs;
-  };
 
   struct name_transaction {
     uint8_t          type;
@@ -48,6 +48,12 @@ namespace tn {
     uint8_t                      status;
     name_block                   block;
     fc::vector<name_transaction> trxs;
+  };
+
+  struct broadcast_msg {
+      uint8_t                      depth;
+      fc::optional<name_block>     block;
+      fc::vector<name_transaction> trxs;
   };
 
   struct fetch_trxs_request {

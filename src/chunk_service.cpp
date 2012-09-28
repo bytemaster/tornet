@@ -74,6 +74,16 @@ chunk_service::chunk_service( const fc::path& dbdir, const tn::node::ptr& node )
 
     my->_node->start_service( chunk_service_udt_port, "chunkd", [=]( const channel& c ) { this->my->on_new_connection(c); }  );
 }
+
+void chunk_service::shutdown() {
+    enable_publishing( false );
+    my->_node->close_service( chunk_service_udt_port );
+    my->_cache_db.reset();
+    my->_local_db.reset();
+    my->_pub_db.reset();
+}
+
+
 chunk_service::~chunk_service(){
 //  slog( "%p", this );
 } 

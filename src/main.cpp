@@ -1,517 +1,56 @@
-#include <fc/thread.hpp>
+#include <tornet/tornet_app.hpp>
+#include <Wt/WApplication>
+#include <Wt/WServer>
+#include <Wt/Json/Value>
+#include <Wt/Json/Object>
+#include <Wt/Json/Array>
+#include <Wt/Json/Parser>
 #include <fc/exception.hpp>
-#include <fc/log.hpp>
-#include <fc/signals.hpp>
-#include <fc/stream.hpp>
-#include <fc/bigint.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-
-#include <tornet/node.hpp>
-#include <tornet/kad.hpp>
-#include <tornet/chunk_service_client.hpp>
-#include <tornet/download_status.hpp>
-#include <tornet/chunk_service.hpp>
-#include <tornet/chunk_search.hpp>
-#include <tornet/name_service.hpp>
-#include <tornet/udt_test_service.hpp>
-#include <tornet/db/chunk.hpp>
-#include <tornet/db/publish.hpp>
-#include <tornet/db/peer.hpp>
-#include <tornet/udt_channel.hpp>
-#include <string>
-#include <vector>
-#include <sstream>
-#include <iostream>
-#include <fstream>
-#include <iomanip>
-
-#include <fc/program_options.hpp>
-#include <boost/program_options.hpp>
-
-#include <tornet/service_ports.hpp>
-
-#include <signal.h>
-
-void handle_sigint( int si );
-
-//boost::signal<void()> quit;
-enum chunk_order{
-  by_revenue,
-  by_opportunity,
-  by_distance
-};
+#include <fc/thread.hpp>
+#include <tornet/WTornetApplication.hpp>
 
 
-void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs, const tn::name_service::ptr& _ns );
-//#include <iostream>
-
-void start_services( int argc, char** argv ) {
-  std::string data_dir;
-  uint16_t    node_port = 0;
-  std::vector<std::string> init_connections;
-
-  namespace po = boost::program_options;
-
-  po::options_description desc("Allowed options");
-  desc.add_options()
-    ("help,h", "print this help message." )
-    ("listen,l", po::value<uint16_t>(&node_port)->default_value(node_port), "Port to run node on." )
-    ("data_dir,d", po::value<std::string>(&data_dir)->default_value("data"), "Directory to store data" )
-    ("bootstrap,b", po::value<std::vector<std::string> >(&init_connections), "HOST:PORT of a bootstrap node" )
-  ;
-  po::variables_map vm;
-  po::store( po::parse_command_line(argc,argv,desc), vm );
-  po::notify(vm);
-  //vm.parse_command_line( argc, argv, desc );
-
-  if( vm.count("help") ) {
-      std::cout << desc << "\n";
-      //QCoreApplication::exit(1);
-      exit(1);
-      return;
-  }
-  
-  tn::node::ptr node(new tn::node());
-
-  try {
-      node->init( data_dir.c_str(), node_port );
-
-      tn::chunk_service::ptr    cs( new tn::chunk_service(fc::path(data_dir.c_str())/"chunks", node) );
-      tn::name_service::ptr     ns( new tn::name_service(fc::path(data_dir.c_str())/"names", node) );
-      tn::udt_test_service::ptr udt_ts( new tn::udt_test_service(node) );
-   //   tn::message_service::ptr  ms( new tn::message_service( node );
-
-      wlog( "services started, ready for action" );
-
-      for( uint32_t i = 0; i < init_connections.size(); ++i ) {
-        try {
-            wlog( "Attempting to connect to %s", init_connections[i].c_str() );
-            fc::sha1 id = node->connect_to( fc::ip::endpoint::from_string( init_connections[i].c_str() ) );
-            wlog( "Connected to %s", fc::string(id).c_str() );
-
-        } catch ( ... ) {
-            wlog( "Unable to connect to node %s, %s", 
-                  init_connections[i].c_str(), fc::current_exception().diagnostic_information().c_str() );
-        }
-      }
-
-      fc::sha1 target = node->get_id();
-      target.data()[19] += 1;
-      slog( "Bootstrap, searching for self...", fc::string(node->get_id()).c_str(), fc::string(target).c_str()  );
-      tn::kad_search::ptr ks( new tn::kad_search( node, target ) );
-      ks->start();
-      ks->wait();
-
-      slog( "Results: \n" );
-      //const std::map<fc::sha1,tn::host>&
-      auto r = ks->current_results();
-      auto itr  = r.begin(); 
-      while( itr != r.end() ) {
-        slog( "   distance: %s   node: %s  endpoint: %s", 
-                 fc::string(itr->first).c_str(), fc::string(itr->second.id).c_str(), fc::string(itr->second.ep).c_str() );
-        ++itr;
-      }
-
-
-
-      //auto cli_done = fc::async([=](){cli(node,cs);},"cli");
-      cli(node,cs,ns);
-      //fc::wait(quit);
-  } catch ( ... ) {
-    elog( "%s", fc::current_exception().diagnostic_information().c_str() );
-  }
-  wlog( "gracefully shutdown node." );
-  node->close();
-  wlog( "\n\nexiting services!\n\n" );
+Wt::WApplication* create_application( const Wt::WEnvironment& env ) {
+  return new WTornetApplication(env);
 }
 
 
-
-void print_chunks( const tn::db::chunk::ptr& db, int start, int limit, chunk_order order ) {
-
-    int cnt = db->count();
-    if( order == by_distance ) {
-    std::cerr<<std::setw(6)<<"Index"<<"  "<<std::setw(40)<< "ID" << "  " << std::setw(8) << "Size" << "  " 
-            <<std::setw(8) << "Queries"  << "  " 
-            <<std::setw(10)<< "Q/Year"   << "  "
-            <<std::setw(5) << "DistR"    << "  " 
-            <<std::setw(8) << "Price"    << "  " 
-            <<"Rev/Year\n";
-    std::cerr<<"------------------------------------------------------------------------------------\n";
-        tn::db::chunk::meta m;
-        fc::sha1 id;
-        for( int i = 0; i <  cnt; ++i ) {
-          db->fetch_index( i+1, id, m );
-          std::cerr<< std::setw(6) << i                        << "  "
-                   <<                fc::string(id).c_str()    << "  " 
-                   << std::setw(8)  << m.size                  << "  " 
-                   << std::setw(8)  << m.query_count           << "  " 
-                   << std::setw(10) << m.annual_query_count()  << "  "
-                   << std::setw(5)  << (int)m.distance_rank    << "  " 
-                   << std::setw(8)  << m.price()               << "  "
-                   << std::setw(10) << m.annual_revenue_rate() << "\n";
-        }
-    } else if( order == by_opportunity ) {
-    std::cerr<<std::setw(6)<<"Index"<<"  "<<std::setw(40)<< "ID" << "  " << std::setw(8) << "Size" << "  " 
-            <<std::setw(8) << "Queries"  << "  " 
-            <<std::setw(10)<< "Q/Year"   << "  "
-            <<std::setw(5) << "DistR"    << "  " 
-            <<std::setw(8) << "Price"    << "  " 
-            <<"Rev/Year*\n";
-    std::cerr<<"------------------------------------------------------------------------------------\n";
-      fc::vector<tn::db::chunk::meta_record> recs;
-      db->fetch_best_opportunity( recs, 10 );
-      for( uint32_t i = 0; i < recs.size(); ++i ) {
-          std::cerr<< std::setw(6) << i                        << "  "
-                   <<                fc::string(recs[i].key).c_str()                      << "  " 
-                   << std::setw(8)  << recs[i].value.size                  << "  " 
-                   << std::setw(8)  << recs[i].value.query_count           << "  " 
-                   << std::setw(10) << recs[i].value.annual_query_count()  << "  "
-                   << std::setw(5)  << (int)recs[i].value.distance_rank    << "  " 
-                   << std::setw(8)  << recs[i].value.price()               << "  "
-                   << std::setw(10) << recs[i].value.annual_revenue_rate() << "\n";
-      }
-    } else if( order == by_revenue ) {
-      fc::vector<tn::db::chunk::meta_record> recs;
-      db->fetch_worst_performance( recs, 10 );
-      for( uint32_t i = 0; i < recs.size(); ++i ) {
-          std::cerr<< std::setw(6) << i                        << "  "
-                   <<                fc::string(recs[i].key).c_str()                      << "  " 
-                   << std::setw(8)  << recs[i].value.size                  << "  " 
-                   << std::setw(8)  << recs[i].value.query_count           << "  " 
-                   << std::setw(10) << recs[i].value.annual_query_count()  << "  "
-                   << std::setw(5)  << (int)recs[i].value.distance_rank    << "  " 
-                   << std::setw(8)  << recs[i].value.price()               << "  "
-                   << std::setw(10) << recs[i].value.annual_revenue_rate() << "\n";
-      }
-    }
-}
-
-int calc_dist( const fc::sha1& d ) {
-  fc::bigint bi(d.data(), sizeof(d));
-  fc::sha1   mx; memset( mx.data(),0xff,sizeof(mx));
-  fc::bigint max(mx.data(),sizeof(mx));
-
-  return ((bi * fc::bigint( 1000 )) / max).to_int64();
-}
-
-
-boost::posix_time::ptime to_system_time( uint64_t utc_us ) {
-//    typedef boost::chrono::microseconds duration_t;
-//    typedef duration_t::rep rep_t;
-//    rep_t d = boost::chrono::duration_cast<duration_t>(t.time_since_epoch()).count();
-    static boost::posix_time::ptime epoch(boost::gregorian::date(1970, boost::gregorian::Jan, 1));
-    return epoch + boost::posix_time::seconds(long(utc_us/1000000)) + boost::posix_time::microseconds(long(utc_us%1000000));
-}
-
-
-void print_record_header() {
-    std::cerr<<std::setiosflags(std::ios::left)<< std::setw(21) <<"Host:Port"<<" "
-             <<"C "
-             <<std::setw(40) <<"ID"<<" "
-             <<std::setw(10) <<"Dist"<<" "
-             <<std::setw(5)  <<"Rank"<<" "
-             <<std::setw(5)  <<"PRank"<<" "
-             //<<std::setw(8)  <<"% Avail"<<" "
-             <<std::setw(8)  <<"priority"<<" "
-             <<std::setw(8)  <<"RTT(us)"<<" "
-             <<std::setw(10) <<"EstB(B/s)"<<" "
-             <<std::setw(10) <<"SentC"<<" "
-             <<std::setw(10) <<"RecvC"<<" "
-             <<std::setw(3)  <<"FW"<<" "
-             <<std::setw(30) <<"First Contact"<<" "
-             <<std::setw(30) <<"Last Contact"<<" "
-             <<std::setw(10) <<"nonce[0]"<<" "
-             <<std::setw(10) <<"nonce[1]"<<" "
-             <<std::endl;
-   std::cerr<<"----------------------------------------------------------"
-            <<"----------------------------------------------------------"
-            <<"----------------------------------------------------------\n";
-}
-
-void print_record( const tn::db::peer::record& rec, const tn::node::ptr& nd ) {
-  std::cerr<< std::setw(21) 
-           << fc::string(rec.last_ep).c_str() <<" "
-           << (rec.connected ? 'C' : ' ') << ' '
-           << std::setw(40) << fc::string(rec.id()).c_str() << " "
-           << std::setw(10) << calc_dist(rec.id() ^ nd->get_id()) << " "
-           << std::setw(5)  << int(rec.rank) << " "
-           << std::setw(5)  << int(rec.published_rank) << " "
-      //     << std::setw(8)   << double(rec.availability) / uint16_t(0xffff) <<" "
-           << std::setw(8)   << rec.priority << " "
-           << std::setw(8)   << (rec.avg_rtt_us) <<" "
-           << std::setw(10)  << rec.est_bandwidth << " "
-           << std::setw(10)  << rec.sent_credit << " "
-           << std::setw(10)  << rec.recv_credit << " "
-           << std::setw(3)   << (rec.firewalled ? 'Y' : 'N') << " "
-           << std::setw(30)  << boost::posix_time::to_simple_string(to_system_time( rec.first_contact )) <<" "
-           << std::setw(30)  << boost::posix_time::to_simple_string(to_system_time( rec.last_contact ))  <<" "
-           << std::setw(10)  << (rec.nonce[0]) << " " << std::setw(10) << (rec.nonce[1]) << " "
-           << std::endl;
-}
-
-
-void cli( const tn::node::ptr& _node, const tn::chunk_service::ptr& _cs, const tn::name_service::ptr& _ns ) {
-     fc::thread* t = new fc::thread("cin");
-     std::string line;
-     while( t->async( [&](){ return (bool)std::getline(std::cin, line); } ).wait() ) {
-      try {
-       std::stringstream ss(line);
-     
-       std::string cmd;
-       ss >> cmd;
-       if( cmd == "quit" )  {
-        return;
-       } if( cmd == "import" )  {
-
-         std::string infile;
-         ss >> infile;
-         fc::sha1 tid, check;
-         uint64_t seed;
-         _cs->import( fc::path(infile.c_str()), tid, check, seed, fc::path() );
-         std::cout<<"Created "<<infile<<".tn with TID: "<<fc::string(tid).c_str()<<" and CHECK: "<<fc::string(check).c_str()<<" seed: "<<seed<<"\n";
-
-       } else if( cmd == "export" ) {
-         std::string infile;
-         ss >> infile;
-         elog( "not implemented" );
-       } else if( cmd == "reserve" ) {
-         std::string n;
-         ss >> n;
-
-         _ns->reserve_name( n.c_str() );
-
-       } else if( cmd == "export_tid" ) {
-
-         std::string tid,check;
-         uint64_t seed;
-         ss >> tid >> check >> seed;
-         _cs->export_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()), seed );
-       } else if( cmd == "download" ) {
-         std::string tid, check, filename;
-         uint64_t seed;
-         ss >> tid >> check >> seed >> filename;
-         std::ofstream out(filename.c_str(), std::ios::binary );
-         fc::ostream   outf(out);
-         auto stat = _cs->download_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()), seed, outf );
-         slog( "waiting for download to complete");
-         stat->progress.connect( [](double per, const fc::string& st) {
-                slog( "%f complete   %s", per, st.c_str() ); 
-             } );
-
-         fc::wait(stat->complete);
-         slog( "download complete" );
-       } else if( cmd == "publish" ) {
-         std::string tid, check;
-         ss >> tid >> check;
-         _cs->publish_tornet( fc::sha1(tid.c_str()), fc::sha1(check.c_str()), 3 );
-       } else if( cmd == "find" ) {
-         std::string cid;
-         ss >> cid;
-        
-         slog( "Starting search..." );
-         tn::chunk_search::ptr csearch( new tn::chunk_search(_node, fc::sha1(cid.c_str()), 10, 1, true ) );  
-         csearch->start();
-         csearch->wait();
-
-         slog( "Results: \n" );
-         const std::map<fc::sha1,tn::host>&  r = csearch->current_results();
-         auto itr  = r.begin(); 
-         while( itr != r.end() ) {
-           slog( "   node id: %s   distance: %s  ep: %s", 
-                     fc::string(itr->first).c_str(), fc::string(itr->second.id).c_str(), fc::string(itr->second.ep).c_str() );
-           ++itr;
-         }
-
-         slog( "Hosting Matches: \n" ); {
-           const std::map<fc::sha1,fc::sha1>&  r = csearch->hosting_nodes();
-           for( auto itr = r.begin(); itr != r.end(); ++itr ) {
-             slog( "   node id: %s   distance: %s", fc::string(itr->second).c_str(), fc::string(itr->first).c_str() );
-           }
-         }
-         wlog( "avg query rate: %f    weight: %f", csearch->avg_query_rate(), csearch->query_rate_weight() );
-       
-       } else if( cmd == "show" ) {
-         std::string what;
-         std::string order;
-         ss >> what;
-         ss >> order;
-         chunk_order o = by_distance;
-         if( order == "by_revenue" ) o = by_revenue;
-         else if( order == "by_opportunity" ) o = by_opportunity;
-         else if( order == "by_distance" || order == "" ) o = by_distance;
-         else { 
-          std::cerr<<"Invalid order '"<<order<<"'\n  options are by_revenue, by_opportunity, by_distance\n";
-         }
-
-         if( what == "rank" ) {
-          std::cerr<<"Local Rank: "<< _node->rank()<<std::endl;
-         }
-
-         if( what == "local" ) {
-          print_chunks( _cs->get_local_db(), 0, 0xffffff, o );
-         } else if( what == "cache") {
-          print_chunks( _cs->get_cache_db(), 0, 0xffffff, o );
-          /*
-            int cnt = cs->get_cache_db()->count();
-            tn::db::chunk::meta m;
-            fc::sha1 id;
-            std::cerr<<"Index "<< "ID" << "  " << "Size" << "  " << "Queried" <<  "  " << "Dist Rank" << "  Annual Rev\n";
-            std::cerr<<"----------------------------------------------------------------------\n";
-            for( uint32_t i = 0; i <  cnt; ++i ) {
-              cs->get_cache_db()->fetch_index( i+1, id, m );
-              std::cerr<<i<<"] " << id << "  " << m.size << "  " << m.query_count <<  "  " << (int)m.distance_rank << "  " << m.annual_revenue_rate() << "\n";
-            }
-          */
-         } else if( what == "connections" ) {
-            fc::vector<tn::db::peer::record> recs = _node->active_peers();
-            print_record_header();
-            for( uint32_t i =0; i < recs.size(); ++i ) {
-              print_record( recs[i], _node );
-            }
-         } else if( what == "publish" ) {
-            uint32_t cnt = _cs->get_publish_db()->count(); 
-            tn::db::publish::record rec;
-            fc::sha1                id;
-            std::cerr<<"AI = Access Interval\n";
-            std::cerr<< std::setw(40) << "ID" << " "
-                     << std::setw(10) << "AI" << " "
-                     << std::setw(10) << "Next" << " "
-                     << std::setw(10) << "Hosts" << " "
-                     << std::setw(10) << "Desired Hosts" << "\n";
-            std::cerr<<"-----------------------------------------------------------------------------\n";
-            for( uint32_t i = 1; i <= cnt; ++i ) {
-              _cs->get_publish_db()->fetch_index( i, id, rec );
-              std::cerr << std::setw(40) << fc::string(id).c_str() << " " 
-                        << std::setw(10) << rec.access_interval << " " 
-                        << std::setw(10) << (rec.next_update == 0 ? std::string("now") : boost::posix_time::to_simple_string( to_system_time( rec.next_update ) )) << " "
-                        << std::setw(10) << rec.host_count << " " 
-                        << std::setw(10) << rec.desired_host_count << std::endl;
-            }
-         } else if( what == "users" ) {
-            print_record_header();
-            tn::db::peer::ptr p = _node->get_peers();
-            int cnt = p->count();
-            tn::db::peer::record r;
-            fc::sha1 rid;
-            for( uint32_t i = 0; i < cnt; ++i ) {
-              p->fetch_index( i+1, rid, r );
-              print_record( r, _node );
-            }
-         } else if( what == "tornet" ) {
-           std::string tornet_file;
-           ss >> tornet_file;
-         } else if( what == "tid" ) {
-           std::string tid,check; 
-           ss >> tid >> check;
-         }
-       } else if( cmd == "start_pub" ) {
-        slog( "starting publish loop");
-        _cs->enable_publishing(true);
-       } else if( cmd == "stop_pub" ) {
-        slog( "stoping publish loop");
-        _cs->enable_publishing(false);
-       } else if( cmd == "store" ) {
-          std::string chunk_id;
-          std::string node_id;
-          ss >> chunk_id >> node_id;
-          fc::sha1 cid( chunk_id.c_str() );
-
-          tn::db::chunk::meta met;
-          _cs->get_local_db()->fetch_meta( cid, met, false ); 
-          if( met.size ) {
-              fc::vector<char> tmp(met.size);
-              _cs->get_local_db()->fetch_chunk( cid,fc::mutable_buffer(tmp.data(),tmp.size() ), 0 );
-
-              auto csc   = _node->get_client<tn::chunk_service_client>(fc::sha1(node_id.c_str()));
-              auto reply = csc->store(tmp).wait();
-              slog( "reply %d", int(reply.result) );
-          }
-       } else if( cmd == "udt_test" ) {
-          auto start = fc::time_point::now();
-          std::string node_id;
-          ss >> node_id;
-          /**  This test will open a channel, send 1MB, recv 1MB and then close it. */
-         
-          fc::vector<char> buf(1024*1024);
-          size_t tot = 0;
-          slog( "open channel" );
-          tn::udt_channel c(_node->open_channel( fc::sha1(node_id.c_str()), tn::udt_test_port ) );
-
-          for( int i = 0; i < 1000; ++i ) {
-             c.write( fc::const_buffer( buf.data(), buf.size() ) );
-             tot += buf.size(); 
-             //fc::vector<char> rbuf(1024*200);
-             //c.read( fc::mutable_buffer(rbuf.data(),rbuf.size()) );
-             //tot += rbuf.size(); 
-          }
-          c.close();
-          auto done = fc::time_point::now();
-          slog( "%f kbs", (tot/1024.0) / ((done-start).count()/1000000.0) );
-       } else {
-         fc::cerr<<"\nCommands:\n";
-         fc::cerr<<"  import      FILENAME                - loads FILENAME and creates chunks and dumps FILENAME.tornet\n";
-         fc::cerr<<"  export      TORNET_FILE             - loads TORNET_FILE and saves FILENAME\n";
-         fc::cerr<<"  find        CHUNK_ID                - looks for the chunk and returns query rate stats for the chunk\n";
-         fc::cerr<<"  store       CHUNK_ID   NODE_ID      - stores the given chunk from local_cache on node_id\n";
-         fc::cerr<<"  export_tid  TID CHECKSUM SEED [OUT_FILE] - loads TORNET_FILE and saves FILENAME\n";
-         fc::cerr<<"  publish TID CHECKSUM                - pushes chunks from TORNET_FILE out to the network, including the TORNETFILE itself\n";
-         fc::cerr<<"  download TID CHECKSUM SEED FILE          - fetches the tornet file at TID with CHECKSUM and saves it to disk as FILE\n";
-         fc::cerr<<"  show local START LIMIT [by_distance|by_revenue|by_opportunity]\n";
-         fc::cerr<<"  show cache START LIMIT |by_distance|by_revenue|by_opportunity]\n";
-         fc::cerr<<"  show users START LIMIT |by_balance|by_rank|...]\n";
-         fc::cerr<<"  show publish \n";
-         fc::cerr<<"  start_pub\n";
-         fc::cerr<<"  stop_pub\n";
-         fc::cerr<<"  reserve NAME                        - if the name is not in use, attempts to reserve it.\n";
-         fc::cerr<<"  udt_test node_id port \n";
-         fc::cerr<<"  rankeffort EFFORT                  - percent effort to apply towoard improving rank\n";
-         fc::cerr<<"  help                               - prints this menu\n\n";
-         fc::cerr.flush();
-       }
-     } catch ( const std::exception& e ) {
-        wlog( "%s", fc::current_exception().diagnostic_information().c_str() );
-        wlog( "%s", e.what() );
-     } catch ( ... ) {
-        wlog( "%s", fc::current_exception().diagnostic_information().c_str() );
-     }
-    } 
-}
-
-
-
-
-
-
-
-
-fc::future<void> start_services_complete;
-
-fc::thread* service_thread = 0;
 int main( int argc, char** argv ) {
-  fc::thread::current().set_name("main");
-  service_thread = &fc::thread::current();
-  signal( SIGINT, handle_sigint );
-
   try {
-    start_services_complete = fc::async( [=]() { start_services( argc, argv ); }, "start_services" );
-    start_services_complete.wait();
+      fc::thread::current().set_name("main");
+
+      Wt::WServer server(argv[0]);
+      server.setServerConfiguration(argc, argv, WTHTTP_CONFIGURATION);
+
+      tn::tornet_app::config tcfg;
+      std::string json_cfg;
+
+      server.readConfigurationProperty( "tornet", json_cfg );
+
+      Wt::Json::Value jval;
+      Wt::Json::parse( json_cfg, jval );
+      Wt::Json::Object jobj = jval;
+
+      tcfg.data_dir = std::string(jobj.get("data_dir")).c_str();
+
+      tcfg.tornet_port = (int)jobj.get("tornet_port");
+      Wt::Json::Array bs = jobj.get("bootstrap_hosts");
+      for( auto i = bs.begin(); i != bs.end(); ++i )
+        tcfg.bootstrap_hosts.push_back( std::string(*i).c_str() );
+        
+      tn::tornet_app::instance()->configure( tcfg );
+
+      server.addEntryPoint(Wt::Application, []( const Wt::WEnvironment& env ) { return create_application(env); }, "", "/favicon.ico" );
+
+      int r = Wt::WServer::waitForShutdown(); 
+      
+      tn::tornet_app::instance()->shutdown();
+      return r;
+  } catch ( const std::exception& e ) {
+      std::cerr<< fc::current_exception().diagnostic_information().c_str()<< std::endl;
+      std::cerr<<e.what()<<std::endl;
   } catch ( ... ) {
-    elog( "%s", fc::current_exception().diagnostic_information().c_str() );
+      std::cerr<< fc::current_exception().diagnostic_information().c_str()<< std::endl;
   }
-
-  return 0;
-}
-
-
-void handle_sigint( int si ) {
-  slog( "%d", si );
-  static int count = 0;
-  if( !count ){ 
-      //quit();
-      service_thread->poke();
-//    QCoreApplication::exit(0);
-  }
-  else exit(si);
-  ++count;
+  return -1;
 }

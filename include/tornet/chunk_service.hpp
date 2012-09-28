@@ -64,6 +64,8 @@ namespace tn {
       chunk_service( const fc::path&      dbdir, const fc::shared_ptr<tn::node>& n );
 
       virtual ~chunk_service();
+
+      void shutdown();
        
       fc::shared_ptr<tn::db::chunk>&    get_cache_db();
       fc::shared_ptr<tn::db::chunk>&    get_local_db();

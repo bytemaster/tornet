@@ -1,4 +1,5 @@
 #include <tornet/name_service.hpp>
+#include <tornet/name_service_messages.hpp>
 #include <tornet/node.hpp>
 #include <tornet/udt_channel.hpp>
 #include <tornet/db/name.hpp>
@@ -16,6 +17,11 @@ namespace tn {
       typedef fc::shared_ptr<name_service_connection> ptr;
 
       name_service_connection( udt_channel&& c );
+
+      void               broadcast( const broadcast_msg& m );
+      fetch_block_reply  fetch_blocks( const fetch_block_request& req );
+      resolve_name_reply resolve_name( const resolve_name_request& req );
+      fetch_trxs_reply   fetch_transactions( const fetch_trxs_request& req );
 
     protected:
       virtual ~name_service_connection(){}
@@ -53,13 +59,17 @@ namespace tn {
   }
 
   name_service::~name_service() {
-    my->_node->close_service( 53 );
+    shutdown();
   }
 
   
   fc::vector<fc::string> name_service::get_reserved_names()const{
     fc::vector<fc::string> names;
     return names;
+  }
+
+  void name_service::shutdown() {
+    my->_node->close_service( 53 );
   }
 
 
@@ -158,10 +168,12 @@ namespace tn {
 
   name_service_connection::name_service_connection( tn::udt_channel&& c )
   :_chan(fc::move(c)) {
+  /*
      _rpc.add_method( broadcast_id,    this, &name_service_connection::broadcast_msg );
      _rpc.add_method( fetch_blocks_id, this, &name_service_connection::fetch_blocks );
      _rpc.add_method( fetch_trxs_id,   this, &name_service_connection::fetch_transactions );
      _rpc.add_method( resolve_name_id, this, &name_service_connection::resolve_name );
+     */
      _rpc.connect(_chan);
   }
   void name_service_connection::broadcast( const broadcast_msg& msg ) {
@@ -176,8 +188,8 @@ namespace tn {
     return reply;
   }
 
-  fetch_transactions_reply name_service_connection::fetch_transactions( const fetch_transactions_request& req ) {
-    fetch_transactions_reply reply;
+  fetch_trxs_reply name_service_connection::fetch_transactions( const fetch_trxs_request& req ) {
+    fetch_trxs_reply reply;
     return reply; 
   }
 

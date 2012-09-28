@@ -61,13 +61,6 @@ namespace tn {
     fc::public_key_t   to_pub_key;
   };
 
-  union name_transaction {
-    name_reserve_trx   reserve;
-    name_publish_trx   publish;
-    name_update_trx    update;
-    name_transfer_trx  transfer;
-  };
-
   /**
    *  Before a user can publish a transaction, the
    *  must find a hash for their transaction that is

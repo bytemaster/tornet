@@ -29,16 +29,16 @@ endif()
 
 
 
-#FIND_PACKAGE( Wt REQUIRED )
-#INCLUDE_DIRECTORIES( ${Wt_INCLUDE_DIR} )
-#find_package( Qt4 REQUIRED )
-#add_definitions( -DQT_NO_KEYWORDS )
+FIND_PACKAGE( Wt REQUIRED )
+INCLUDE_DIRECTORIES( ${Wt_INCLUDE_DIR} )
+find_package( Qt4 REQUIRED )
+add_definitions( -DQT_NO_KEYWORDS )
 
 #find_package( Protobuf REQUIRED )
 
 FIND_PACKAGE( OpenSSL REQUIRED )
 SET(Boost_USE_STATIC_LIBS ON)
-FIND_PACKAGE(Boost 1.51 COMPONENTS thread date_time system filesystem program_options signals serialization chrono unit_test_framework ) 
+FIND_PACKAGE(Boost 1.51 COMPONENTS thread date_time system filesystem program_options signals serialization chrono unit_test_framework regex random ) 
 LINK_DIRECTORIES( ${Boost_LIBRARY_DIRS} )
 include_directories( ${Boost_INCLUDE_DIR} )
 
@@ -60,6 +60,7 @@ add_subdirectory(context)
 
 SET( sources 
     src/main.cpp
+    src/WTornetApplication.cpp
     src/node.cpp
     src/connection.cpp
     src/db/chunk.cpp
@@ -80,6 +81,7 @@ SET( sources
     src/chunk_service_client.cpp
     src/chunk_service_messages.cpp
     src/download_status.cpp
+    src/tornet_app.cpp
     src/chisq.c
     src/raw_rpc.cpp
 
@@ -120,6 +122,9 @@ SET( CXX_FLAGS -Wall )
 SET( libraries 
     fc
     boost_context
+    ${Wt_DEBUG_LIBRARIES}
+    ${Wt_HTTP_LIBRARY}
+    ${Wt_EXT_LIBRARY}
     ${BerkeleyDB_LIBRARY}
     ${Boost_THREAD_LIBRARY} 
     ${Boost_CHRONO_LIBRARY} 
@@ -129,10 +134,14 @@ SET( libraries
     ${Boost_FILESYSTEM_LIBRARY} 
     ${Boost_PROGRAM_OPTIONS_LIBRARY} 
     ${Boost_SIGNALS_LIBRARY}
+    ${Boost_REGEX_LIBRARY}
     ${QT_QTCORE_LIBRARY}
     ${QT_QTGUI_LIBRARY}
     ${OPENSSL_CRYPTO_LIBRARY}
     ${OPENSSL_CRYPTO_LIBRARIES}
+    ${OPENSSL_SSL_LIBRARIES}
+    z
+    ${Boost_RANDOM_LIBRARY}
     ${rt_library}
     ${pthread_library}
     )

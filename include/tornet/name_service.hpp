@@ -24,6 +24,7 @@ namespace tn {
       ~name_service();
 
       void  download_block_chain();
+      void shutdown();
 
       /**
        *  @return a list of all names reserved by this node.

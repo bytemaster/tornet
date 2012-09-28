@@ -71,7 +71,7 @@ namespace tn {
 
       uint64_t* nonce()const;
 
-      void     close();
+      void     shutdown();
 
      // void     cache_object( const id_type& node_id, const fc::string& key, const fc::any& v );
      // fc::any  get_cached_object( const id_type& node_id, const fc::string& key )const;

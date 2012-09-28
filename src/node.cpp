@@ -24,9 +24,9 @@ namespace tn {
   fc::thread&          node::get_thread()const { return my->_thread; }
   const node::id_type& node::get_id()const     { return my->_id;     }
 
-  void                 node::close() {
+  void                 node::shutdown() {
     if( !my->_thread.is_current() ) {
-      my->_thread.async( [this](){ close(); } ).wait();
+      my->_thread.async( [this](){ shutdown(); } ).wait();
       return;
     }
     // TODO ... 
