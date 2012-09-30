@@ -59,6 +59,7 @@ namespace tn {
 
       fc::thread&    get_thread()const;
       peer_db_ptr    get_peers()const;
+      fc::path       datadir()const;
 
       /**
        * @param ddir - data directory where identity information is stored.

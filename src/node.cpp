@@ -24,6 +24,7 @@ namespace tn {
   fc::thread&          node::get_thread()const { return my->_thread; }
   const node::id_type& node::get_id()const     { return my->_id;     }
 
+  fc::path             node::datadir()const    { return my->_datadir; }
   void                 node::shutdown() {
     if( !my->_thread.is_current() ) {
       my->_thread.async( [this](){ shutdown(); } ).wait();

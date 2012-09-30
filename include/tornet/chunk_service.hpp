@@ -4,6 +4,7 @@
 #include <fc/fwd.hpp>
 #include <fc/vector_fwd.hpp>
 #include <tornet/tornet_file.hpp>
+#include <tornet/link.hpp>
 
 namespace fc {
   class path;
@@ -34,7 +35,7 @@ namespace tn {
    *
    *  Modifies data using the random sequence.
    */
-  uint64_t  randomize( fc::vector<char>& data );
+  uint64_t  randomize( fc::vector<char>& data, uint64_t init_seed );
 
   /**
    *  Reverses the randomization performed by randomize
@@ -45,6 +46,8 @@ namespace tn {
 
   /**
    *  Provides an interface to two chunk databases, one local and one cache.
+   *  Handles requests from other nodes for chunks from the cache.
+   *  Provides interface to upload and download chunks.
    *
    *  The local chunk database stores the chunks the user imports or downloads without
    *  respect to their distance from the node or access patterns. 
@@ -62,7 +65,6 @@ namespace tn {
       typedef fc::shared_ptr<chunk_service> ptr;
 
       chunk_service( const fc::path&      dbdir, const fc::shared_ptr<tn::node>& n );
-
       virtual ~chunk_service();
 
       void shutdown();
@@ -73,38 +75,45 @@ namespace tn {
       fc::shared_ptr<tn::node>&         get_node();
 
       /**
-       *  Loads infile from disk, creates a tornet file and returns the tornet_id and thechecksum.
-       *  Optionally writes the tornet file to disk as outfile.
+       *  Loads the file from disk, turns it into chunks and then
+       *  starts publishing those chunks on the network at the
+       *  desired replication rate.
+       *
+       *  All published files show up in the link database. Once
+       *  the file has been published, local changes are not reflected,
+       *  it will have to be removed from the link DB.
        */
-      void import( const fc::path& infile, 
-                   fc::sha1& tornet_id, fc::sha1& checksum, uint64_t& seed,
-                   const fc::path& outfile  );
-
-      /**
-       *  Given a tornet_id and checksum, find the chunk, decrypt the tornetfile then find the
-       *  chunks from the tornet file and finally reconstruct the file on disk.
-       */
-      void export_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint64_t seed );
-
-      /**
-       *  Starts a new download operation.
-       */
-      fc::shared_ptr<download_status> download_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint64_t seed, fc::ostream& out );
+      tn::link publish( const fc::path& file, uint32_t rep = 3 );
      
       /**
        *  Reads the data for the chunk from the cache or local database.
+       *
+       *  @return an empty vector if no chunk was found
        */
       fc::vector<char> fetch_chunk( const fc::sha1& chunk_id );
-      tornet_file      fetch_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint64_t seed );
 
-      void publish_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint64_t seed, uint32_t rep = 3 );
+      /**
+       *  Assuming the data is stored locally, returns a tornet file,
+       *  otherwise throws an exception if the chunk has not been 
+       *  downloaded.
+       */
+      tornet_file fetch_tornet( const tn::link& ln );
+
+      /**
+       *  Performs a synchronous download of the specified chunk
+       */
+      fc::vector<char> download_chunk( const fc::sha1& chunk_id );
+
+      /**
+       *  Effectively the same as download_chunk(); fetch_tornet();
+       */
+      tornet_file download_tornet( const tn::link& ln );
 
       void enable_publishing( bool state );
-      bool publishing_enabled()const;
-
+      bool is_publishing()const;
     private:
       class impl;
-      fc::fwd<impl,64> my;
+      fc::fwd<impl,408> my;
   };
 
 }

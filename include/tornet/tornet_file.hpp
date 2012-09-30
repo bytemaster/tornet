@@ -50,6 +50,9 @@ struct tornet_file {
   tornet_file( const fc::string& n, uint64_t s )
   :name(n),size(s){}
   
+  char                      version;
+  uint8_t                   compression;
+  fc::string                mime;
   fc::sha1                  checksum;
   fc::string                name;
   uint64_t                  size;
@@ -64,7 +67,7 @@ FC_STATIC_REFLECT( tn::tornet_file::chunk_data,
   (size)(seed)(id)(slices) )
 
 FC_STATIC_REFLECT( tn::tornet_file,
-  (checksum)(name)(size)(chunks)(inline_data) )
+  (version)(compression)(mime)(name)(checksum)(size)(chunks)(inline_data) )
 
 FC_REFLECTABLE( tn::tornet_file::chunk_data )
 

@@ -13,9 +13,11 @@ class WTornetApplication : public Wt::WApplication {
     ~WTornetApplication();
 
     Wt::WTableView* createChunkTable();
+    void onPublish();
+    void onPublishSite();
   private:
     class impl;
-    fc::fwd<impl,8> my;
+    fc::fwd<impl,1000> my;
 };
 
 

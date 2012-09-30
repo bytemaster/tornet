@@ -9,6 +9,8 @@
 #include <fc/thread.hpp>
 #include <tornet/WTornetApplication.hpp>
 
+#include "WTornetResource.hpp"
+
 
 Wt::WApplication* create_application( const Wt::WEnvironment& env ) {
   return new WTornetApplication(env);
@@ -41,9 +43,13 @@ int main( int argc, char** argv ) {
       tn::tornet_app::instance()->configure( tcfg );
 
       server.addEntryPoint(Wt::Application, []( const Wt::WEnvironment& env ) { return create_application(env); }, "", "/favicon.ico" );
+      server.addResource( new WTornetResource(), "/fetch" );
 
-      int r = Wt::WServer::waitForShutdown(); 
-      
+      int r = -1;
+      if (server.start()) {
+          r = Wt::WServer::waitForShutdown(); 
+          server.stop();
+      } 
       tn::tornet_app::instance()->shutdown();
       return r;
   } catch ( const std::exception& e ) {

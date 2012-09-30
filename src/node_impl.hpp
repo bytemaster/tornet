@@ -63,6 +63,9 @@ namespace tn {
       }
       ~impl() {
         slog( "start quit" );
+        _sock.close();
+        if(_read_loop_complete.valid() ) 
+          _read_loop_complete.wait();
         _thread.quit();
         slog( "done quit %d", _ep_to_con.size() );
       }

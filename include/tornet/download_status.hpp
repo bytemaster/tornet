@@ -1,7 +1,7 @@
 #ifndef _TORNET_DOWNLOAD_STATUS_HPP_
 #define _TORNET_DOWNLOAD_STATUS_HPP_
 #include <fc/shared_ptr.hpp>
-#include <fc/signals.hpp>
+#include <fc/vector.hpp>
 #include <fc/fwd.hpp>
 
 namespace fc {
@@ -13,6 +13,18 @@ namespace fc {
 namespace tn {
   class chunk_service;
   class tornet_file;
+  class link;
+
+
+  class download_delegate : virtual public fc::retainable {
+      public:
+        typedef fc::shared_ptr<download_delegate> ptr;
+        virtual ~download_delegate(){};
+        virtual void download_data( fc::vector<char>&& data ){}
+        virtual void download_status( double per, const fc::string& m  ){}
+        virtual void download_error( int code, const fc::string& e ){}
+        virtual void download_complete(){}
+  };
 
   /**
    *  Downloads are a potentially long-lasting operation with a lot of 
@@ -24,17 +36,19 @@ namespace tn {
       typedef fc::shared_ptr<download_status> ptr;
 
       download_status( const fc::shared_ptr<chunk_service>& cs, 
-                       const fc::sha1& tornet_id, 
-                       const fc::sha1& check_sum, uint64_t seed, fc::ostream& out );
+                       const tn::link& ln,
+                       const download_delegate::ptr& dd );
 
       ~download_status();
 
       void  pause();
       void  start();
       void  cancel();
+
+      const fc::string& fail_string()const; // return the reason for any failure
+
       
-      const fc::sha1&  tornet_id()const;
-      const fc::sha1&  tornet_checksum()const;
+      const tn::link&  get_link()const;
 
       /**
        *  If the tornet description file has been fetched, this will return it.
@@ -43,18 +57,10 @@ namespace tn {
        */
       const tornet_file* get_tornet_file()const;
       double             percent_complete()const;
-      
-      /**
-       *  Every time an event occurs while downloading this signal is emited.
-       *
-       *  The first arg is a percent complete, the second argument is a 'status message'.
-       */
-      boost::signal<void(double,const fc::string&)> progress;
-      boost::signal<void()>                         complete;
 
     private:
       class impl;
-      fc::fwd<impl,552> my;
+      fc::fwd<impl,672> my;
   };
 
 }  // namespace tn

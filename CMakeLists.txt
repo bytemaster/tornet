@@ -59,9 +59,15 @@ add_subdirectory(context)
 
 
 SET( sources 
+    src/chunk_service.cpp
+    src/archive.cpp
     src/main.cpp
     src/WTornetApplication.cpp
+    src/WTornetResource.cpp
+    src/WUserItemModel.cpp
     src/node.cpp
+    src/dbo.cpp
+    src/sql_session.cpp
     src/connection.cpp
     src/db/chunk.cpp
     src/db/peer.cpp
@@ -71,7 +77,6 @@ SET( sources
     src/channel.cpp
     src/kad.cpp
     src/kbucket.cpp
-    src/chunk_service.cpp
     src/tornet_file.cpp
     src/name_service.cpp
     src/udt_test_service.cpp

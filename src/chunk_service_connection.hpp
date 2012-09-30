@@ -50,14 +50,14 @@ namespace tn {
           
           if( r.length != 0 && reply.result == chunk_session_result::available ) {
               if( r.length < 0 ) { // send it all
-                if( r.offset >= met.size ) {
+                if( int64_t(r.offset) >= int64_t(met.size) ) {
                   reply.result = chunk_session_result::invalid_range;
                 } else {
                   slog( "met size %d - offset %d", met.size, r.offset );  
                   reply.data.resize( met.size - r.offset );
                 }
               } else {
-                if( r.offset >= met.size ) {
+                if( int64_t(r.offset) >= int64_t(met.size) ) {
                   reply.result = chunk_session_result::invalid_range;
                 } else {
                   reply.data.resize( fc::min( size_t(r.length), size_t(met.size - r.offset) ) );

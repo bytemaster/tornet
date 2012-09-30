@@ -57,6 +57,8 @@ namespace tn { namespace db {
       peer( const fc::sha1& nid, const fc::path& dir );
       ~peer();
 
+      const fc::sha1& get_local_id()const;
+
       void init();
       void close();
       void sync();

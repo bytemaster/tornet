@@ -5,6 +5,7 @@
 #include <fc/fwd_impl.hpp>
 #include <fc/exception.hpp>
 #include <tornet/node.hpp>
+#include <tornet/kad.hpp>
 #include <tornet/chunk_service.hpp>
 #include <tornet/name_service.hpp>
 
@@ -59,6 +60,23 @@ namespace tn {
            wlog( "Unable to connect to node %s, %s", 
                  c.bootstrap_hosts[i].c_str(), fc::current_exception().diagnostic_information().c_str() );
        }
+     }
+
+     fc::sha1 target = my->_node->get_id();
+     target.data()[19] += 1;
+     slog( "Bootstrap, searching for self...", fc::string(my->_node->get_id()).c_str(), fc::string(target).c_str()  );
+     tn::kad_search::ptr ks( new tn::kad_search( my->_node, target ) );
+     ks->start();
+     ks->wait();
+
+     slog( "Results: \n" );
+     //const std::map<fc::sha1,tn::host>&
+     auto r = ks->current_results();
+     auto itr  = r.begin(); 
+     while( itr != r.end() ) {
+       slog( "   distance: %s   node: %s  endpoint: %s", 
+                fc::string(itr->first).c_str(), fc::string(itr->second.id).c_str(), fc::string(itr->second.ep).c_str() );
+       ++itr;
      }
   }
 

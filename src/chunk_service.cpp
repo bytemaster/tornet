@@ -5,6 +5,7 @@
 #include <tornet/chunk_service_client.hpp>
 #include <tornet/tornet_file.hpp>
 #include <tornet/download_status.hpp>
+#include <tornet/archive.hpp>
 #include <fc/fwd_impl.hpp>
 #include <fc/buffer.hpp>
 #include <fc/raw.hpp>
@@ -13,6 +14,9 @@
 #include <fc/hex.hpp>
 #include <fc/thread.hpp>
 #include <stdio.h>
+
+
+#include <boost/filesystem.hpp>
 
 #include <boost/random/mersenne_twister.hpp>
 #include <tornet/node.hpp>
@@ -32,12 +36,15 @@
 #include <tornet/service_ports.hpp>
 #include "chunk_service_connection.hpp"
 
+#include "persist.hpp"
+#include <Wt/Dbo/Transaction>
+
 namespace tn {
 
   class chunk_service::impl {
     public:
-      impl(chunk_service& cs)
-      :_self(cs) {
+      impl(chunk_service& cs, const tn::node::ptr& n)
+      :_self(cs),_node(n) {
         _publishing = false;
       }
       chunk_service&   _self;
@@ -61,8 +68,7 @@ namespace tn {
 
 
 chunk_service::chunk_service( const fc::path& dbdir, const tn::node::ptr& node )
-:my(*this) {
-    my->_node = node;
+:my(*this,node) {
     fc::create_directories(dbdir/"cache_db");
     fc::create_directories(dbdir/"local_db");
     my->_cache_db.reset( new db::chunk( node->get_id(), dbdir/"cache_db" ) );
@@ -93,202 +99,6 @@ db::chunk::ptr&   chunk_service::get_local_db() { return my->_local_db; }
 db::publish::ptr&   chunk_service::get_publish_db() { return my->_pub_db; }
 node::ptr&          chunk_service::get_node() { return my->_node; }
 
-//fc::any chunk_service::init_connection( const tn::rpc::connection::ptr& con ) {
-  /*
-    boost::shared_ptr<chunk_session> cc(new chunk_session(m_cache_db,con) );
-    boost::reflect::any_ptr<chunk_session> acc(cc);
-
-    uint16_t mid = 0;
-    boost::reflect::visit(acc, service::visitor<chunk_session>(*con, acc, mid) );
-  */
-//    return acc; 
-//}
-
-
-/**
- *
- *
- */
-void chunk_service::import( const fc::path& infile, 
-                            fc::sha1& tn_id, fc::sha1& checksum, uint64_t& seed,
-                            const fc::path& outfile ) 
-{
-  if( !fc::exists( infile ) )
-    FC_THROW_MSG( "File '%s' does not exist.", infile.string() ); 
-  if( fc::is_directory( infile ) )
-    FC_THROW_MSG( "'%s' is a directory, expected a file.", infile.string() ); 
-  if( !fc::is_regular( infile ) )
-    FC_THROW_MSG( "'%s' is not a regular file.", infile.string() ); 
-
-  uint64_t file_size  = fc::file_size(infile);
-  slog( "Importing %s of %lld bytes", infile.string().c_str(), file_size );
-  if( file_size == 0 )
-    FC_THROW_MSG( "'%s' is an empty file.", infile.string() );
-
-  {
-     // using namespace boost::interprocess;
-      fc::file_mapping  mfile(infile.string().c_str(), fc::read_only );
-      fc::mapped_region mregion(mfile,fc::read_only,0,file_size);
-      checksum = fc::sha1::hash( (char*)mregion.get_address(), mregion.get_size() );
-  } 
-  fc::blowfish bf;
-  fc::string fhstr = checksum;
-  bf.start( (unsigned char*)fhstr.c_str(), fhstr.size() );
-  slog("bf key %s", (unsigned char*)fhstr.c_str() );
-
-  bf.reset_chain();
-  slog( "Checksum %s", fc::string(fhstr).c_str() );
-
-  fc::ifstream in(infile.string().c_str(), fc::ifstream::in | fc::ifstream::binary );
-
-  uint64_t rfile_size = ((file_size+7)/8)*8; // needs to be a power of 8 for FB
-  uint64_t chunk_size = 1024*1024;
-  fc::vector<char> chunk( (fc::min)(chunk_size,rfile_size) );
-
-  tornet_file tf(infile.filename().string(),file_size);
-  int64_t r = 0;
-
-  while( r < int64_t(file_size) ) {
-    int64_t c = (fc::min)( uint64_t(file_size-r), (uint64_t)chunk.size() );
-    if( c < int64_t(chunk.size()) ) 
-      memset( chunk.data() + c, 0, chunk.size()-c );
-    in.read( chunk.data(), c );
-    int64_t pc = c;
-
-    // minimum chunk size is 32K + some random additional amount to
-    // prevent end pieces from 'stick out' at 32K even.   32K is needed
-    // to ensure proper entropy at the randomize step.
-    if( c < 1024*32 ) c = 1024*32 + (rand() % (1024*16)) ;
-
-    c = ((c+7)/8)*8;
-
-
-    bf.encrypt((unsigned char*)chunk.data(), c, fc::blowfish::CBC );
-
-    // ensure that the encrypted chunk is properly random
-    uint64_t seed = randomize(chunk);
-
-    fc::sha1 chunk_id = fc::sha1::hash(chunk.data(), c );
-    tf.chunks.push_back( tornet_file::chunk_data( pc, seed, chunk_id ) );
-    slog( "Chunk %d id %s", tf.chunks.size(), fc::string(chunk_id).c_str() );
-
-    // 64KB slices to allow parallel requests
-    int64_t s = 0;
-    while( s < c ) {
-     int64_t ss = (fc::min)( int64_t(64*1024), int64_t(c-s) ); 
-     tf.chunks.back().slices.push_back( fc::super_fast_hash( chunk.data()+s, ss ) );
-     s += ss;
-    }
-    // store the chunk in the database
-    my->_local_db->store_chunk( chunk_id, fc::const_buffer( chunk.data(), c ) );
-
-    r += c;
-  }
-  tf.checksum = checksum;
-
-  chunk = fc::raw::pack( tf );
-      fc::datastream<size_t> ps; 
-      fc::raw::pack(ps,tf );
-
-
- // slog( "%s", fc::json::to_string( tf ).c_str() );
- // slog( "packsize %d", ps.tellp() );
-
-  auto old_size = chunk.size();
-
-  // You cannot get 'random' data if your chunk size is near the size of your keyspace (256)
-  // so this places a minimum size on our chunks to something around 
-  if( chunk.size() < 32*1024 ) chunk.resize(32*1024 + (rand() % (1024*16)) );
-
-  chunk.resize( ((chunk.size()+7)/8)*8 );
-
-  if( old_size != chunk.size() ) 
-    memset( chunk.data() + old_size, 0, chunk.size() - old_size );
-
-  bf.reset_chain();
- // slog( "pre-encrypt chunk hex %s size %d", fc::to_hex(chunk.data(), chunk.size() ).c_str(), chunk.size() );
-  bf.encrypt( (unsigned char*)chunk.data(), chunk.size(), fc::blowfish::CBC );
-
-  seed = randomize(chunk);
- 
-//  slog( "chunk hex %s size %d", fc::to_hex(chunk.data(), chunk.size() ).c_str(), chunk.size() );
-  tn_id = fc::sha1::hash(  chunk.data(), chunk.size() );
- // slog( "store chunk %s", fc::string(tn_id).c_str() );
-  my->_local_db->store_chunk( tn_id, fc::const_buffer( chunk.data(), chunk.size() ) );
-
-  fc::string of;
-  if( outfile == fc::path() )
-    of = infile.string() + ".tn";
-  else
-    of = outfile.string();
-  fc::ofstream out( of, fc::ofstream::binary | fc::ofstream::out );
- 
- // TODO:::
-  fc::raw::pack( out, tf );
-}
-
-void chunk_service::export_tornet( const fc::sha1& tn_id, const fc::sha1& checksum, uint64_t seed ) {
-  tornet_file tf = fetch_tornet( tn_id, checksum, seed );
-
-  fc::blowfish bf;
-  fc::string fhstr = checksum;
-  bf.start( (unsigned char*)fhstr.c_str(), fhstr.size() );
-
-  // create a file of tf.size rounded up to the nearest 8 bytes (for blowfish)
-
-  //int64_t rsize = ((tf.size+7)/8)*8;
-  int64_t rsize = tf.size;
-  FILE* f = fopen(tf.name.c_str(), "w+b");
-  fseeko( f, rsize-1, SEEK_SET );
-  char l=0;
-  fwrite( &l, 1, 1, f );
-  fflush(f);
-  fclose(f);
-
-  fc::file_mapping  mfile(tf.name.c_str(), fc::read_write );
-  fc::mapped_region mregion(mfile,fc::read_write );
-
-  bf.reset_chain();
-  char* start = (char*)mregion.get_address();
-  char* pos = start;
-  char* end = pos + mregion.get_size();
-  for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
-    slog( "writing chunk %d %s at pos %d size: %d,   %d remaining", 
-    i, fc::string(tf.chunks[i].id).c_str() , uint64_t(pos-start), tf.chunks[i].size, uint64_t(end-pos)); 
-    if( (pos + tf.chunks[i].size) > end ) {
-      FC_THROW_MSG( "Attempt to write beyond end of file!" );
-    }
-    uint32_t adj_size = ((tf.chunks[i].size+7)/8)*8;
-    if( adj_size != tf.chunks[i].size ) {
-      fc::vector<char> tmp(adj_size);
-      if( !my->_local_db->fetch_chunk( tf.chunks[i].id, fc::mutable_buffer(tmp.data(),tmp.size()) ) ) {
-        FC_THROW_MSG( "Error fetching chunk %s", tf.chunks[i].id );
-      }
-
-      derandomize( tf.chunks[i].seed, tmp );
-      bf.decrypt( (unsigned char*)&tmp.front(), adj_size, fc::blowfish::CBC );
-      memcpy( pos, &tmp.front(), tf.chunks[i].size );
-    } else {
-      if( !my->_local_db->fetch_chunk( tf.chunks[i].id, fc::mutable_buffer(pos,adj_size) ) ) {
-        FC_THROW_MSG( "Error fetching chunk %s", tf.chunks[i].id );
-      }
-      derandomize( tf.chunks[i].seed, fc::mutable_buffer(pos,adj_size) );
-
-      //assert( rcheck == tf.chunks[i].id );
-      bf.decrypt( (unsigned char*)pos, adj_size, fc::blowfish::CBC );
-    }
-    //fc::sha1 rcheck; fc::sha1_hash( rcheck, pos, adj_size );
-    //slog( "decrypt sha1 %1%", rcheck );
-
-    pos += tf.chunks[i].size;
-  }
-
-  //bf.decrypt( (unsigned char*)mregion.get_address(), rsize, fc::blowfish::CBC );
-  fc::sha1 fcheck = fc::sha1::hash( (char*)mregion.get_address(), tf.size );
-  if( fcheck != checksum ) {
-    FC_THROW_MSG( "File checksum mismatch, got %s expected %s", fcheck, checksum );
-  }
-}
 
 fc::vector<char> chunk_service::fetch_chunk( const fc::sha1& chunk_id ) {
   fc::vector<char> d;
@@ -311,78 +121,6 @@ fc::vector<char> chunk_service::fetch_chunk( const fc::sha1& chunk_id ) {
   return fc::vector<char>();
 }
 
-/**
- *  Fetch and decode the tn file description, but not the chunks
- */
-tornet_file chunk_service::fetch_tornet( const fc::sha1& tn_id, const fc::sha1& checksum, uint64_t seed ) {
-  tornet_file tnf;
-  tn::db::chunk::meta met;
-  if( my->_local_db->fetch_meta( tn_id, met, false ) ) {
-      fc::vector<char> tnet(met.size);
-      if( my->_local_db->fetch_chunk( tn_id, fc::mutable_buffer(tnet.data(),tnet.size()) ) ) {
-          derandomize( seed, tnet );
-          fc::blowfish bf;
-          fc::string fhstr = checksum;
-          slog("bf key %s", (unsigned char*)fhstr.c_str() );
-  slog( "pre decrypt chunk hex %s size %d", fc::to_hex(tnet.data(), tnet.size() ).c_str(), tnet.size() );
-
-          bf.start( (unsigned char*)fhstr.c_str(), fhstr.size() );
-          bf.decrypt( (unsigned char*)tnet.data(), tnet.size(), fc::blowfish::CBC );
-
-  slog( "post decrypt chunk hex %s size %d", fc::to_hex(tnet.data(), tnet.size() ).c_str(), tnet.size() );
-          fc::sha1 check = fc::raw::unpack<fc::sha1>(tnet );
-          if( check != checksum ) {
-            FC_THROW_MSG( "Checksum mismatch, got %s expected %s", fc::string(check).c_str(), fc::string(checksum).c_str() );
-          }
-
-          tnf = fc::raw::unpack<tornet_file>(tnet);
-          if( tnf.checksum != checksum ) {
-            FC_THROW_MSG("Checksum mismatch, got %s tn file said %s", checksum,tnf.checksum );
-          } else {
-            slog( "Decoded checksum %s", fc::string(tnf.checksum).c_str() );
-          }
-          slog( "File name: %s  size %d", tnf.name.c_str(), tnf.size );
-          return tnf;
-      } else { 
-        FC_THROW_MSG( "Unknown to find data for chunk %s", tn_id );
-      }
-  } else {
-    FC_THROW_MSG( "Unknown chunk %s", tn_id );
-  }
-  return tnf;
-}
-
-/**
- *  This method should fetch the tn file from local storage and then decode the chunks.
- *
- *  To publish a chunk search for the N nearest nodes and track the availability of that
- *  chunk.  If less than the desired number of hosts are found, then pick the host closest
- *  to the chunk and upload a copy.  If the desired number of hosts are found simply note
- *  the popularity of that chunk and schedule a time to check again.
- *
- */
-void chunk_service::publish_tornet( const fc::sha1& tid, const fc::sha1& cs, uint64_t seed, uint32_t rep ) {
-  tornet_file tf = fetch_tornet( tid, cs, seed );
-  slog( "publish %s", fc::json::to_string( tf ).c_str() );
-  for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
-    //if( !my->_local_db->exists(tf.chunks[i]) && !m_cache_db->exists(tf.chunks[i] ) ) {
-    //  FC_THROW_MSG( "Unable to publish tn file because not all chunks are known to this node." );
-    //  // TODO: Should we publish the parts we know?  Should we attempt to fetch the parts we don't?
-   // }
-    tn::db::publish::record rec;
-    my->_pub_db->fetch( tf.chunks[i].id, rec );
-    rec.desired_host_count = rep;
-    rec.next_update        = 0;
-    //slog("%s", fc::string(tf.chunks[i].id).c_str() );
-
-    my->_pub_db->store( tf.chunks[i].id, rec );
-  }
-  tn::db::publish::record rec;
-  my->_pub_db->fetch( tid, rec );
-  rec.desired_host_count = rep;
-  rec.next_update        = 0;
-  my->_pub_db->store( tid, rec );
-}
 
 void chunk_service::enable_publishing( bool state ) {
   if( my->_publishing != state ) {
@@ -391,33 +129,10 @@ void chunk_service::enable_publishing( bool state ) {
         my->_pub_loop_complete = fc::async([this](){ my->publish_loop(); } );
     }
   }
-#if 0
-  if( &boost::cmt::thread::current() != get_thread() ) {
-    get_thread()->sync( boost::bind( &chunk_service::enable_publishing, this, state ) );
-    return;
-  }
-  if( state != my->_publishing ) {
-      my->m_publishing = state;
-      slog( "state %1%", state );
-      if( state ) { 
-        wlog( "async!" );
-        get_thread()->async( boost::bind( &chunk_service::publish_loop, this ) );
-      } else {
-      }
-  }
-  #endif
 }
 
-bool chunk_service::publishing_enabled()const { 
-  return my->_publishing;
-}
+bool chunk_service::is_publishing()const { return my->_publishing; }
 
-
-fc::shared_ptr<download_status> chunk_service::download_tornet( const fc::sha1& tornet_id, const fc::sha1& checksum, uint64_t seed, fc::ostream& out ) {
-  download_status::ptr down( new download_status( chunk_service::ptr(this,true), tornet_id, checksum, seed, out ) );
-  down->start();
-  return down;
-}
 
 
 void chunk_service::impl::publish_loop() {
@@ -504,6 +219,232 @@ void chunk_service::impl::publish_loop() {
 }
 
 
+namespace fs = boost::filesystem;
+tornet_file import_file( chunk_service& self, const fs::path& infile ) {
+  // the file we are creating
+  tornet_file tf; 
+
+  uint64_t file_size  = fs::file_size(infile);
+  slog( "Importing %s of %lld bytes", infile.string().c_str(), file_size );
+
+  // map the file to memory for quick access
+  fc::file_mapping  in_mfile(infile.string().c_str(), fc::read_only );
+  fc::mapped_region in_mregion(in_mfile,fc::read_only,0,file_size);
+
+  const char* rpos = (const char*)in_mregion.get_address();
+  const char* rend = rpos + file_size;
+
+  tf.checksum = fc::sha1::hash( rpos, in_mregion.get_size() );
+
+  tf.mime = "TODO"; // TODO: use libmagic to determine mime type
+
+
+  // we will be encrypting the file using blowfish
+  // the key is the sha1() of the original file.
+  fc::blowfish bf;
+  bf.start( (unsigned char*)tf.checksum.data(), sizeof(tf.checksum) );
+  bf.reset_chain();
+
+  // round the file size up to the nearest 8 byte boundry  
+  uint64_t rfile_size = ((file_size+7)/8)*8; // needs to be a power of 8 for FB
+
+  // the chunk_size is constant 1MB
+  const uint64_t max_chunk_size = 1024*1024;
+
+  // this is the temporary buffer used for storing each chunk
+  fc::vector<char> chunk( (fc::min)(max_chunk_size,rfile_size) );
+
+
+  // small files are kept 'inline'
+  if( file_size < (1024 * 1000) ) {
+    tf.inline_data.resize(file_size);
+    memcpy( tf.inline_data.data(), rpos, file_size );
+  } else { 
+    // large files are broken into chunks
+    while( rpos < rend ) {
+       // this size of this chunk
+      uint64_t csize = (fc::min)( uint64_t(rend-rpos), max_chunk_size );
+      
+      // we need to pad out small chunks to ensure randomness 
+      uint64_t rcsize = csize;
+      while( rcsize < 1024*4 ) rcsize += rand()%(1024*16);
+
+      // round the chunk up to nearest 8 byte bounds for BF encryption
+      rcsize = ((rcsize+7)/8)*8;
+
+      // reserve the space
+      chunk.resize(rcsize);
+
+      // reset the blowfish chain for each chunk, this will allow
+      // us to decode large files in parallel and potentially eliminate
+      // the need for 2x the storage space.
+      bf.reset_chain();
+
+      // encrypt the chunk, avoding a memcpy if possible
+      if( rcsize == csize ) {
+        // encrypt the chunk
+        bf.encrypt( (const unsigned char*)rpos, (unsigned char*)chunk.data(), rcsize, fc::blowfish::CBC );
+      } else {
+        memcpy( chunk.data(), rpos, csize );
+        memset( chunk.data() + csize, 0, (rcsize-csize) );
+        bf.encrypt( (unsigned char*)chunk.data(), rcsize, fc::blowfish::CBC );
+      }
+      
+      // ensure that the chunk has proper randomness to be accepted
+      uint64_t seed = randomize(chunk,*((uint64_t*)chunk.data()));
+
+      fc::sha1 chunk_id = fc::sha1::hash(chunk.data(), chunk.size() );
+      tf.chunks.push_back( tornet_file::chunk_data( csize, seed, chunk_id ) );
+
+      // calculate 64KB slices for partial requests
+      for( uint64_t s = 0; s < rcsize; ) {
+        uint64_t ss = (fc::min)( uint64_t(64*1024), uint64_t(rcsize-s) ); 
+        tf.chunks.back().slices.push_back( fc::super_fast_hash( chunk.data()+s, ss ) );
+        s += ss;
+      }
+      // store the chunk
+      self.get_local_db()->store_chunk( chunk_id, fc::const_buffer( chunk.data(), chunk.size() ) );
+
+      rpos += csize;
+    }
+  }
+  tf.version     = 0;
+  tf.compression = 0;
+  return tf;
+}
+
+tn::link publish_tornet_file( tn::chunk_service& self, const tornet_file& tf, int rep ) {
+  tn::link ln;
+  
+  auto chunk = fc::raw::pack( tf );
+
+  if( chunk.size() > 1024*1024 ) {
+    FC_THROW_MSG( "Tornet file size(%lld) is larger than 1MB", chunk.size() ); 
+  }
+
+  // round the size up
+  auto old_size = chunk.size();
+  uint64_t rcsize = old_size;
+  while( rcsize < 1024*4 ) rcsize += rand()%(1024*16);
+
+  rcsize = ((rcsize+7)/8)*8;
+
+  if( rcsize != old_size ) {
+      chunk.resize( rcsize );
+      memset( chunk.data() + old_size, 0, rcsize - old_size );
+  }
+
+  ln.seed = randomize(chunk,*((uint64_t*)tf.checksum.data()));
+  ln.id   = fc::sha1::hash( chunk.data(), chunk.size() );
+
+  // TODO: this could be performed without blocking on the DB thread
+  self.get_local_db()->store_chunk( ln.id, fc::const_buffer( chunk.data(), chunk.size() ) );
+
+  for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
+    tn::db::publish::record rec;
+    self.get_publish_db()->fetch( tf.chunks[i].id, rec );
+    rec.desired_host_count = rep;
+    rec.next_update         = 0;
+    self.get_publish_db()->store( tf.chunks[i].id, rec );
+  }
+
+  tn::db::publish::record rec;
+  self.get_publish_db()->fetch( ln.id, rec );
+  rec.desired_host_count = rep;
+  rec.next_update        = 0;
+  self.get_publish_db()->store( ln.id, rec );
+  
+  return ln;
+}
+
+
+
+tn::link chunk_service::publish( const fc::path& file, uint32_t rep  ) {
+  if( !fs::exists( file ) )
+    FC_THROW_MSG( "File '%s' does not exist.", file.string() ); 
+  
+  if( fs::is_regular_file( file ) ) {
+     tornet_file tf = import_file( *this, file );
+     return publish_tornet_file( *this, tf, rep );
+  } else if( fs::is_directory( file ) ) {
+     fs::directory_iterator itr(file);
+     fs::directory_iterator end;
+
+     tn::archive adir;
+
+     while( itr != end ) {
+        adir.add( fs::path(*itr).filename(), publish( fs::path(*itr), rep ) );  
+        ++itr;
+     }
+     tornet_file tf;
+     
+     tf.inline_data = fc::raw::pack( adir );
+     tf.version     = 0;
+     tf.compression = 0;
+     tf.name        = file.filename().string().c_str();
+     tf.size        = tf.inline_data.size();
+     tf.mime        = "tn::archive";
+     tf.checksum    = fc::sha1::hash( tf.inline_data.data(), tf.size );
+
+     return publish_tornet_file( *this, tf, rep );
+  }
+  FC_THROW_MSG( "File '%s' is not regular or directory", file.string() ); 
+  return tn::link(); // hide warnings
+}
+
+
+tornet_file chunk_service::fetch_tornet( const tn::link& ln ) {
+  auto chunk = fetch_chunk( ln.id );
+  derandomize( ln.seed, chunk );
+  return fc::raw::unpack<tornet_file>(chunk);
+}
+
+fc::vector<char> chunk_service::download_chunk( const fc::sha1& chunk_id ) {
+  try {
+    return fetch_chunk( chunk_id );
+  } catch ( ... ) {
+     tn::chunk_search::ptr csearch( new tn::chunk_search( get_node(), chunk_id, 5, 1, true ) );  
+     csearch->start();
+     csearch->wait();
+
+     auto hn = csearch->hosting_nodes().begin();
+     while( hn != csearch->hosting_nodes().end() ) {
+        auto csc = get_node()->get_client<chunk_service_client>(hn->second);
+
+        try {
+            // give the node 5 minutes to send 1 MB
+            fetch_response fr = csc->fetch( chunk_id, -1 ).wait( fc::microseconds( 1000*1000*300 ) );
+            slog( "Response size %d", fr.data.size() );
+
+            auto fhash = fc::sha1::hash( fr.data.data(), fr.data.size() );
+            if( fhash == chunk_id ) {
+               get_local_db()->store_chunk(chunk_id,fr.data);
+               fc::vector<char> tmp = fc::move(fr.data);
+               return tmp;
+            } else {
+                wlog( "Node failed to return expected chunk" );
+                wlog( "Received %s of size %d  expected  %s",
+                       fc::string( fhash ).c_str(), fr.data.size(),
+                       fc::string( chunk_id ).c_str() );
+            }
+        } catch ( ... ) {
+           wlog( "Exception thrown while attempting to fetch %s from %s", 
+                    fc::string(chunk_id).c_str(), fc::string(hn->second).c_str() );
+           wlog( "%s", fc::current_exception().diagnostic_information().c_str() );
+        }
+       ++hn;
+     }
+  }
+  FC_THROW_MSG( "Unable to download chunk %s", chunk_id );
+  return fc::vector<char>(); // hide warnings
+}
+
+tornet_file chunk_service::download_tornet( const tn::link& ln ) {
+  auto chunk = download_chunk(ln.id);
+  derandomize( ln.seed, chunk );
+  return fc::raw::unpack<tornet_file>(chunk);
+}
+
 
 /**
  *  Calculate how frequently each byte occurs in data.
@@ -538,11 +479,10 @@ bool is_random( const fc::vector<char>& data ) {
    return prob < .80 && prob > .20;
 }
 
-uint64_t randomize( fc::vector<char>& data ) {
-  uint64_t seed;
+uint64_t randomize( fc::vector<char>& data, uint64_t seed ) {
   fc::vector<char> tmp(data.size());
   do {
-      seed = rand();
+      ++seed;
 
       boost::random::mt19937 gen(seed);
       uint32_t* src = (uint32_t*)data.data();
@@ -572,6 +512,7 @@ void derandomize( uint64_t seed, const fc::mutable_buffer& b ) {
     ++src;
   }
 }
+
 void derandomize( uint64_t seed, fc::vector<char>& data ) {
   boost::random::mt19937 gen(seed);
   fc::vector<char> tmp(data.size());
@@ -588,133 +529,6 @@ void derandomize( uint64_t seed, fc::vector<char>& data ) {
 }
 
 
-/**
- *  
- *
- */
-#if 0
-void chunk_service::publish_loop() {
-  slog( "publish loop" );
-  while( m_publishing ) {
-    // find the next chunk that needs to be published
-    fc::sha1    chunk_id;
-    tn::db::publish::record next_pub;
-    if ( m_pub_db->fetch_next( chunk_id, next_pub ) ) {
-       int64_t time_till_update = next_pub.next_update - 
-                        boost::chrono::duration_cast<boost::chrono::microseconds>
-                        (boost::chrono::system_clock::now().time_since_epoch()).count();
-       if( time_till_update > 0 ) {
-        slog( "waiting %1% us for next publish update.", -time_till_update );
-        boost::cmt::usleep( time_till_update );
-       }
-
-       // Attempt a KAD lookup for the chunk, find up to 2x desired hosts, using parallelism of 1
-       // TODO: increase parallism of search?? This should be a background task so latency is not an issue... 
-       tn::chunk_search::ptr csearch(  boost::make_shared<tn::chunk_search>(get_node(), chunk_id, next_pub.desired_host_count*2, 1, true ) );  
-       csearch->start();
-       csearch->wait();
-
-      typedef std::map<node::id_type,node::id_type> chunk_map;
-      const chunk_map&  hn = csearch->hosting_nodes();
-
-      // If the number of nodes hosting the chunk < next_pub.desired_host_count
-      if( hn.size() < next_pub.desired_host_count ) {
-        wlog( "Published chunk %1% found on at least %2% hosts, desired replication is %3%",
-             chunk_id, hn.size(), next_pub.desired_host_count );
-
-        slog( "Hosting nodes: " );
-        chunk_map::const_iterator itr = hn.begin();
-        while( itr != hn.end() ) {
-          slog( "    node-dist: %1%  node id: %2%", itr->first, itr->second );
-          ++itr;
-        }
-        slog( "Near nodes: " );
-        const chunk_map&  nn = csearch->current_results();
-        itr = nn.begin();
-        while( itr != nn.end() ) {
-          slog( "    node-dist: %1%  node id: %2%", itr->first, itr->second );
-          ++itr;
-        }
-        itr = nn.begin();
-
-       //   Find the closest node not hosting the chunk and upload the chunk
-       while( itr != nn.end() && itr->second == get_node()->get_id() ) {
-        ++itr;
-       }
-       if( itr == nn.end() ) {
-         elog( "No hosts to publish to!" );
-       } else {
-         tn::rpc::client<chunk_session>&  chunk_client = 
-          *tn::rpc::client<chunk_session>::get_udt_connection( get_node(), itr->second );
-        
-         std::vector<char> chunk_data;
-         fetch_chunk( chunk_id, chunk_data );
-         slog( "Uploading chunk... size %1% bytes", chunk_data.size() );
-         store_response r = chunk_client->store( chunk_data ).wait();
-         slog( "Response: %1%  balance: %2%", int(r.result), r.balance );
-       }
-
-       //   Wait until the upload has completed 
-       //     update the next_pub host count and update time
-       //     continue the publishing loop.
-       //
-       //   TODO: enable publishing N chunks in parallel 
-      } else {
-        slog( "Published chunk %1% found on at least %2% hosts, desired replication is %3%",
-             chunk_id, hn.size(), next_pub.desired_host_count );
-
-      }
-
-      // TODO: calculate next update interval for this chunk based upon its current popularity
-      //       and host count and how far away the closest host was found.
-      uint64_t next_update = 60*1000*1000;
-      next_pub.next_update = 
-        chrono::duration_cast<chrono::microseconds>( chrono::system_clock::now().time_since_epoch()).count() + next_update;
-
-      m_pub_db->store( chunk_id, next_pub );
-    } else {
-      // TODO: do something smarter, like exit publish loop until there is something to publish
-      boost::cmt::usleep( 1000 * 1000  );
-      wlog( "nothing to publish..." );
-    }
-//    elog( "wait to send next" );
-//    boost::cmt::usleep(1000*1000);
-//    elog( "wait to send next" );
-  }
-}
-  #endif
-
-#if 0
-void publish_loop() {
-  db::publish::ptr pdb;
-
-  while( publishing ) {
-    fc::sha1 cid, nid;
-    db::publish::record rec;
-    pdb->fetch_oldest( cid, nid, rec );
-
-    // get results
-
-    // find 
-    tn::chunk_search::ptr cs( new tn::chunk_search( node, cid ) );
-    cs->start();
-    cs->wait();
-  
-    const std::map<tn::node::id_type,tn::node::id_type>&  r = ks->current_results();
-    std::map<tn::node::id_type,tn::node::id_type>::const_iterator itr  = r.begin(); 
-    while( itr != r.end() ) {
-      // total weighted access interval
-      // pdb->store( cid, nid, now, normalize(access_interval,node distance) );
-      ++itr;
-    }
-    pdb->store( cid, publish::record( now, avg_access_rate, r.size() ) );
-
-    if( r.size() < rec.desired_host_count ) {
-      cs->best_node_to_publish_to()->publish( chunk );
-    }
-  }
-}
-#endif
 
 } // namespace tn
 

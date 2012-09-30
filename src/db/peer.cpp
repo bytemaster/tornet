@@ -37,6 +37,7 @@ namespace tn { namespace db {
       Db*                 m_peer_db;
       Db*                 m_ep_index_db;
   };
+  const fc::sha1& peer::get_local_id()const { return my->m_node_id; }
   peer::peer( const fc::sha1& node_id, const fc::path& dir )
   :my(0) {
     my = new peer_private( node_id, dir );

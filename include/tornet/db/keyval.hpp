@@ -15,6 +15,9 @@ namespace tn { namespace db {
    *
    *  tornet://sha1(pub_key_for_name(${name}))/sha1($key)
    *
+   *  The database tracks the frequency that keys are accessed and decides which
+   *  keys to store based upon 'supply and demand'.  L
+   *
    */
   class keyval : virtual public fc::retainable {
     public:
