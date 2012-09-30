@@ -123,6 +123,13 @@ namespace tn {
 
           }  break;
           case rpc_message::notice: {
+            rpc_message reply;
+            reply.type   = rpc_message::result;
+            reply.id     = m.id;
+            reply.method = m.method;
+            auto itr = _methods.find( m.method );
+            if( itr != _methods.end() ) 
+              itr->second->call( m.data );
           }  break;
           case rpc_message::call: {
             rpc_message reply;

@@ -52,7 +52,7 @@ namespace tn {
       virtual fc::vector<char> call( const fc::vector<char>& arg_data ) = 0;
   };
 
-  template<typename Arg, typename Functor>
+  template<typename Arg, typename R, typename Functor>
   class method : virtual public method_base {
     public:
 
@@ -62,6 +62,20 @@ namespace tn {
       virtual fc::vector<char> call( const fc::vector<char>& arg_data ) {
         auto result = _func( fc::raw::unpack<Arg>(arg_data) );
         return fc::raw::pack(result);
+      }
+    private:
+      Functor _func;
+  };
+  template<typename Arg, typename Functor>
+  class method<Arg,void,Functor> : virtual public method_base {
+    public:
+
+      template<typename F>
+      method( F&& f ):_func( fc::forward<F>(f) ){} 
+
+      virtual fc::vector<char> call( const fc::vector<char>& arg_data ) {
+         _func( fc::raw::unpack<Arg>(arg_data) );
+         return fc::vector<char>();
       }
     private:
       Functor _func;
@@ -86,6 +100,15 @@ namespace tn {
         send( fc::move(m) );
         return fc::future<Result>(r);
       }
+      template<typename Arg>
+      void notice( uint32_t method_id, const Arg& a ) {
+        rpc_message m;
+        m.type      = rpc_message::notice;
+        m.method    = method_id;
+        m.data      = fc::raw::pack( a );
+
+        send( fc::move(m) );
+      }
 
       void connect( const udt_channel& c );
 
@@ -96,7 +119,7 @@ namespace tn {
 
       template<typename Arg, typename Functor>
       void add_method( uint32_t method_id, Functor&& f ) {
-          method_base::ptr m( new method<Arg,Functor>(f) );
+          method_base::ptr m( new method<Arg,decltype(f(Arg())),Functor>(f) );
           add_method(method_id, fc::move(m));
       }
   
