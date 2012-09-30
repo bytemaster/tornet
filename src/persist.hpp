@@ -5,22 +5,14 @@
 
 namespace tn {
     template<typename Action>
-    void TornetLink::persist( Action& a ) {
-      dbo::id(    a, tid,              "id"               );
-      dbo::field( a, name,             "name"             );
-      dbo::field( a, check,            "check"            );
-      dbo::field( a, seed,             "seed"             );
-                                                          
-      dbo::field( a, tornet_size,      "tornet_size"      );
-      dbo::field( a, file_size,        "file_size"        );
-      dbo::field( a, download_count,   "download_count"   );
-      dbo::field( a, publishing,       "publishing"       );
-      dbo::field( a, replicate_count,  "replicate_count"  );
-      dbo::field( a, created,          "id_sig"           );
-      dbo::field( a, last_download,    "pub_key"          );
+    void PublishedResource::persist( Action& a ) {
+      dbo::field( a, local_path,       "local_path"  );
+      dbo::field( a, link_id,          "link_id"     );
+      dbo::field( a, link_seed,        "link_seed"   );
+      dbo::field( a, last_update,      "last_update" );
     }
 
-
+    /*
     template<typename Action>
     void Torsite::persist( Action& a ) {
       dbo::field( a, domain,       "domain"       );
@@ -32,5 +24,6 @@ namespace tn {
       dbo::field( a, availability, "availability" );
       dbo::field( a, last_update,  "last_update"  );
     }
+    */
 }
 #endif // _DBO_PERSIST_HPP_

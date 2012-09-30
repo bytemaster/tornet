@@ -46,11 +46,11 @@ struct tornet_file {
     fc::sha1              id;
     fc::vector<uint32_t>  slices;
   };
-  tornet_file():size(0){}
+  tornet_file():version(0),compression(0),size(0){}
   tornet_file( const fc::string& n, uint64_t s )
   :name(n),size(s){}
   
-  char                      version;
+  uint8_t                   version;
   uint8_t                   compression;
   fc::string                mime;
   fc::sha1                  checksum;

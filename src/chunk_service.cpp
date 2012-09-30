@@ -223,16 +223,18 @@ namespace fs = boost::filesystem;
 tornet_file import_file( chunk_service& self, const fs::path& infile ) {
   // the file we are creating
   tornet_file tf; 
+  tf.name = infile.filename().c_str();
+  tf.size = fs::file_size(infile);
+  if( !tf.size ) return tf;
 
-  uint64_t file_size  = fs::file_size(infile);
-  slog( "Importing %s of %lld bytes", infile.string().c_str(), file_size );
+  slog( "Importing %s of %lld bytes", infile.string().c_str(), tf.size );
 
   // map the file to memory for quick access
   fc::file_mapping  in_mfile(infile.string().c_str(), fc::read_only );
-  fc::mapped_region in_mregion(in_mfile,fc::read_only,0,file_size);
+  fc::mapped_region in_mregion(in_mfile,fc::read_only,0,tf.size);
 
   const char* rpos = (const char*)in_mregion.get_address();
-  const char* rend = rpos + file_size;
+  const char* rend = rpos + tf.size;
 
   tf.checksum = fc::sha1::hash( rpos, in_mregion.get_size() );
 
@@ -246,7 +248,7 @@ tornet_file import_file( chunk_service& self, const fs::path& infile ) {
   bf.reset_chain();
 
   // round the file size up to the nearest 8 byte boundry  
-  uint64_t rfile_size = ((file_size+7)/8)*8; // needs to be a power of 8 for FB
+  uint64_t rfile_size = ((tf.size+7)/8)*8; // needs to be a power of 8 for FB
 
   // the chunk_size is constant 1MB
   const uint64_t max_chunk_size = 1024*1024;
@@ -256,9 +258,9 @@ tornet_file import_file( chunk_service& self, const fs::path& infile ) {
 
 
   // small files are kept 'inline'
-  if( file_size < (1024 * 1000) ) {
-    tf.inline_data.resize(file_size);
-    memcpy( tf.inline_data.data(), rpos, file_size );
+  if( tf.size < (1024 * 1000) ) {
+    tf.inline_data.resize(tf.size);
+    memcpy( tf.inline_data.data(), rpos, tf.size );
   } else { 
     // large files are broken into chunks
     while( rpos < rend ) {
@@ -267,7 +269,7 @@ tornet_file import_file( chunk_service& self, const fs::path& infile ) {
       
       // we need to pad out small chunks to ensure randomness 
       uint64_t rcsize = csize;
-      while( rcsize < 1024*4 ) rcsize += rand()%(1024*16);
+      while( rcsize < 1024*4 ) rcsize += 1024*4; //rand()%(1024*16);
 
       // round the chunk up to nearest 8 byte bounds for BF encryption
       rcsize = ((rcsize+7)/8)*8;
@@ -316,6 +318,7 @@ tornet_file import_file( chunk_service& self, const fs::path& infile ) {
 tn::link publish_tornet_file( tn::chunk_service& self, const tornet_file& tf, int rep ) {
   tn::link ln;
   
+//  slog( "%s", fc::json::to_string( tf ).c_str() );
   auto chunk = fc::raw::pack( tf );
 
   if( chunk.size() > 1024*1024 ) {
@@ -325,7 +328,7 @@ tn::link publish_tornet_file( tn::chunk_service& self, const tornet_file& tf, in
   // round the size up
   auto old_size = chunk.size();
   uint64_t rcsize = old_size;
-  while( rcsize < 1024*4 ) rcsize += rand()%(1024*16);
+  while( rcsize < 1024*4 ) rcsize += 1024*4; //rand()%(1024*16);
 
   rcsize = ((rcsize+7)/8)*8;
 
@@ -373,7 +376,8 @@ tn::link chunk_service::publish( const fc::path& file, uint32_t rep  ) {
      tn::archive adir;
 
      while( itr != end ) {
-        adir.add( fs::path(*itr).filename(), publish( fs::path(*itr), rep ) );  
+        if( fs::path(*itr).filename().string()[0] != '.' )
+            adir.add( fs::path(*itr).filename(), publish( fs::path(*itr), rep ) );  
         ++itr;
      }
      tornet_file tf;
@@ -396,13 +400,17 @@ tn::link chunk_service::publish( const fc::path& file, uint32_t rep  ) {
 tornet_file chunk_service::fetch_tornet( const tn::link& ln ) {
   auto chunk = fetch_chunk( ln.id );
   derandomize( ln.seed, chunk );
-  return fc::raw::unpack<tornet_file>(chunk);
+  auto tf = fc::raw::unpack<tornet_file>(chunk);
+
+//  slog( "%s", fc::json::to_string( tf ).c_str() );
+  return tf;
 }
 
 fc::vector<char> chunk_service::download_chunk( const fc::sha1& chunk_id ) {
   try {
     return fetch_chunk( chunk_id );
   } catch ( ... ) {
+    wlog( "Unable to fetch %s, searching for it..", fc::string(chunk_id).c_str() );
      tn::chunk_search::ptr csearch( new tn::chunk_search( get_node(), chunk_id, 5, 1, true ) );  
      csearch->start();
      csearch->wait();
@@ -440,9 +448,13 @@ fc::vector<char> chunk_service::download_chunk( const fc::sha1& chunk_id ) {
 }
 
 tornet_file chunk_service::download_tornet( const tn::link& ln ) {
+  slog( "download %s", fc::string(ln.id).c_str() );
   auto chunk = download_chunk(ln.id);
   derandomize( ln.seed, chunk );
-  return fc::raw::unpack<tornet_file>(chunk);
+  slog( "unpacking chunk" );
+  auto tf =  fc::raw::unpack<tornet_file>(chunk);
+//  slog( "%s", fc::json::to_string( tf ).c_str() );
+  return tf;
 }
 
 

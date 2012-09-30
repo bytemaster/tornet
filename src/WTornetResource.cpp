@@ -6,12 +6,15 @@
 #include <fc/exception.hpp>
 #include <fc/unique_lock.hpp>
 #include <fc/mutex.hpp>
+#include <fc/raw.hpp>
 
+#include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 #include <tornet/download_status.hpp>
 #include <tornet/tornet_file.hpp>
 #include <tornet/tornet_app.hpp>
 #include <tornet/chunk_service.hpp>
+#include <tornet/archive.hpp>
 
 class WTornetResource::impl {
   public:
@@ -83,23 +86,79 @@ class WTornetResource::impl {
  };
 
 
+
+tn::tornet_file find_in_subdir( const tn::tornet_file& tf, const std::string& subdir ) {
+   slog( "'%s'", subdir.c_str() );
+   std::stringstream ss( subdir );
+   std::string dir;
+   std::getline( ss, dir,'/' );
+   std::string rest;
+   std::getline( ss, rest,'\n' );
+
+   tn::archive ar;
+   if( tf.mime == "tn::archive" ) {
+     ar = fc::raw::unpack<tn::archive>(tf.inline_data);
+
+     auto itr = ar.entries.begin();
+     while( itr != ar.entries.end() ) {
+       if( itr->name == dir.c_str() ) {
+           auto stf = tn::tornet_app::instance()->get_chunk_service()->download_tornet( itr->ref );
+           if( rest.size() ) return find_in_subdir( stf, rest );
+           return stf;
+       }
+       ++itr;
+     }
+   }
+   return tf;
+}
+
+
  void WTornetResource::handleRequest( const Wt::Http::Request& request, Wt::Http::Response& response ) {
     try {
       slog( "request pathinfo %s", request.pathInfo().c_str() );
-        std::stringstream ss( request.pathInfo() );
-        std::string tid, sum, sd;
-        std::getline( ss, tid,'/' );
-        std::getline( ss, tid,'/' );
-        std::getline( ss, sd,'/' );
-      auto cont = request.continuation();
+      std::stringstream ss( request.pathInfo() );
+      std::string tid, subdir, sd;
+      std::getline( ss, tid,'/' );
+      std::getline( ss, tid,'-' );
+      std::getline( ss, sd,'/' );
+      std::getline( ss, subdir,'\n' );
+
       tn::link ln( fc::sha1( tid.c_str() ), boost::lexical_cast<uint64_t>(sd) );
 
       auto tf = tn::tornet_app::instance()->get_chunk_service()->download_tornet( ln );
+      if( tf.mime == "tn::archive" ) {
+          
+        if( !subdir.size() || subdir == "/" )  
+            tf = find_in_subdir( tf, "index.html" );
+        else
+            tf = find_in_subdir( tf, subdir );
+      } 
+      
+      if( tf.mime == "tn::archive" ) {
+        auto ar = fc::raw::unpack<tn::archive>(tf.inline_data);
+        auto itr = ar.entries.begin();
+        response.out() << "<html><body>\n";
+        response.out() << "<h1>"<<subdir<<"</h1><br/>\n";
+        while( itr != ar.entries.end() ) {
+            //response.out() << "<a href=\"/fetch/" << fc::string(itr->ref.id).c_str() << "-"<< itr->ref.seed << "\">";
+            response.out() << "<a href=\""<<itr->name.c_str()<<"\">";
+            response.out() << itr->name.c_str() << "</a><br/>\n";
+          ++itr;
+        }
+        response.out() << "</body></html>\n";
+        return;
+      }
 
       slog( "length %lld  name %s", tf.size, tf.name.c_str() );
-      response.addHeader( "Content-Length", boost::lexical_cast<std::string>(tf.size).c_str() );
-      response.addHeader( "Content-Disposition", ("inline; " + tf.name).c_str() );
+      //response.addHeader( "Content-Length", boost::lexical_cast<std::string>(tf.size).c_str() );
+      //response.addHeader( "Content-Disposition", ("inline; " + tf.name).c_str() );
+
+      if( tf.inline_data.size() ) {
+        response.out().write( tf.inline_data.data(), tf.inline_data.size() );
+        return;
+      }
      
+      auto cont = request.continuation();
       if( cont ) {
           auto down = boost::any_cast<RequestState::Ptr>(cont->data());
      

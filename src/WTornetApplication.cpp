@@ -27,6 +27,8 @@ class WTornetApplication::impl {
     Wt::WLineEdit*        path_edit;
     Wt::WLineEdit*        site_path_edit;
     Wt::WLineEdit*        site_domain_edit;
+    WTableView*           links;
+    Wt::Dbo::QueryModel<Wt::Dbo::ptr<tn::PublishedResource> >* link_model;
     tn::sql_session       session;
 };
 
@@ -66,15 +68,15 @@ WTornetApplication::WTornetApplication( const Wt::WEnvironment& env )
     root()->addWidget( new WText( "Peers" ) );
     root()->addWidget( t );
 
-    auto link_model = new Wt::Dbo::QueryModel< Wt::Dbo::ptr<tn::TornetLink> >(this);
-    link_model->setQuery( my->session.db().find<tn::TornetLink>() );
-    link_model->addAllFieldsAsColumns();
+    my->link_model = new Wt::Dbo::QueryModel< Wt::Dbo::ptr<tn::PublishedResource> >(this);
+    my->link_model->setQuery( my->session.db().find<tn::PublishedResource>() );
+    my->link_model->addAllFieldsAsColumns();
 
-    WTableView* v = new WTableView();
-    v->setModel( link_model );
+    my->links = new WTableView();
+    my->links->setModel( my->link_model );
     root()->addWidget( new Wt::WBreak() );
     root()->addWidget( new WText( "Files" ) );
-    root()->addWidget(v);
+    root()->addWidget(my->links);
 
     root()->addWidget( new Wt::WBreak() );
     root()->addWidget( new WText( "Sites" ) );
@@ -87,6 +89,7 @@ WTornetApplication::WTornetApplication( const Wt::WEnvironment& env )
     my->site_path_edit = new Wt::WLineEdit(root());
 
 
+  /*
     auto publish_site = new Wt::WPushButton( "Publish Site", root() );
     publish_site->clicked().connect(this, &WTornetApplication::onPublishSite ); 
     root()->addWidget( new Wt::WBreak() );
@@ -101,6 +104,7 @@ WTornetApplication::WTornetApplication( const Wt::WEnvironment& env )
     root()->addWidget( new Wt::WBreak() );
     root()->addWidget( new WText( "Files" ) );
     root()->addWidget(tsv);
+    */
 
   } catch ( ... ) {
     elog( "%s", fc::current_exception().diagnostic_information().c_str() );
@@ -112,16 +116,18 @@ WTornetApplication::~WTornetApplication() {
 
 void WTornetApplication::onPublish() {
   try {
-
       fc::string path = my->path_edit->text().toUTF8().c_str();
-//      tn::tornet_app::instance()->get_node()->get_thread().async( [=]() {
-          fc::sha1 tn_id;
-          fc::sha1 check;
-          uint64_t  seed;
-          slog( ".............  Publish Tornet '%s'", path.c_str() );
-          tn::tornet_app::instance()->get_chunk_service()->publish( path, 3 );
-          //tn::tornet_app::instance()->get_chunk_service()->publish_tornet( tn_id, check, seed, 3 );
- //     } );
+      slog( ".............  Publish Tornet '%s'", path.c_str() );
+      auto ln =  tn::tornet_app::instance()->get_chunk_service()->publish( path, 3 );
+      
+      {
+          Wt::Dbo::Transaction trx(my->session.db());
+          slog( "link fetch/%s/%llu", fc::string(ln.id).c_str(), ln.seed );
+          auto pr = new tn::PublishedResource( path.c_str(), fc::string(ln.id).c_str(), ln.seed );
+          my->session.db().add(pr);
+      }
+      my->link_model->modelReset()();
+
   } catch ( ... ) {
       Wt::WMessageBox::show( "Error", fc::current_exception().diagnostic_information().c_str(), Wt::Ok  );
   }
@@ -131,8 +137,9 @@ void WTornetApplication::onPublishSite() {
   fc::string path = my->site_path_edit->text().toUTF8().c_str();
   fc::string domain = my->site_domain_edit->text().toUTF8().c_str();
 
-
-  //tn::tornet_app::instance()->get_chunk_service()->publish( path, domain );
+  auto ln =  tn::tornet_app::instance()->get_chunk_service()->publish( path, 3 );
+  auto pr = new tn::PublishedResource( path.c_str(), fc::string(ln.id).c_str(), ln.seed );
+  my->session.db().add(pr);
 }
 
 

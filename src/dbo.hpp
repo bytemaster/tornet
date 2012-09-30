@@ -18,6 +18,7 @@ namespace tn {
   class Torsite;
 }
 
+/*
 namespace Wt { namespace Dbo {
   template<>
   struct dbo_traits<tn::TornetLink> : public dbo_default_traits {
@@ -26,48 +27,40 @@ namespace Wt { namespace Dbo {
     static const char* surrogateIdField() { return 0; }
   };
 } }
+*/
 
 namespace tn {
+
+    /**
+     *  Sites that have been published
     class Torsite : public dbo::Dbo<Torsite>, public dbo::ptr<Torsite> {
       public:
         Torsite();
         std::string    domain;     // globaly unique domain! 
+        std::string    local_path; // local resource being published at name.
                        
-        std::string    tid;        // root chunk for the site (normally an archive)
-        std::string    check;
-        long long      seed;       
-                       
-        std::string    local_dir;    // directory to monitor for changes
-        int            replicate;    // > 1 to publish chunks
-        int            availability; // how many copies currently exist 
+        std::string    link_id;    // root chunk for the site (normally an archive)
+        long long      link_seed;        
 
-        Wt::WDateTime  last_update;
+        Wt::WDateTime  last_update; // the last time the 'link' was updated.
 
         template<typename Action>
         void persist( Action& a );
-    };
+    };                  
+     */
 
     /**
-     *  Used to maintain information about an individual tornet link such
-     *  as its ID, CHECK and SEED along with other useful meta information 
-     *  such as whether or not it is being published, how replicated is it
-     *  currently, how often is it 'downloaded' and other stats. 
+     *
      */
-    class TornetLink : public dbo::Dbo<TornetLink>, public dbo::ptr<TornetLink> {
+    class PublishedResource : public dbo::Dbo<PublishedResource>, public dbo::ptr<PublishedResource> {
       public:
-        TornetLink( const fc::sha1& id, const fc::sha1& check, uint64_t seed, const fc::string& name, uint64_t size, uint64_t tsize );
-        TornetLink(){}
-        std::string tid;
-        std::string check;
-        long long   seed;             // random seed used to ensure data is random enough
-        std::string name;
-        long long   tornet_size;      // size of the tornet file, can accelerate downloads
-        long long   file_size;        // size of the file described by the tornet file
-        int         download_count;   // how many times it has been downloaded
-        int         publishing;
-        double      replicate_count;
-        Wt::WDate   created;
-        Wt::WDate   last_download;
+        PublishedResource( const std::string& lpath, const std::string& lid, uint64_t sd );
+        PublishedResource(){}
+
+        std::string         local_path;
+        std::string         link_id;            
+        long long           link_seed;   // random seed used to ensure data is random enough
+        Wt::WDateTime       last_update; // the last time the 'link' was updated.
 
         template<typename Action>
         void persist( Action& a );

@@ -14,8 +14,7 @@ namespace tn {
         :_sql3((dir / "app.sqlite" ).string().c_str() ) {
           _session.setConnection(_sql3);
           _sql3.setProperty( "show-queries", "true" );
-          _session.mapClass<tn::TornetLink>("TornetLink");
-          _session.mapClass<tn::Torsite>("Torsite");
+          _session.mapClass<tn::PublishedResource>("PublishedResource");
 
          {
             Wt::Dbo::Transaction trx(_session);
