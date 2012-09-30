@@ -35,10 +35,21 @@ namespace tn {
    */
   class archive {
     public:
+      enum entry_types {
+          regular_file = 0,
+          directory    = 1,
+          sym_link     = 2
+      };
+
       struct entry {
+        uint8_t     type;
+        uint64_t    size;
         fc::string  name;
+        fc::string  sym;  // sym link destination
         link        ref;
       };
+
+      archive():version(0){}
 
       /**
        *  Given a path, search for the given entry in the
@@ -48,13 +59,14 @@ namespace tn {
       void add( const fc::path& p, const tn::link& l );
 
 
+      uint8_t               version;
       fc::vector<entry>     entries;
   };
 
 
 }
 
-FC_STATIC_REFLECT( tn::archive::entry, (name)(ref) )
-FC_STATIC_REFLECT( tn::archive, (entries) )
+FC_STATIC_REFLECT( tn::archive::entry, (name)(type)(size)(ref) )
+FC_STATIC_REFLECT( tn::archive, (version)(entries) )
 
 #endif // _TORNET_ARCHIVE_HPP_

@@ -44,6 +44,9 @@ namespace tn {
       fc::fwd<impl,24> my;
   };
 
+  // shortcut for tornet_app::instance()->get_node()
+  inline const fc::shared_ptr<node>& get_node(){ return tornet_app::instance()->get_node(); }
+
 } // namespace tn
 
 FC_REFLECTABLE( tn::tornet_app::config )

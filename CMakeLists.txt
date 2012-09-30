@@ -60,8 +60,11 @@ add_subdirectory(context)
 
 SET( sources 
     src/chunk_service.cpp
+    src/name_service_client.cpp
+    src/download_block_chain.cpp
     src/archive.cpp
     src/main.cpp
+    src/link.cpp
     src/WTornetApplication.cpp
     src/WTornetResource.cpp
     src/WUserItemModel.cpp

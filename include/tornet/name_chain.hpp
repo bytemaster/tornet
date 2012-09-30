@@ -6,6 +6,9 @@
 #include <fc/vector.hpp>
 #include <fc/string.hpp>
 #include <fc/array.hpp>
+#include <fc/raw.hpp>
+
+#include <tornet/link.hpp>
 
 namespace tn {
 
@@ -22,7 +25,7 @@ namespace tn {
     uint8_t               type;
     fc::sha1              prev_block_id;
     fc::sha1              base;      // hash( prev_block_id + block_num + other trx )
-    fc::array<uint64_t,2> nonce;  // 16
+    uint64_t              nonce;
     fc::signature_t       signature; // 256
   };
 
@@ -39,19 +42,16 @@ namespace tn {
     fc::sha1               reserve_trx_id; 
     fc::array<char,128>    name; // null term name (max width 128 chars)
     fc::array<uint64_t,2>  rand; 
-    fc::sha1               chunk_id;  
-    fc::sha1               chunk_key;
-    uint64_t               seed;
+    tn::link               site_ref;
   };
+
   struct name_update_trx {
     enum type_num { id = 3 };
     name_trx_header    head;
     fc::sha1           name_id;       // hash(name)
     fc::public_key_t   pub_key;       // 256
     uint32_t           update_count;  // increments every time the name updates
-    fc::sha1           chunk_id;
-    fc::sha1           chunk_key;
-    uint64_t           seed;
+    tn::link           site_ref;
   };
 
   struct name_transfer_trx {
@@ -79,24 +79,92 @@ namespace tn {
    *  restart solving for your transaction.
    */
   struct name_block {
+    name_block()
+    :utc_us(0),block_num(0),block_date(0){}
+
     /// hash of these values form the base
     fc::sha1              prev_block_id;
+    uint64_t              utc_us;  // approx time the block was generated  
     uint64_t              block_num; 
     uint64_t              block_date;
     fc::vector<fc::sha1>  transactions; 
+
+    fc::sha1 base_hash()const {
+      fc::sha1::encoder enc;
+      enc.write( prev_block_id.data(), sizeof(prev_block_id) );
+      enc.write( (char*)&utc_us, sizeof(utc_us) );
+      enc.write( (char*)&block_num, sizeof(block_num) );
+      fc::raw::pack( enc, transactions );
+      return enc.result();
+    }
+    uint64_t difficulty() {
+      return transactions.size();
+    }
 
     /// this is the transaction that solved the block.
     fc::sha1              gen_transaction;
   };
 
-};
+
+  template<typename Trx>
+  bool validate_trx_hash( const Trx& tran, const fc::sha1& thresh ) {
+     fc::sha1::encoder enc;
+     fc::raw::pack( enc, tran );
+     return  enc.result() < thresh;
+  }
+
+  /**
+   *  For a block hash to be valid, the gen_transaction must use 
+   *  the hash of the base header fields for is 'base' and the
+   *  hash of the transaction must be below thresh
+   */
+  template<typename Trx>
+  bool validate_block_hash( const name_block& b, const Trx& gen, const fc::sha1& block_thresh, const fc::sha1& trx_thresh ) {
+     if( gen.head.base != b.base_hash() ) 
+        return false;
+
+     // make sure that gen is really the one used.
+     fc::sha1::encoder enc;
+     fc::raw::pack( enc, gen );
+     
+     if( b.gen_transaction != enc.result() )
+        return false;
+
+
+     if( enc.result() >= block_thresh ) return false;
+     
+     // every trx must be below the desired trx_thresh
+     for( auto itr = b.transactions.begin(); itr != b.transactions.end(); ++itr )
+        if( *itr > trx_thresh ) return false;
+
+     return true;
+  }
+
+  
+  /**
+   *  Searches for a nonce that will make the transaction hash below thresh.
+   *  @param start1 where to start searching for the nonce
+   *  @param done   a volatile boolean that can be used to exit the search early
+   */
+  template<typename Trx>
+  uint64_t find_nonce( Trx& tran, uint64_t start, uint64_t end, const fc::sha1& thresh, volatile bool& done  ) {
+    tran.head.nonce = start;
+    while( !done && tran.head.nonce < end ) {
+     if( validate_trx_hash( tran, thresh ) )
+        return start;
+      tran.head.nonce++;
+    }
+    return start;
+  }
+
+}
 
 FC_STATIC_REFLECT( tn::name_trx_header,   (base)(nonce)(type)(signature) )
 FC_STATIC_REFLECT( tn::name_reserve_trx,  (head)(pub_key)(res_id) )
-FC_STATIC_REFLECT( tn::name_publish_trx,  (head)(name)(rand)(chunk_id)(chunk_key)(seed) )
-FC_STATIC_REFLECT( tn::name_update_trx,   (head)(name_id)(chunk_id)(chunk_key)(seed) )
+FC_STATIC_REFLECT( tn::name_publish_trx,  (head)(name)(rand)(site_ref) )
+FC_STATIC_REFLECT( tn::name_update_trx,   (head)(name_id)(update_count)(site_ref) )
 FC_STATIC_REFLECT( tn::name_transfer_trx, (head)(name_id)(to_pub_key) )
-FC_STATIC_REFLECT( tn::name_block,        (prev_block_id)(block_num)(transactions)(gen_transaction) )
+FC_STATIC_REFLECT( tn::name_block,        (prev_block_id)(utc_us)(block_num)(transactions)(gen_transaction) )
 
 
 #endif // _TORNET_NAME_CHAIN_HPP_

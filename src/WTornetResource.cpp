@@ -115,13 +115,22 @@ tn::tornet_file find_in_subdir( const tn::tornet_file& tf, const std::string& su
 
  void WTornetResource::handleRequest( const Wt::Http::Request& request, Wt::Http::Response& response ) {
     try {
-      slog( "request pathinfo %s", request.pathInfo().c_str() );
+      
+
+      elog( "request server %s pathinfo %s host %s", request.serverName().c_str(), request.pathInfo().c_str(), request.headerValue("Host").c_str() );
+      /*
       std::stringstream ss( request.pathInfo() );
-      std::string tid, subdir, sd;
       std::getline( ss, tid,'/' );
       std::getline( ss, tid,'-' );
       std::getline( ss, sd,'/' );
       std::getline( ss, subdir,'\n' );
+      */
+      std::string subdir = request.headerValue( "tornet-path" ).substr(1); // skip '/'
+      std::string tornet_site = request.headerValue( "tornet-site" );
+      std::string tid, sd;
+      std::stringstream ss( tornet_site );
+      std::getline( ss, tid,'-' );
+      std::getline( ss, sd,'/' );
 
       tn::link ln( fc::sha1( tid.c_str() ), boost::lexical_cast<uint64_t>(sd) );
 

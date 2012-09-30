@@ -4,9 +4,17 @@
 #include <fc/vector.hpp>
 #include <fc/sha1.hpp>
 #include <fc/pke.hpp>
+#include <fc/static_reflect.hpp>
 #include <tornet/name_chain.hpp>
 
 namespace tn {
+
+  enum name_service_message_ids {
+    broadcast_msg_id         = 0,
+    fetch_block_request_id   = 1,
+    fetch_trxs_request_id    = 2,
+    resolve_name_request_id  = 3
+  };
 
   /**
    *  To broadcast a message I start with a depth of 0 and
@@ -33,10 +41,11 @@ namespace tn {
 
   struct fetch_block_request {
     enum flag_values {
-       include_transactions = 0x01
+       include_transactions = 0x01,
+       include_block        = 0x02
     };
     fc::sha1         block_id;
-    int64_t          block_num; // -1 for head
+    int64_t          block_num; // -1 for head, -2 for to use block_id
     uint8_t          flags;
   };
 
@@ -77,13 +86,19 @@ namespace tn {
      uint8_t           status;
      fc::public_key_t  pub_key;   
      uint32_t          rank;      // how many times has the name been updated
-     fc::sha1          name;      // passed with request
-     fc::sha1          value_id;  // info required to download page / email / etc.
-     fc::sha1          key;
-     uint64_t          seed;
+     tn::link          site_ref;
   };
 
 } // namespace tn
+
+FC_STATIC_REFLECT( tn::name_transaction, (type)(data) )
+FC_STATIC_REFLECT( tn::fetch_block_request, (block_id)(block_num)(flags) )
+FC_STATIC_REFLECT( tn::fetch_block_reply, (status)(block)(trxs) )
+FC_STATIC_REFLECT( tn::broadcast_msg, (depth)(block)(trxs) )
+FC_STATIC_REFLECT( tn::fetch_trxs_request, (trx_ids) )
+FC_STATIC_REFLECT( tn::fetch_trxs_reply, (trxs) )
+FC_STATIC_REFLECT( tn::resolve_name_request, (name) )
+FC_STATIC_REFLECT( tn::resolve_name_reply, (status)(pub_key)(rank)(site_ref) )
 
 
 #endif // _TORNET_NAME_SERVICE_MESSAGES_HPP_

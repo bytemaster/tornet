@@ -5,9 +5,6 @@
 #include <fc/fwd_impl.hpp>
 
 namespace tn {
-  
-
-
 
   class chunk_service_client::impl {
     public:

@@ -1,6 +1,7 @@
 #ifndef _TORNET_DB_NAME_HPP_
 #define _TORNET_DB_NAME_HPP_
 #include <tornet/name_chain.hpp>
+#include <tornet/link.hpp>
 #include <fc/shared_ptr.hpp>
 #include <fc/filesystem.hpp>
 #include <fc/static_reflect.hpp>
@@ -10,7 +11,6 @@ namespace tn { namespace db {
   /**
    *  A set of databases that manage the name reservation
    *  block chain.  
-   *
    */
   class name : public fc::retainable {
     public:
@@ -19,8 +19,7 @@ namespace tn { namespace db {
       struct record {
         fc::string         name;
         fc::public_key_t   pub_key;
-        fc::sha1           value_id;
-        fc::sha1           value_key;
+        tn::link           site_ref;
         fc::sha1           last_update_block;
         uint32_t           update_count; // how many updates, more updates is higher rank
       };
@@ -45,15 +44,13 @@ namespace tn { namespace db {
         fc::private_key_t      priv_key;
         fc::array<char,128>    name;
         fc::array<uint64_t,2>  nonce;
-        fc::sha1               rand;
-        fc::sha1               value_id;
-        fc::sha1               value_key;
+        fc::sha1               rand;     // random key used to reserve name
+        tn::link               site_ref;
         fc::sha1               res_trx;  // reservation trx
         fc::sha1               pub_trx;  // publish trx
         fc::sha1               last_trx; // last update / transfer trx
-        int                    state;
-
-        int                    priority;
+        int                    state;    
+        int                    priority; // priority in nonce search
       };
 
       name( const fc::path& dir );
@@ -110,7 +107,7 @@ namespace tn { namespace db {
 } }
 
 FC_STATIC_REFLECT( tn::db::name::private_name,
-  (pub_key)(priv_key)(name)(nonce)(rand)(value_id)
-  (value_key)(res_trx)(pub_trx)(last_trx)(state)(priority) )
+  (pub_key)(priv_key)(name)(nonce)(rand)
+  (site_ref)(pub_trx)(last_trx)(state)(priority) )
 
 #endif // _TORNET_DB_NAME_HPP_

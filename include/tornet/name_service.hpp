@@ -1,3 +1,5 @@
+#ifndef _TORNET_NAMESERVICE_HPP_
+#define _TORNET_NAMESERVICE_HPP_
 #include <fc/string.hpp>
 #include <fc/sha1.hpp>
 #include <fc/optional.hpp>
@@ -5,6 +7,7 @@
 #include <fc/fwd.hpp>
 #include <fc/filesystem.hpp>
 #include <fc/shared_ptr.hpp>
+#include <tornet/link.hpp>
 
 namespace tn {
   class node;
@@ -23,7 +26,7 @@ namespace tn {
       name_service( const fc::path& sdir, const fc::shared_ptr<tn::node>& n );
       ~name_service();
 
-      void  download_block_chain();
+      void download_block_chain();
       void shutdown();
 
       /**
@@ -35,8 +38,7 @@ namespace tn {
        *  Instructs the names service to attempt to reserve a given name.  Returns the
        *  state of the reservation process.
        */
-      void   reserve_name( const fc::string& name, const fc::sha1& value = fc::sha1(), 
-                                                                 const fc::sha1& key = fc::sha1()  );
+      void   reserve_name( const fc::string& name, const tn::link& ln );
 
       /**
        *  This will make the name available to other users.
@@ -46,7 +48,7 @@ namespace tn {
       /**
        *  Return the value assigned to a given name.
        */
-      void   get_value_for_name( const fc::string& name, fc::sha1& val_id, fc::sha1& key_id );
+      tn::link   get_link_for_name( const fc::string& name );
 
       /**
        *  Get the name record.
@@ -57,7 +59,7 @@ namespace tn {
        *  Used to sign a digest gwith the given name.  Throws an exception
        *  if no private key is known for name.
        */
-      fc::sha1     sign_with_name( const fc::sha1& digest, const fc::string& name );
+      fc::signature_t   sign_with_name( const fc::sha1& digest, const fc::string& name );
 
       /**
        *  Validates that the name digest was signed by name, throws an exception if
@@ -68,7 +70,7 @@ namespace tn {
       /**
        *  Updates the value associated with the name.
        */
-      void         update_value_for_name( const fc::string& name, const fc::sha1& val );
+      void         update_link_for_name( const fc::string& name, const tn::link& l );
       void         transfer_name( const fc::string& name, const fc::public_key_t& to_key );
 
       /**
@@ -77,9 +79,10 @@ namespace tn {
        */
       void         setProcessingEffort( float e );
       float        getProcessingEffort();
-    private:
+
       class impl;
-      fc::fwd<impl,48> my;
+    private:
+      fc::fwd<impl,208> my;
   };
 
 }
@@ -167,3 +170,4 @@ namespace tn {
  *
  *  Each name has two values associated with it, a public key and a sha1 hash.
 */
+#endif // _TORNET_NAMESERVICE_HPP_
