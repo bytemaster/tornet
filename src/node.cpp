@@ -87,6 +87,16 @@ namespace tn {
     my->listen(port);
   }
 
+  fc::vector<fc::sha1> node::get_kbucket( int l, int max ) {
+    std::vector<connection*>& buck = my->_kbuckets.get_bucket_for_target( l );
+    fc::vector<fc::sha1> vec;
+    vec.reserve(max);
+    for( int i = 0; i < max && i < buck.size() ; ++i ) {
+      vec.push_back( buck[i]->get_remote_id() );
+    }
+    return vec;
+  }
+
   fc::sha1 node::connect_to( const endpoint& ep, const endpoint& nat_ep ) {
     if( !my->_thread.is_current() ) {
        return my->_thread.async( [&,this](){ return connect_to( ep, nat_ep ); } ).wait();

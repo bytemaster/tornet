@@ -1,12 +1,10 @@
-#ifndef _SOCKS5_IO_HPP_
-#define _SOCKS5_IO_HPP_
+#pragma once 
 #include <boost/asio.hpp>
 #include <boost/static_assert.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/variant.hpp>
-#include <socks5/socks5.hpp>
+#include <tornet/socks5/socks5.hpp>
 
-#include <arpa/inet.h>
 
 template <class T, typename SyncReadStream>
 T read_class(SyncReadStream & s);
@@ -296,4 +294,3 @@ template <typename SyncWriteStream, class T>
 void write_class(SyncWriteStream & s, T const& object) {
     return do_write<T>()(s, object);
 }
-#endif// _SOCKS5_IO_HPP_

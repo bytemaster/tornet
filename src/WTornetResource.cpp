@@ -12,6 +12,7 @@
 #include <boost/lexical_cast.hpp>
 #include <tornet/download_status.hpp>
 #include <tornet/tornet_file.hpp>
+#include <tornet/name_service.hpp>
 #include <tornet/tornet_app.hpp>
 #include <tornet/chunk_service.hpp>
 #include <tornet/archive.hpp>
@@ -127,12 +128,20 @@ tn::tornet_file find_in_subdir( const tn::tornet_file& tf, const std::string& su
       */
       std::string subdir = request.headerValue( "tornet-path" ).substr(1); // skip '/'
       std::string tornet_site = request.headerValue( "tornet-site" );
-      std::string tid, sd;
-      std::stringstream ss( tornet_site );
-      std::getline( ss, tid,'-' );
-      std::getline( ss, sd,'/' );
+      boost::filesystem::path p = tornet_site;
 
-      tn::link ln( fc::sha1( tid.c_str() ), boost::lexical_cast<uint64_t>(sd) );
+
+
+      tn::link ln;
+      if( p.extension() == ".chunk" ) 
+        ln = tn::link(p.stem().string().c_str());
+      else {
+        ln = tn::tornet_app::instance()->get_name_service()->get_link_for_name( tornet_site.c_str() );
+      }
+      wlog( "link %s", fc::string(ln).c_str() );
+
+    //  if( fs::path( 
+    //  ln = link( fc::sha1( tid.c_str() ), boost::lexical_cast<uint64_t>(sd) );
 
       auto tf = tn::tornet_app::instance()->get_chunk_service()->download_tornet( ln );
       if( tf.mime == "tn::archive" ) {

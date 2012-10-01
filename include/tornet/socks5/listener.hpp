@@ -1,7 +1,7 @@
 #pragma once
 #include <memory>
 #include <boost/optional.hpp>
-#include "../common.hpp"
+#include <tornet/socks5/common.hpp>
 
 // (man in the middle)
 struct mitm

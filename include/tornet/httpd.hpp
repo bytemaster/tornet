@@ -1,6 +1,7 @@
 #ifndef _TORNET_HTTPD_HPP_
 #define _TORNET_HTTPD_HPP_
 #include <fc/shared_ptr.hpp>
+#include <fc/fwd.hpp>
 
 namespace tn {
   class name_service;
@@ -13,17 +14,14 @@ namespace tn {
    */
   class httpd : public fc::retainable {
     public:
-      httpd( const fc::shared_ptr<node>& n,
-             const fc::shared_ptr<name_service>& ns, 
-             const fc::shared_ptr<chunk_service>& cs 
-           );
+      httpd();
       ~httpd();
 
       void listen( uint16_t port );
 
+      class impl;
     private:
-      class impl
-      fc::fwd<impl,8> my;
+      fc::fwd<impl,48> my;
   };
 
 }

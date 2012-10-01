@@ -1,4 +1,4 @@
-#include <socks5/proxy.hpp>
+#include <tornet/socks5/proxy.hpp>
 
 int main( int argc, char** argv ) {
 

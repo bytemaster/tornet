@@ -10,7 +10,7 @@
 #include <tornet/WTornetApplication.hpp>
 
 #include "WTornetResource.hpp"
-
+#include <tornet/httpd.hpp>
 
 Wt::WApplication* create_application( const Wt::WEnvironment& env ) {
   return new WTornetApplication(env);
@@ -20,6 +20,7 @@ Wt::WApplication* create_application( const Wt::WEnvironment& env ) {
 int main( int argc, char** argv ) {
   try {
       fc::thread::current().set_name("main");
+
 
       Wt::WServer server(argv[0]);
       server.setServerConfiguration(argc, argv, WTHTTP_CONFIGURATION);
@@ -41,6 +42,9 @@ int main( int argc, char** argv ) {
         tcfg.bootstrap_hosts.push_back( std::string(*i).c_str() );
         
       tn::tornet_app::instance()->configure( tcfg );
+
+      tn::httpd proxy;
+      proxy.listen(1090);
 
       server.addEntryPoint(Wt::Application, []( const Wt::WEnvironment& env ) { return create_application(env); }, "", "/favicon.ico" );
       server.addResource( new WTornetResource(), "/fetch" );

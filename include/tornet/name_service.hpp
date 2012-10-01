@@ -10,7 +10,9 @@
 #include <tornet/link.hpp>
 
 namespace tn {
+  namespace db{ class name; }
   class node;
+  class publish_name_request;
 
   /**
    *  This service is used to register names. Each name
@@ -28,6 +30,10 @@ namespace tn {
 
       void download_block_chain();
       void shutdown();
+
+      fc::shared_ptr<db::name> get_name_db()const;
+
+      void publish_name( const publish_name_request& r );
 
       /**
        *  @return a list of all names reserved by this node.

@@ -286,7 +286,7 @@ namespace tn { namespace db {
       FC_THROW( "sha1(data) does not match given id" );
     }
     fc::sha1 dist = id ^ my->m_node_id;
-    slog( "store chunk %s dist %s", fc::string(id).c_str(), fc::string(dist).c_str() );
+    //slog( "store chunk %s dist %s", fc::string(id).c_str(), fc::string(dist).c_str() );
     //slog( "store data '%s'", fc::to_hex( b.data, 64 ).c_str() );
 
     DbTxn * txn=NULL;
@@ -311,7 +311,7 @@ namespace tn { namespace db {
         val.set_ulen( b.size );
 
         if( DB_KEYEXIST ==  my->m_chunk_db->put( txn, &key, &val, DB_NOOVERWRITE ) ) {
-          wlog( "key already exists, ignoring store command" );
+          //wlog( "key already exists, ignoring store command" );
           txn->abort();
           return false;
         }

@@ -16,14 +16,8 @@ namespace tn { namespace db {
       fc::path            _envdir;
       DbEnv               _env;
 
-      Db*                 _trx_db;        // index trx by their hash
-      Db*                 _trx_name_idx;  // index trx by hash of name (or name+nonce)
-
-      Db*                 _block_db;      // index blocks by their hash
-      Db*                 _block_num_idx; // index blocks by their number
-
-      Db*                 _record_db;     // most up-to-date state given known trx
-      Db*                 _private_db;    // private keys for my names
+      Db*                 _rec_db;     // index records by their name
+      Db*                 _private_db; // private keys for my names
   };
 
   
@@ -33,7 +27,7 @@ namespace tn { namespace db {
 
   name::~name(){
   }
-
+#if 0
   int get_name_hash( Db* secondary, const Dbt* pkey, const Dbt* pdata, Dbt* skey ) {
     auto head = (tn::name_trx_header*)(pdata->get_data());
     switch( head->type ) {
@@ -68,7 +62,7 @@ namespace tn { namespace db {
     if( *_k1 == *_k2 ) return 0;
     return -1;
   }
-
+#endif
   void name::init(){
     if( !my->_thread.is_current() ) {
         my->_thread.async( [this](){ init(); } ).wait();
@@ -78,23 +72,21 @@ namespace tn { namespace db {
       fc::create_directories(my->_envdir);
      
     try {
+      slog( "initializing name database... %s", my->_envdir.string().c_str() );
       my->_env.open( my->_envdir.string().c_str(), 
                   DB_CREATE | DB_INIT_MPOOL | DB_INIT_TXN | DB_INIT_LOCK | DB_REGISTER | DB_RECOVER, 0 );
     } catch( const DbException& e ) {
       elog( "Error opening database environment: %s\n \t\t%s", my->_envdir.string().c_str(), e.what() );
       FC_THROW( e );
+    } catch( ... ) {
+      elog( "%s", fc::current_exception().diagnostic_information().c_str() );
+      fc::rethrow_exception( fc::current_exception() );
     }
 
     try { 
       slog( "initialize database %s/trx_db", my->_envdir.string().c_str() );
-      my->_trx_db = new Db(&my->_env, 0);
-      my->_trx_db->open( NULL, "trx_data", "trx_data", DB_BTREE, DB_CREATE | DB_AUTO_COMMIT, 0 );
-
-      my->_trx_name_idx = new Db(&my->_env, 0 );
-      my->_trx_name_idx->set_flags( DB_DUP | DB_DUPSORT );
-      my->_trx_name_idx->set_bt_compare( &compare_sha1 );
-      my->_trx_name_idx->open( NULL, "trx_name_idx", "trx_name_idx", DB_BTREE , DB_CREATE | DB_AUTO_COMMIT, 0);//0600 );
-      my->_trx_db->associate( 0, my->_trx_name_idx, get_name_hash, 0 );
+      my->_rec_db = new Db(&my->_env, 0);
+      my->_rec_db->open( NULL, "name_data", "name_data", DB_BTREE, DB_CREATE | DB_AUTO_COMMIT, 0 );
 
     } catch( const DbException& e ) {
       elog( "Error opening trx_data database: %s", e.what() );
@@ -117,15 +109,21 @@ namespace tn { namespace db {
         return;
     }
     try {
-      if( nullptr != my->_trx_db ) {
-        my->_trx_db->close(0);
-        delete my->_trx_db;
-        my->_trx_db = nullptr;
+      if( nullptr != my->_rec_db ) {
+      slog("close namedb" );
+        my->_rec_db->close(0);
+        delete my->_rec_db;
+        my->_rec_db = nullptr;
       }
-      if( nullptr != my->_trx_name_idx ) {
-        my->_trx_name_idx->close(0);
-        delete my->_trx_name_idx;
-        my->_trx_name_idx = nullptr;
+    } catch ( const DbException& e ) {
+      FC_THROW_MSG("%s", e.what());
+    }
+    try {
+      if( nullptr != my->_private_db ) {
+      slog("close privdb" );
+        my->_private_db->close(0);
+        delete my->_private_db;
+        my->_private_db = nullptr;
       }
     } catch ( const DbException& e ) {
       FC_THROW_MSG("%s", e.what());
@@ -137,324 +135,131 @@ namespace tn { namespace db {
         my->_thread.async( [this](){ sync(); } ).wait();
         return;
     }
-    my->_trx_db->sync(0);
-    my->_trx_name_idx->sync(0);
+    slog( "sync" );
+    my->_rec_db->sync(0);
+    my->_private_db->sync(0);
   }
 
-
-
-  uint32_t name::num_private_names(){
-  }
-
-  bool     name::fetch_private_name( uint32_t recnum, private_name& ){
-  }
-
-
-  bool     name::fetch_record_for_name( const fc::string& name, record& r ){
-  }
-
-  bool     name::fetch_record_for_public_key( const fc::sha1& pk_sha1, record& r ){
-  }
-
-  bool     name::fetch_reservation_for_hash( const fc::sha1& res_id, name_reserve_trx& ){
-  }
-
-           
-  bool     name::store( const private_name& pn ) {
-    fc::vector<char> dat = fc::raw::pack(pn);
-    fc::sha1 id = fc::sha1::hash( pn.name.data, strlen(pn.name.data) );
-
-    Dbt key(id.data(),sizeof(id));
+  bool  name::fetch( const fc::string& n, record& r ) {
+    if( !my->_thread.is_current() ) {
+        return my->_thread.async( [&](){ return fetch(n,r); } ).wait();
+    }
+    slog( "%s rec", n.c_str() );
+    Dbt key;
     key.set_flags( DB_DBT_USERMEM );
+    key.set_ulen( n.size() );
+    key.set_size( n.size() );
+    key.set_data( (char*)n.c_str() );
 
-    Dbt val( dat.data(), dat.size() );
+    Dbt val;
     val.set_flags( DB_DBT_USERMEM );
+    val.set_ulen( sizeof(r) );
+    val.set_size( sizeof(r) );
+    val.set_data( &r );
 
     DbTxn * txn=NULL;
     my->_env.txn_begin(NULL, &txn, 0);
 
     try {
-        my->_private_db->put( txn, &key, &val, 0 );
-        txn->commit( DB_TXN_WRITE_NOSYNC );
+        slog( "get!" );
+        int r = DB_NOTFOUND != my->_rec_db->get( txn, &key, &val, 0 );
+        txn->abort();
+        return r;
     } catch ( const DbException& e ) {
       txn->abort();
       FC_THROW_MSG( "%s", e.what() );
     }
-    return true;
-  }
-
-  bool     name::remove_private_name( const fc::sha1& name_id ) {
     return false;
   }
-  bool     name::fetch( const fc::sha1& id, private_name& pn ) {
-    Dbt key( id.data(), sizeof(id) );
+
+  bool  name::fetch( const fc::string& n, record_key& r ) {
+    if( !my->_thread.is_current() ) {
+        return my->_thread.async( [&](){ return fetch(n,r); } ).wait();
+    }
+    slog( "%s key", n.c_str() );
+    Dbt key( (char*)n.c_str(), n.size() );
     key.set_flags( DB_DBT_USERMEM );
 
     Dbt val;
-    DbTxn * txn=NULL;
-    my->_env.txn_begin(NULL, &txn, 0);
-
-    try {
-        my->_private_db->get( txn, &key, &val, 0 );
-    } catch ( const DbException& e ) {
-      txn->abort();
-      FC_THROW_MSG( "%s", e.what() );
-    }
-    pn = fc::raw::unpack<private_name>( (char*)val.get_data(), val.get_size() );
-
-    return true;
-  }
-
-  bool     name::store( const name_reserve_trx& trx){
-    if( !my->_thread.is_current() ) {
-        return my->_thread.async( [&](){ return store(trx); } ).wait();
-    }
-    fc::sha1::encoder enc;
-    fc::raw::pack( enc, trx );
-    fc::sha1 id = enc.result();
-    Dbt key( id.data(), sizeof(id) );
-
-    key.set_flags( DB_DBT_USERMEM );
-    Dbt val( (char*)&trx, sizeof(trx));
-    val.set_flags( DB_DBT_USERMEM );
 
     DbTxn * txn=NULL;
     my->_env.txn_begin(NULL, &txn, 0);
-
+    
     try {
-        my->_trx_db->put( txn, &key, &val, 0 );
-        txn->commit( DB_TXN_WRITE_NOSYNC );
+        if( DB_NOTFOUND != my->_private_db->get( txn, &key, &val, 0 ) ) {
+            r = fc::raw::unpack<record_key>( (char*)val.get_data(), val.get_size() );
+            txn->abort();
+            return true;
+        }
+        txn->abort();
+        return false;
     } catch ( const DbException& e ) {
       txn->abort();
       FC_THROW_MSG( "%s", e.what() );
     }
     return true;
   }
-
-  bool     name::store( const name_publish_trx& trx ){
-    if( !my->_thread.is_current() ) {
-        return my->_thread.async( [&](){ return store(trx); } ).wait();
-    }
-    fc::sha1::encoder enc;
-    fc::raw::pack( enc, trx );
-    fc::sha1 id = enc.result();
-    Dbt key( id.data(), sizeof(id) );
-
-    key.set_flags( DB_DBT_USERMEM );
-    Dbt val( (char*)&trx, sizeof(trx));
-    val.set_flags( DB_DBT_USERMEM );
-
-    DbTxn * txn=NULL;
-    my->_env.txn_begin(NULL, &txn, 0);
-
-    try {
-        my->_trx_db->put( txn, &key, &val, 0 );
-        txn->commit( DB_TXN_WRITE_NOSYNC );
-    } catch ( const DbException& e ) {
-      txn->abort();
-      FC_THROW_MSG( "%s", e.what() );
-    }
-    return true;
-  }
-
-  bool     name::store( const name_update_trx& trx ){
-    if( !my->_thread.is_current() ) {
-        return my->_thread.async( [&](){ return store(trx); } ).wait();
-    }
-    fc::sha1::encoder enc;
-    fc::raw::pack( enc, trx );
-    fc::sha1 id = enc.result();
-    Dbt key( id.data(), sizeof(id) );
-
-    key.set_flags( DB_DBT_USERMEM );
-    Dbt val( (char*)&trx, sizeof(trx));
-    val.set_flags( DB_DBT_USERMEM );
-
-    DbTxn * txn=NULL;
-    my->_env.txn_begin(NULL, &txn, 0);
-
-    try {
-        my->_trx_db->put( txn, &key, &val, 0 );
-        txn->commit( DB_TXN_WRITE_NOSYNC );
-    } catch ( const DbException& e ) {
-      txn->abort();
-      FC_THROW_MSG( "%s", e.what() );
-    }
-    return true;
-  }
-
-  bool     name::store( const name_transfer_trx& trx ){
-    if( !my->_thread.is_current() ) {
-        return my->_thread.async( [&](){ return store(trx); } ).wait();
-    }
-    fc::sha1::encoder enc;
-    fc::raw::pack( enc, trx );
-    fc::sha1 id = enc.result();
-    Dbt key( id.data(), sizeof(id) );
-
-    key.set_flags( DB_DBT_USERMEM );
-    Dbt val( (char*)&trx, sizeof(trx));
-    val.set_flags( DB_DBT_USERMEM );
-
-    DbTxn * txn=NULL;
-    my->_env.txn_begin(NULL, &txn, 0);
-
-    try {
-        my->_trx_db->put( txn, &key, &val, 0 );
-        txn->commit( DB_TXN_WRITE_NOSYNC );
-    } catch ( const DbException& e ) {
-      txn->abort();
-      FC_THROW_MSG( "%s", e.what() );
-    }
-    return true;
-  }
-  bool     name::fetch( const fc::sha1& id, name_trx_header& trx){
-    if( !my->_thread.is_current() ) {
-        return my->_thread.async( [&](){ return fetch(id,trx); } ).wait();
-    }
-    try {
-      Dbt key;
-      key.set_data( id.data() );
-      key.set_ulen( sizeof(id) );
-      key.set_flags( DB_DBT_USERMEM );
-      
-      Dbt val;
-      val.set_size( sizeof(trx) );
-      val.set_ulen( sizeof(trx) );
-      val.set_flags( DB_DBT_USERMEM );
-      
-      return DB_NOTFOUND != my->_trx_db->get( 0, &key, &val, 0 );
-    } catch ( ... ) {
-      elog( "%s", fc::current_exception().diagnostic_information().c_str() );
-      return false;
-    }
-  }
-
-  bool     name::fetch( const fc::sha1& id, name_reserve_trx& trx){
-    if( !my->_thread.is_current() ) {
-        return my->_thread.async( [&](){ return fetch(id,trx); } ).wait();
-    }
-    try {
-      Dbt key;
-      key.set_data( id.data() );
-      key.set_ulen( sizeof(id) );
-      key.set_flags( DB_DBT_USERMEM );
-      
-      Dbt val;
-      val.set_size( sizeof(trx) );
-      val.set_ulen( sizeof(trx) );
-      val.set_flags( DB_DBT_USERMEM );
-      
-      return DB_NOTFOUND != my->_trx_db->get( 0, &key, &val, 0 );
-    } catch ( ... ) {
-      elog( "%s", fc::current_exception().diagnostic_information().c_str() );
-      return false;
-    }
-  }
-
-  bool     name::fetch( const fc::sha1& id, name_publish_trx& trx){
-    if( !my->_thread.is_current() ) {
-        return my->_thread.async( [&](){ return fetch(id,trx); } ).wait();
-    }
-    try {
-      Dbt key;
-      key.set_data( id.data() );
-      key.set_ulen( sizeof(id) );
-      key.set_flags( DB_DBT_USERMEM );
-      
-      Dbt val;
-      val.set_size( sizeof(trx) );
-      val.set_ulen( sizeof(trx) );
-      val.set_flags( DB_DBT_USERMEM );
-      
-      return DB_NOTFOUND != my->_trx_db->get( 0, &key, &val, 0 );
-    } catch ( ... ) {
-      elog( "%s", fc::current_exception().diagnostic_information().c_str() );
-      return false;
-    }
-  }
-
-  bool     name::fetch( const fc::sha1& id, name_update_trx& trx){
-    if( !my->_thread.is_current() ) {
-        return my->_thread.async( [&](){ return fetch(id,trx); } ).wait();
-    }
-    try {
-      Dbt key;
-      key.set_data( id.data() );
-      key.set_ulen( sizeof(id) );
-      key.set_flags( DB_DBT_USERMEM );
-      
-      Dbt val;
-      val.set_size( sizeof(trx) );
-      val.set_ulen( sizeof(trx) );
-      val.set_flags( DB_DBT_USERMEM );
-      
-      return DB_NOTFOUND != my->_trx_db->get( 0, &key, &val, 0 );
-    } catch ( ... ) {
-      elog( "%s", fc::current_exception().diagnostic_information().c_str() );
-      return false;
-    }
-  }
-
-  bool     name::fetch( const fc::sha1& id, name_transfer_trx& trx){
-    if( !my->_thread.is_current() ) {
-        return my->_thread.async( [&](){ return fetch(id,trx); } ).wait();
-    }
-    try {
-      Dbt key;
-      key.set_data( id.data() );
-      key.set_ulen( sizeof(id) );
-      key.set_flags( DB_DBT_USERMEM );
-      
-      Dbt val;
-      val.set_size( sizeof(trx) );
-      val.set_ulen( sizeof(trx) );
-      val.set_flags( DB_DBT_USERMEM );
-      
-      return DB_NOTFOUND != my->_trx_db->get( 0, &key, &val, 0 );
-    } catch ( ... ) {
-      elog( "%s", fc::current_exception().diagnostic_information().c_str() );
-      return false;
-    }
-  }
-
            
-  bool     name::store( const name_block& b ){
+  bool     name::store( const fc::string& n, const record_key& r ) {
+    if( !my->_thread.is_current() ) {
+        return my->_thread.async( [&](){ return store(n,r); } ).wait();
+    }
+    slog( "%s key", n.c_str() );
+    Dbt key( (char*)n.c_str(), n.size() );
+    //key.set_flags( DB_DBT_USERMEM );
+
+    auto dat = fc::raw::pack(r);
+    Dbt val( dat.data(), dat.size() );
+    //val.set_flags( DB_DBT_USERMEM );
+
+    DbTxn * txn=NULL;
+    my->_env.txn_begin(NULL, &txn, 0);
+
+    try {
+        slog( "put" );
+        my->_private_db->put( txn, &key, &val, 0 );
+        slog( "commit" );
+        txn->commit( DB_TXN_WRITE_NOSYNC );
+        slog( "done" );
+    } catch ( const DbException& e ) {
+      txn->abort();
+      FC_THROW_MSG( "%s", e.what() );
+    }
+    return true;
   }
+  
+  bool     name::store( const fc::string& n, const record& r ) {
+    if( !my->_thread.is_current() ) {
+        return my->_thread.async( [&](){ return store(n,r); } ).wait();
+    }
+    slog( "store %s", n.c_str() );
+    Dbt key;//( (char*)n.c_str(), n.size() );
+        key.set_data( (char*)n.c_str() );
+        key.set_size( n.size() );
+        key.set_flags( DB_DBT_USERMEM );
+        key.set_ulen( n.size() );
 
-  bool     name::fetch( const fc::sha1& id, name_block& b ){
+    Dbt val;
+        val.set_data( (void*)&r );
+        val.set_size( sizeof(r) );
+        val.set_flags( DB_DBT_USERMEM );
+        val.set_ulen( sizeof(r) );
+
+
+    DbTxn * txn=NULL;
+    my->_env.txn_begin(NULL, &txn, 0);
+
+    try {
+        slog( "rec put" );
+        my->_rec_db->put( txn, &key, &val, 0 );
+        slog( "rec commit" );
+        txn->commit( DB_TXN_WRITE_NOSYNC );
+        slog( "rec done" );
+    } catch ( const DbException& e ) {
+      txn->abort();
+      FC_THROW_MSG( "%s", e.what() );
+    }
+    return true;
   }
-
-           
-  bool     name::fetch_trx_by_index( uint32_t recnum, fc::sha1& id, name_trx_header&  ){
-  }
-
-  bool     name::fetch_block_by_index( uint32_t recnum, fc::sha1& id, name_block&  ){
-  }
-
-  uint64_t name::max_block_num(){
-  }
-
-  uint32_t name::num_blocks(){
-  }
-
-  uint32_t name::num_trx(){
-  }
-
-
-  // return the hash of all blocks with a given number
-  fc::vector<fc::sha1> name::fetch_blocks_with_number( uint64_t block_num ){
-  }
-
-  bool                 name::fetch_block_by_num( uint32_t recnum, fc::sha1& id, name_block&  ){
-  }
-
-
-  bool name::remove_trx( const fc::sha1& trx_id ){
-  }
-
-  bool name::remove_block( const fc::sha1& block_id ){
-  }
-
 
 } } 

@@ -19,12 +19,8 @@ namespace tn {
       virtual const fc::string& name()const  { return static_name(); }
       static const fc::string& static_name() { static fc::string n("name_service_client"); return n; }
 
-      fc::future<fetch_block_reply> fetch_head();
-      fc::future<fetch_block_reply> fetch_block( const fc::sha1& id );
-      fc::future<fetch_block_reply> fetch_block_transactions( const fc::sha1& id );
-      fc::future<fetch_trxs_reply>  fetch_trxs( const fetch_trxs_request& r );
-
-      void  broadcast( const broadcast_msg& m );
+      fc::future<publish_name_reply> publish_name( const publish_name_request& );
+      fc::future<resolve_name_reply> resolve_name( const resolve_name_request& );
 
     private:
       class impl;

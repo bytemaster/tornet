@@ -1,6 +1,7 @@
 #include <tornet/WTornetApplication.hpp>
 #include <tornet/tornet_app.hpp>
 #include <tornet/chunk_service.hpp>
+#include <tornet/name_service.hpp>
 #include <tornet/node.hpp>
 #include <fc/fwd_impl.hpp>
 #include <fc/exception.hpp>
@@ -89,10 +90,10 @@ WTornetApplication::WTornetApplication( const Wt::WEnvironment& env )
     my->site_path_edit = new Wt::WLineEdit(root());
 
 
-  /*
     auto publish_site = new Wt::WPushButton( "Publish Site", root() );
     publish_site->clicked().connect(this, &WTornetApplication::onPublishSite ); 
     root()->addWidget( new Wt::WBreak() );
+  /*
 
 
     auto ts_model = new Wt::Dbo::QueryModel< Wt::Dbo::ptr<tn::Torsite> >(this);
@@ -122,7 +123,8 @@ void WTornetApplication::onPublish() {
       
       {
           Wt::Dbo::Transaction trx(my->session.db());
-          slog( "link fetch/%s/%llu", fc::string(ln.id).c_str(), ln.seed );
+      //    slog( "link fetch/%s/%llu", fc::string(ln.id).c_str(), ln.seed );
+      wlog( "link %s.chunk", fc::string(ln).c_str() );
           auto pr = new tn::PublishedResource( path.c_str(), fc::string(ln.id).c_str(), ln.seed );
           my->session.db().add(pr);
       }
@@ -137,9 +139,20 @@ void WTornetApplication::onPublishSite() {
   fc::string path = my->site_path_edit->text().toUTF8().c_str();
   fc::string domain = my->site_domain_edit->text().toUTF8().c_str();
 
+
+  slog( ".............  Publish Tornet '%s'", path.c_str() );
   auto ln =  tn::tornet_app::instance()->get_chunk_service()->publish( path, 3 );
-  auto pr = new tn::PublishedResource( path.c_str(), fc::string(ln.id).c_str(), ln.seed );
-  my->session.db().add(pr);
+  
+  {
+      Wt::Dbo::Transaction trx(my->session.db());
+      wlog( "link %s", fc::string(ln).c_str() );
+
+      auto pr = new tn::PublishedResource( path.c_str(), fc::string(ln.id).c_str(), ln.seed );
+      my->session.db().add(pr);
+  }
+  my->link_model->modelReset()();
+
+  tn::tornet_app::instance()->get_name_service()->reserve_name(domain,ln);
 }
 
 

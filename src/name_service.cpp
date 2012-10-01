@@ -4,10 +4,13 @@
 #include <tornet/udt_channel.hpp>
 #include <tornet/db/name.hpp>
 #include <tornet/raw_rpc.hpp>
+#include <tornet/tornet_app.hpp>
+#include <tornet/name_service_client.hpp>
 #include <fc/fwd_impl.hpp>
 #include <fc/exception.hpp>
 #include <fc/time.hpp>
 
+#include <tornet/db/name.hpp>
 #include <time.h>
 #include <stdlib.h>
 
@@ -16,7 +19,8 @@
 namespace tn {
 
 
-  name_service::name_service( const fc::path& sdir, const fc::shared_ptr<tn::node>& n ) {
+  name_service::name_service( const fc::path& sdir, const fc::shared_ptr<tn::node>& n )
+  :my(*this) {
     my->_dir  = sdir;
     my->_node = n;
 
@@ -25,6 +29,8 @@ namespace tn {
 
     my->_name_db.reset( new db::name( sdir ) );
     my->_name_db->init();
+
+    //reserve_name( "testname", link() );
   }
 
   name_service::~name_service() {
@@ -44,48 +50,34 @@ namespace tn {
 
   void name_service::reserve_name( const fc::string& name, const tn::link& site_ref ) {
     tn::db::name::record rec;
-    if( my->_name_db->fetch_record_for_name( name, rec ) ) {
+    if( my->_name_db->fetch( name, rec ) ) {
       FC_THROW_MSG( "Name %s is already registered", name.c_str() );
     }
 
-    if( name.size() > 127 ) {
-      FC_THROW_MSG( "Name '%s' is longer than 127 characters", name.c_str() );
+    if( name.size() > 63 ) {
+      FC_THROW_MSG( "Name '%s' is longer than 63 characters", name.c_str() );
     }
 
-    db::name::private_name pn;
-    auto nhash = fc::sha1::hash( name.c_str(), name.size() );
-    if( !my->_name_db->fetch( nhash, pn ) ) {
-        fc::generate_keys( pn.pub_key, pn.priv_key ); 
-        memset( pn.name.data, 0, sizeof(pn.name) );
-        memcpy( pn.name.data, name.c_str(), name.size() + 1 );
-        uint64_t now = rand() + fc::time_point::now().time_since_epoch().count();
-        pn.rand = fc::sha1::hash( (char*)&now, sizeof(now) );
-    }
+    db::name::record_key pn;
+    fc::generate_keys( pn.pub_key, pn.priv_key ); 
 
-    pn.site_ref  = site_ref;
+    rec.pub_key = pn.pub_key;
+    rec.expires = fc::time_point::now().time_since_epoch().count() / 1000000;
+    rec.site_ref  = site_ref;
 
-    memset( (char*)pn.nonce.data, 0, sizeof(pn.nonce.data) );
-
-    pn.priority  = 1;
-    pn.state     = db::name::private_name::generating;
-    
-    my->_name_db->store( pn );
+    my->_name_db->store(name,rec);
+    my->_name_db->store(name,pn);
+    wlog( "reserved name %s for site %s", name.c_str() , fc::string(site_ref).c_str() );
   }
                          
   void                   name_service::release_name( const fc::string& name ){
-    my->_name_db->remove_private_name( fc::sha1::hash( name.c_str(), name.size() ) );    
   }            
                          
   tn::link   name_service::get_link_for_name( const fc::string& name ) {
     // check the public data base first
     db::name::record rec;
-    if( my->_name_db->fetch_record_for_name( name, rec ) ) {
+    if( my->_name_db->fetch( name, rec ) ) {
       return rec.site_ref;
-    }
-    // then check my private database
-    db::name::private_name prec;
-    if( my->_name_db->fetch( fc::sha1::hash( name.c_str(), name.size() ), prec ) ) {
-      return prec.site_ref;
     }
     FC_THROW_MSG( "No site reference registered for name '%s'", name.c_str() );
     return tn::link();
@@ -96,8 +88,8 @@ namespace tn {
  // }
                          
   fc::signature_t name_service::sign_with_name( const fc::sha1& digest, const fc::string& name ){
-    db::name::private_name prec;
-    if( my->_name_db->fetch( fc::sha1::hash( name.c_str(), name.size() ), prec ) ) {
+    db::name::record_key prec;
+    if( my->_name_db->fetch( name, prec ) ) {
        fc::signature_t sig;
        prec.priv_key.sign( digest, sig );
        return sig;
@@ -113,13 +105,15 @@ namespace tn {
   }
                          
   void                   name_service::update_link_for_name( const fc::string& name, const tn::link& val ){
+  #if 0
     // then check my private database
-    db::name::private_name prec;
-    if( my->_name_db->fetch( fc::sha1::hash( name.c_str(), name.size() ), prec ) ) {
+    db::name::record_key prec;
+    if( my->_name_db->fetch( name, prec ) ) {
        prec.site_ref = val;  
        my->_name_db->store( prec );
        return;
     }
+    #endif
     FC_THROW_MSG( "No private key for name '%s'", name.c_str() );
   }
   void                   name_service::transfer_name( const fc::string& name, const fc::public_key_t& to_key ){
@@ -132,31 +126,37 @@ namespace tn {
   float                  name_service::getProcessingEffort(){
     return my->_effort;
   }
-  
-
-  name_service_connection::name_service_connection( tn::udt_channel&& c )
-  :_chan(fc::move(c)) {
-     _rpc.add_method( broadcast_msg_id,    this, &name_service_connection::broadcast);
-     _rpc.add_method( fetch_block_request_id, this, &name_service_connection::fetch_blocks );
-     _rpc.add_method( fetch_trxs_request_id,   this, &name_service_connection::fetch_transactions );
-     _rpc.add_method( resolve_name_request_id, this, &name_service_connection::resolve_name );
-     _rpc.connect(_chan);
-  }
-  void name_service_connection::broadcast( const tn::broadcast_msg& msg ) {
-  }
 
   /**
-   *  Fetch a block by either hash or number (or max)
-   *  Return the block and all transactions in the block.
+   *  Based upon the level, send the request to 2 nodes at that kbucket level.
+   *
+   *  Level 0 is 'root', and I am responsible for my half, in addition to forwarding to the other half
    */
-  fetch_block_reply name_service_connection::fetch_blocks( const fetch_block_request& req ) {
-    fetch_block_reply reply;
-    return reply;
+  void name_service::publish_name( const publish_name_request& r ) {
+    int sent = 0;
+    int lup = 0;
+    while( sent < 3 ) {
+      fc::vector<fc::sha1>  buck = get_node()->get_kbucket( r.level + lup, 3 );
+      for( uint32_t i = 0; i < buck.size() && sent < 3; ++i ) {
+          auto nsc = tn::get_node()->get_client<name_service_client>(  buck[i] );
+          nsc->publish_name( r );
+          sent++;
+      }
+      lup++;
+    }
+    if( r.level == 0 ) {
+      auto r2 = r;
+      r2.level++;
+      publish_name(r2);
+    }
   }
+  
 
-  fetch_trxs_reply name_service_connection::fetch_transactions( const fetch_trxs_request& req ) {
-    fetch_trxs_reply reply;
-    return reply; 
+  name_service_connection::name_service_connection( name_service& ns, tn::udt_channel&& c )
+  :_ns(ns),_chan(fc::move(c)) {
+     _rpc.add_method( publish_name_id, this, &name_service_connection::publish_name);
+     _rpc.add_method( resolve_name_id, this, &name_service_connection::resolve_name);
+     _rpc.connect(_chan);
   }
 
   /**
@@ -165,17 +165,54 @@ namespace tn {
    */
   resolve_name_reply name_service_connection::resolve_name( const resolve_name_request& req ) {
     resolve_name_reply reply;
-
+    try {
+        db::name::record rec;
+        if( _ns.get_name_db()->fetch( req.name, rec ) ) {
+          publish_name_request r;
+          r.level = -1;
+          r.name     = req.name;
+          r.key      = rec.pub_key;
+          r.site_ref = rec.site_ref;
+          r.expires  = rec.expires;
+          r.nonce    = rec.nonce;
+          r.sig      = rec.sig;
+          reply.record = r;
+        }
+    } catch (...) {}
     return reply;
   }
   
+  publish_name_reply name_service_connection::publish_name( const publish_name_request& req ) {
+    publish_name_reply reply;
+    reply.status = publish_name_reply::rejected;
+    try {
+        db::name::record rec;
+        if( _ns.get_name_db()->fetch( req.name, rec ) ) {
+          reply.status = publish_name_reply::already_reserved;
+        } else {
+          rec.pub_key  = req.key;
+          rec.site_ref = rec.site_ref;
+          rec.expires  = rec.expires;
+          rec.nonce    = rec.nonce;
+          rec.sig      = rec.sig;
+          if( _ns.get_name_db()->store( req.name, rec ) ) {
+            reply.status = tn::publish_name_reply::ok;
+            auto fwd_req = req;
+            fwd_req.level++;
+            _ns.publish_name( fwd_req );
+          }
+       }
+    } catch ( ... ) {
+      elog( "%s", fc::current_exception().diagnostic_information().c_str() );
+    }
+    return reply;
+  }
+
+  db::name::ptr name_service::get_name_db()const { return my->_name_db; }
 
   void name_service::impl::on_new_connection( const tn::channel& c ) {
-      name_service_connection::ptr con( new name_service_connection( udt_channel(c,256) ) );
+      name_service_connection::ptr con( new name_service_connection( _self, udt_channel(c,256) ) );
       _subscribers.push_back(con);
-  }
-  void name_service::impl::download_block( const fc::sha1&, tn::name_block& b ) {
-    
   }
   
 

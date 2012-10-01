@@ -129,6 +129,11 @@ publishing of key/value pairs is subject to the same market principles as the co
 
 Name Registration Lookup
 -----------------------------------------
+To register a name you must first calculate a difficult hash and then broadcast your registration to the
+network.  Your broadcast will include a public key which will identify you as the new owner of that name until
+it expires.  You must rebroadcast your name registration every month, and by referencing your prior registration
+you will be able to build up a reputation for a given name.
+
 It will be possible to assign a human readable name to an ID via the use of Namecoin.  The combination of
 Namecoin, key/value store, and the distributed filesystem provides everything necessary to implement a
 distributed static internet that can be browsed much like the internet of the early 1990's.   

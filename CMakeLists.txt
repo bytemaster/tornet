@@ -59,9 +59,13 @@ add_subdirectory(context)
 
 
 SET( sources 
+    src/db/chunk.cpp
+    src/db/peer.cpp
+    src/db/publish.cpp
+    src/db/name.cpp
+    src/httpd.cpp
     src/chunk_service.cpp
     src/name_service_client.cpp
-    src/download_block_chain.cpp
     src/archive.cpp
     src/main.cpp
     src/link.cpp
@@ -72,10 +76,6 @@ SET( sources
     src/dbo.cpp
     src/sql_session.cpp
     src/connection.cpp
-    src/db/chunk.cpp
-    src/db/peer.cpp
-    src/db/publish.cpp
-    src/db/name.cpp
     src/buffer.cpp
     src/channel.cpp
     src/kad.cpp

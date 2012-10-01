@@ -482,10 +482,10 @@ bool is_random( const fc::vector<char>& data ) {
        double de = *itr - expected;
        x2 +=  (de*de) / expected;
    } 
-   slog( "%s", fc::to_hex( data.data(), 128 ).c_str() );
-   slog( "%d", data.size() );
+   //slog( "%s", fc::to_hex( data.data(), 128 ).c_str() );
+   //slog( "%d", data.size() );
    float prob = pochisq( x2, 255 );
-   slog( "Prob %f", prob );
+   //slog( "Prob %f", prob );
 
    // smaller chunks have a higher chance of 'low' entrempy
    return prob < .80 && prob > .20;

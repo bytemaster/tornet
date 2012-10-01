@@ -61,6 +61,8 @@ namespace tn {
       peer_db_ptr    get_peers()const;
       fc::path       datadir()const;
 
+      fc::vector<fc::sha1>  get_kbucket( int bucket, int max );
+
       /**
        * @param ddir - data directory where identity information is stored.
        * @param port - send/recv messages via this port.
@@ -152,16 +154,16 @@ namespace tn {
       fc::ip::endpoint local_endpoint( const fc::ip::endpoint& dest = fc::ip::endpoint() )const;
 
       
-        template<typename ServiceClientType>
-        fc::shared_ptr<ServiceClientType> get_client( const fc::sha1& id ) {
-          auto scp = get_client( id, ServiceClientType::static_name() );
-          if( !scp ) {
-             fc::shared_ptr<ServiceClientType> sc( new ServiceClientType( *this, id ) );
-             add_client( id, sc );
-             return sc;
-          }
-          return fc::dynamic_pointer_cast<ServiceClientType>(scp);
+      template<typename ServiceClientType>
+      fc::shared_ptr<ServiceClientType> get_client( const fc::sha1& id ) {
+        auto scp = get_client( id, ServiceClientType::static_name() );
+        if( !scp ) {
+           fc::shared_ptr<ServiceClientType> sc( new ServiceClientType( *this, id ) );
+           add_client( id, sc );
+           return sc;
         }
+        return fc::dynamic_pointer_cast<ServiceClientType>(scp);
+      }
 
 
       

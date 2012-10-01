@@ -7,7 +7,7 @@
 #include <boost/foreach.hpp>
 #include <boost/optional.hpp>
 #include <boost/variant.hpp>
-#include <socks5/common.hpp>
+#include <tornet/socks5/common.hpp>
 
 using namespace boost::asio;
 

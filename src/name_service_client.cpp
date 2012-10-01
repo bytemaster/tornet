@@ -26,33 +26,11 @@ namespace tn {
 
   }
 
-
-  fc::future<fetch_block_reply> name_service_client::fetch_head() {
-    fetch_block_request req;
-    req.flags     = fetch_block_request::include_block;
-    req.block_num = -1;
-    return my->_rpc.invoke<fetch_block_reply>( fetch_block_request_id, req );
+  fc::future<publish_name_reply> name_service_client::publish_name( const publish_name_request& r ) {
+    return my->_rpc.invoke<publish_name_reply>( publish_name_id, r );
   }
-  fc::future<fetch_block_reply> name_service_client::fetch_block( const fc::sha1& id ) {
-    fetch_block_request req;
-    req.flags     = fetch_block_request::include_block;
-    req.block_id  = id;
-    req.block_num = -2;  
-    return my->_rpc.invoke<fetch_block_reply>( fetch_block_request_id, req );
-  }
-  fc::future<fetch_block_reply> name_service_client::fetch_block_transactions( const fc::sha1& id ) {
-    fetch_block_request req;
-    req.flags     = fetch_block_request::include_block | fetch_block_request::include_transactions;
-    req.block_id  = id;
-    req.block_num = -2;  
-    return my->_rpc.invoke<fetch_block_reply>( fetch_block_request_id, req );
-  }
-  fc::future<fetch_trxs_reply>  name_service_client::fetch_trxs( const fetch_trxs_request& r ) {
-    return my->_rpc.invoke<fetch_trxs_reply>( fetch_trxs_request_id, r );
-  }
-
-  void  name_service_client::broadcast( const broadcast_msg& m ) {
-    my->_rpc.notice( broadcast_msg_id, m );
+  fc::future<resolve_name_reply> name_service_client::resolve_name( const resolve_name_request& r ) {
+    return my->_rpc.invoke<resolve_name_reply>( resolve_name_id, r );
   }
 
 
