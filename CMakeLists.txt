@@ -69,12 +69,7 @@ SET( sources
     src/archive.cpp
     src/main.cpp
     src/link.cpp
-    src/WTornetApplication.cpp
-    src/WTornetResource.cpp
-    src/WUserItemModel.cpp
     src/node.cpp
-    src/dbo.cpp
-    src/sql_session.cpp
     src/connection.cpp
     src/buffer.cpp
     src/channel.cpp
@@ -92,6 +87,13 @@ SET( sources
     src/tornet_app.cpp
     src/chisq.c
     src/raw_rpc.cpp
+
+    src/main.cpp
+    src/webgui/WTornetApplication.cpp
+    src/webgui/WTornetResource.cpp
+    src/webgui/WUserItemModel.cpp
+    src/webgui/dbo.cpp
+    src/webgui/sql_session.cpp
 
  #   main.cpp
  #   gui/QBind.cpp

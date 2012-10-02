@@ -7,9 +7,8 @@
 #include <Wt/Json/Parser>
 #include <fc/exception.hpp>
 #include <fc/thread.hpp>
-#include <tornet/WTornetApplication.hpp>
-
-#include "WTornetResource.hpp"
+#include "webgui/WTornetApplication.hpp"
+#include "webgui/WTornetResource.hpp"
 #include <tornet/httpd.hpp>
 
 Wt::WApplication* create_application( const Wt::WEnvironment& env ) {
@@ -21,14 +20,15 @@ int main( int argc, char** argv ) {
   try {
       fc::thread::current().set_name("main");
 
-
       Wt::WServer server(argv[0]);
       server.setServerConfiguration(argc, argv, WTHTTP_CONFIGURATION);
 
       tn::tornet_app::config tcfg;
       std::string json_cfg;
+      std::string http_proxy_port;
 
       server.readConfigurationProperty( "tornet", json_cfg );
+      server.readConfigurationProperty( "http_proxy_port", http_proxy_port );
 
       Wt::Json::Value jval;
       Wt::Json::parse( json_cfg, jval );
@@ -44,7 +44,7 @@ int main( int argc, char** argv ) {
       tn::tornet_app::instance()->configure( tcfg );
 
       tn::httpd proxy;
-      proxy.listen(1090);
+      proxy.listen(boost::lexical_cast<uint16_t>(http_proxy_port));
 
       server.addEntryPoint(Wt::Application, []( const Wt::WEnvironment& env ) { return create_application(env); }, "", "/favicon.ico" );
       server.addResource( new WTornetResource(), "/fetch" );

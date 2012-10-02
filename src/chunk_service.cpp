@@ -36,8 +36,6 @@
 #include <tornet/service_ports.hpp>
 #include "chunk_service_connection.hpp"
 
-#include "persist.hpp"
-#include <Wt/Dbo/Transaction>
 
 namespace tn {
 
