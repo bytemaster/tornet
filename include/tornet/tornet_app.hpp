@@ -43,6 +43,8 @@ namespace tn {
       class impl;
       fc::fwd<impl,24> my;
   };
+  inline const fc::shared_ptr<name_service>&  get_name_service(){ return tornet_app::instance()->get_name_service(); }
+  inline const fc::shared_ptr<chunk_service>& get_chunk_service(){ return tornet_app::instance()->get_chunk_service(); }
 
   // shortcut for tornet_app::instance()->get_node()
   inline const fc::shared_ptr<node>& get_node(){ return tornet_app::instance()->get_node(); }

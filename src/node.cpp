@@ -88,6 +88,9 @@ namespace tn {
   }
 
   fc::vector<fc::sha1> node::get_kbucket( int l, int max ) {
+    if( !my->_thread.is_current() ) {
+       return my->_thread.async( [=](){ return get_kbucket(l,max); } ).wait();
+    }
     std::vector<connection*>& buck = my->_kbuckets.get_bucket_for_target( l );
     fc::vector<fc::sha1> vec;
     vec.reserve(max);

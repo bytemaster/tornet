@@ -86,6 +86,7 @@ namespace tn { namespace db {
     try { 
       slog( "initialize database %s/trx_db", my->_envdir.string().c_str() );
       my->_rec_db = new Db(&my->_env, 0);
+      my->_rec_db->set_flags( DB_RECNUM );
       my->_rec_db->open( NULL, "name_data", "name_data", DB_BTREE, DB_CREATE | DB_AUTO_COMMIT, 0 );
 
     } catch( const DbException& e ) {
@@ -95,6 +96,7 @@ namespace tn { namespace db {
     try { 
       slog( "initialize database %s/priv_db", my->_envdir.string().c_str() );
       my->_private_db = new Db(&my->_env, 0);
+      my->_private_db->set_flags( DB_RECNUM );
       my->_private_db->open( NULL, "priv_data", "priv_data", DB_BTREE, DB_CREATE | DB_AUTO_COMMIT, 0 );
     } catch( const DbException& e ) {
       elog( "Error opening trx_data database: %s", e.what() );
@@ -261,5 +263,56 @@ namespace tn { namespace db {
     }
     return true;
   }
+
+  uint32_t name::record_count() {
+    if( ! my->_thread.is_current() ) {
+        return my->_thread.async( [this](){ return record_count(); } ).wait();
+    }
+    db_recno_t num;
+    Dbc*       cur;
+    Dbt key;
+    Dbt val(&num, sizeof(num) );
+    val.set_ulen(sizeof(num));
+    val.set_flags( DB_DBT_USERMEM );
+
+    Dbt ignore_val; 
+    ignore_val.set_flags( DB_DBT_MALLOC | DB_DBT_PARTIAL);
+    ignore_val.set_dlen(0); 
+
+    my->_rec_db->cursor( NULL, &cur, 0 );
+    int rtn = cur->get( &key, &ignore_val, DB_LAST );
+    if( rtn == DB_NOTFOUND ) {
+      cur->close();
+      return 0;
+    }
+    rtn = cur->get( &key, &val, DB_GET_RECNO );
+    cur->close();
+    elog( "%d names", num );
+    return num;
+  }
+
+  bool name::fetch(  uint32_t recnum, fc::string& id, name::record& m ) {
+    if( !my->_thread.is_current() ) {
+        return my->_thread.async( [&,this](){ return fetch( recnum, id, m ); } ).wait();
+    }
+    slog( "fetch name %d", recnum );
+    db_recno_t rn(recnum);
+    Dbt key(&rn,sizeof(rn));
+    Dbt val( &rn, sizeof(rn) );
+    int rtn = my->_rec_db->get( 0, &key, &val, DB_SET_RECNO );
+    if( rtn == EINVAL ) {
+      elog( "Invalid DB Query" );
+      return false;
+    }
+    if( rtn != DB_NOTFOUND ) {
+      id = fc::string( (char*)key.get_data(), key.get_size() );
+      return true;
+    }
+    wlog( "Unable to find recno %1%", recnum );
+    return false;
+  }
+
+
+
 
 } } 

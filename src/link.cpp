@@ -1,10 +1,12 @@
 #include <tornet/link.hpp>
 #include <fc/base58.hpp>
+#include <fc/hex.hpp>
 #include <fc/raw.hpp>
 namespace tn {
     link::link( const fc::string& b58 ) {
       char buffer[sizeof(id)+sizeof(seed)];
-      fc::from_base58( b58, buffer, sizeof(buffer) );
+      //fc::from_base58( b58, buffer, sizeof(buffer) );
+      fc::from_hex( b58, buffer, sizeof(buffer) );
 
       fc::datastream<const char*> ds(buffer,sizeof(buffer) );
       fc::raw::unpack( ds, *this );
@@ -13,6 +15,6 @@ namespace tn {
       char buffer[sizeof(id)+sizeof(seed)];
       fc::datastream<char*> ds(buffer,sizeof(buffer) );
       fc::raw::pack( ds, *this );
-      return fc::to_base58( buffer, sizeof(buffer) );
+      return fc::to_hex( buffer, sizeof(buffer) );
     }
 } // namespace tn;

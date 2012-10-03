@@ -14,10 +14,8 @@ namespace tn {
    */
   class httpd : public fc::retainable {
     public:
-      httpd();
+      httpd(uint16_t port);
       ~httpd();
-
-      void listen( uint16_t port );
 
       class impl;
     private:

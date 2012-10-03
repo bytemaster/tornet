@@ -120,6 +120,7 @@ namespace tn {
               // the decoded chunk size may be different than the DB size because 
               // blowfish requires 8 byte blocks.
               cdata.resize( itr->size ); 
+              wlog( "...... sock write %d", cdata.size() );
               _delegate->download_data( fc::move(cdata) );
             } catch ( ... ) {
                _delegate->download_error( -1, "Unable to download chunk "+ fc::string(itr->id) + ": " + fc::current_exception().diagnostic_information() );
