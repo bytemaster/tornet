@@ -63,6 +63,7 @@ class cafs  {
       };
       // fc::raw::pack( fc::sha1::encoder, *this )
       fc::sha1 calculate_id()const;
+      size_t   calculate_size()const;
 
       fc::vector<slice> slices;
     };
@@ -116,7 +117,16 @@ class cafs  {
     void open( const fc::path& dir );
     void close();
 
+    /**
+     *  Imports either a file or a directory and returns a link 
+     *  that can be used to fetch either the file or directory index.
+     */
     link         import( const fc::path& p );
+
+    /**
+     *  Given a link, download the file to the given directory
+     */
+    void         export_link( const link& l, const fc::path& dir );
 
     /**
      *  Creates chunks for the file located at p.
@@ -184,7 +194,7 @@ FC_REFLECT( cafs::chunk_header::slice, (size)(hash)                            )
 FC_REFLECT( cafs::chunk_header,        (slices)                                )
 FC_REFLECT( cafs::file_ref,            (content)(chunk)(seed)(pos)(size)(type) )
 FC_REFLECT( cafs::file_header::chunk,  (hash)(seed)                            )
-FC_REFLECT( cafs::file_header,         (chunks)                                )
+FC_REFLECT( cafs::file_header,         (file_size)(chunks)                     )
 FC_REFLECT( cafs::directory::entry,    (name)(ref)                             )           
 FC_REFLECT( cafs::directory,           (entries)                               )
 

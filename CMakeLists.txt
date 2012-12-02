@@ -157,8 +157,11 @@ SET( libraries
 
     SET( MACOSX_BUNDLE_INFO_STRING "TornetInfoString" )
     SET( MACOSX_BUNDLE_BUNDLE_NAME "TornetBundleName"  )
-add_executable( tornet 
-  MACOSX_BUNDLE 
-  ${sources} )
-target_link_libraries( tornet ${libraries} )
+#add_executable( tornet 
+#  MACOSX_BUNDLE 
+#  ${sources} )
+#target_link_libraries( tornet ${libraries} )
+
+add_executable( cafst  cafs_main.cpp cafs/cafs.cpp src/chisq.c)
+target_link_libraries( cafst ${libraries}  )
 
