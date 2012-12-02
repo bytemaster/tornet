@@ -24,25 +24,7 @@ namespace tn {
   class chunk_service;
   class download_status;
 
-  /**
-   *  Determins if data is sufficiently random for the purposes of
-   *  the chunk service.
-   */
-  bool      is_random( const fc::vector<char>& data );
-  /**
-   *  Takes arbitrary data and 'randomizes' it returning the MT19937 key
-   *  that results in a random sequence that satisifies is_random()
-   *
-   *  Modifies data using the random sequence.
-   */
-  uint64_t  randomize( fc::vector<char>& data, uint64_t init_seed );
 
-  /**
-   *  Reverses the randomization performed by randomize
-   *  @param seed - the value returned by randomize.
-   */
-  void      derandomize( uint64_t seed, fc::vector<char>& data );
-  void      derandomize( uint64_t seed, const fc::mutable_buffer& b );
 
   /**
    *  Provides an interface to two chunk databases, one local and one cache.

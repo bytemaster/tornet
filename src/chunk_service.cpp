@@ -36,6 +36,24 @@
 #include <tornet/service_ports.hpp>
 #include "chunk_service_connection.hpp"
 
+  /**
+   *  Reverses the randomization performed by randomize
+   *  @param seed - the value returned by randomize.
+   */
+  void      derandomize( uint64_t seed, fc::vector<char>& data );
+  void      derandomize( uint64_t seed, const fc::mutable_buffer& b );
+  /**
+   *  Determins if data is sufficiently random for the purposes of
+   *  the chunk service.
+   */
+  bool      is_random( const fc::vector<char>& data );
+  /**
+   *  Takes arbitrary data and 'randomizes' it returning the MT19937 key
+   *  that results in a random sequence that satisifies is_random()
+   *
+   *  Modifies data using the random sequence.
+   */
+  uint64_t  randomize( fc::vector<char>& data, uint64_t init_seed );
 
 namespace tn {
 

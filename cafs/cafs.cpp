@@ -19,11 +19,15 @@
 #define IMBED_THRESHOLD (1024*1024)
 
 
-
+extern "C" {
 double pochisq(
     	const double ax,    /* obtained chi-square value */
      	const int df	    /* degrees of freedom */
      	);
+      }
+
+cafs::file_ref::file_ref()
+:seed(0),pos(0),size(0),type(0){}
 
 struct cafs::impl : public fc::retainable {
   fc::path datadir;
@@ -47,6 +51,11 @@ void cafs::open( const fc::path& dir ) {
 void cafs::close() {
 }
 
+fc::sha1 cafs::chunk_header::calculate_id()const {
+  fc::sha1::encoder e;
+  fc::raw::pack( e, *this );
+  return e.result();
+}
 
 /**
  *  Divides data into slices and return a chunk header containing those
@@ -139,12 +148,19 @@ cafs::file_header cafs::import_file( const fc::path& p ) {
 
     chunk.resize(some);
     auto chunk_head = slice_chunk(chunk);
-    auto chunk_id = store_chunk( chunk_head, chunk );
+    auto chunk_id   = store_chunk( chunk_head, chunk );
 
     head.add_chunk( chunk_id, seed, chunk_head );
     r += some;
   }
   return head;
+}
+
+cafs::file_header::chunk::chunk( const fc::sha1& h, uint64_t s )
+:hash(h),seed(s){}
+
+void cafs::file_header::add_chunk( const fc::sha1& cid, uint64_t seed, const chunk_header& ch ) {
+  chunks.push_back( chunk( cid, seed ) );
 }
 
 /**

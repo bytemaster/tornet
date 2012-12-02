@@ -43,6 +43,7 @@ int main( int argc, char** argv ) {
         
       tn::tornet_app::instance()->configure( tcfg );
 
+      /*
       fc::thread httpd_thread("httpd");
       httpd_thread.async( [=](){ 
           try {
@@ -50,6 +51,7 @@ int main( int argc, char** argv ) {
            fc::usleep( fc::microseconds( 1000ll*1000ll*60ll*60*24*365*10) );
           } catch ( ... ) { elog( "%s", fc::except_str().c_str() ); }
       });
+      */
 
       server.addEntryPoint(Wt::Application, []( const Wt::WEnvironment& env ) { return create_application(env); }, "", "/favicon.ico" );
       server.addResource( new WTornetResource(), "/fetch" );

@@ -68,8 +68,7 @@ class cafs  {
     };
 
     /**
-     *  Small files are mapped to individual slices, these
-     *  are maintaiend in a BDB database.
+     *  Small files are mapped to individual slices
      */
     struct file_ref {
       file_ref();
@@ -92,6 +91,7 @@ class cafs  {
 
        void add_chunk( const fc::sha1& cid, uint64_t seed, const chunk_header& h );
        struct chunk{
+          chunk( const fc::sha1& h = fc::sha1(), uint64_t s = 0 );
           fc::sha1     hash;
           uint64_t     seed;
        };
@@ -121,11 +121,11 @@ class cafs  {
     /**
      *  Creates chunks for the file located at p.
      *
-     *  @pre fs::is_regular_file(p) 
+     *  @pre fc::is_regular_file(p) 
      */
     file_header  import_file( const fc::path& p );
     /**
-     *  @pre fs::is_directory(p) 
+     *  @pre fc::is_directory(p) 
      */
     directory    import_directory( const fc::path& p );
 
@@ -174,10 +174,10 @@ class cafs  {
     fc::shared_ptr<impl> my;
 };
 
-bool is_random( const fc::vector<char>& data );
+bool     is_random( const fc::vector<char>& data );
 uint64_t randomize( fc::vector<char>& data, uint64_t seed );
-void derandomize( uint64_t seed, fc::vector<char>& data );
-void derandomize( uint64_t seed, const fc::mutable_buffer& b );
+void     derandomize( uint64_t seed, fc::vector<char>& data );
+void     derandomize( uint64_t seed, const fc::mutable_buffer& b );
 
 FC_REFLECT( cafs::link,                (id)(seed)                              )
 FC_REFLECT( cafs::chunk_header::slice, (size)(hash)                            )

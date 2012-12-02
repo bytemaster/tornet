@@ -14,6 +14,7 @@ double pochisq(
      	);
 }
 
+  bool      is_random( const fc::vector<char>& data );
 namespace tn {
 
 

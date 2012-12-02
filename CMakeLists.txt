@@ -47,6 +47,7 @@ include_directories( ${QT_QTGUI_INCLUDE_DIR} )
 include_directories( fc/include )
 #include_directories( ../reflect/include )
 include_directories( include )
+include_directories( cafs )
 include_directories( /usr/include )
 include_directories( /opt/local/include/db53 )
 

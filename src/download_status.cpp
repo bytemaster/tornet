@@ -12,6 +12,8 @@
 #include <fc/fwd_impl.hpp>
 #include <fc/blowfish.hpp>
 
+#include <cafs.hpp>
+
 namespace tn {
 
   class download_status::impl {
