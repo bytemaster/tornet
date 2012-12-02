@@ -3,7 +3,8 @@
 #include <fc/shared_ptr.hpp>
 #include <fc/sha1.hpp>
 #include <tornet/buffer.hpp>
-#include <fc/function.hpp>
+//#include <fc/function.hpp>
+#include <functional>
 
 
 namespace tn { 

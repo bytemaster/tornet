@@ -7,7 +7,7 @@
 #include <fc/raw.hpp>
 
 //#include <iostream>
-#include <fc/stream.hpp>
+#include <fc/iostream.hpp>
 #include <fc/blowfish.hpp>
 
 #include <tornet/name_service.hpp>
@@ -319,6 +319,16 @@ namespace tn {
      
      return ss.str();
   }
+  void get_index( const tornet_file& tf, const http_request& req ) {
+     auto ar = fc::raw::unpack<tn::archive>(tf.inline_data);
+     for( auto itr = ar.entries.begin(); itr != ar.entries.end(); ++itr ) {
+        slog( "get index! %s", itr->name.c_str() );
+        if( itr->name == "index.html"  ) {
+           throw http_found( "http://"+(req._domain/req._path/itr->name).string() );
+        }
+     }
+  }
+  
 
    void http_connection::process() {
        auto req          = parse_request();
@@ -337,22 +347,23 @@ namespace tn {
           rep._close       = req._close;
       
           if( is_archive( cheader ) ) {
-             auto content = get_directory_listing( cheader, req._domain, req._path );      
-             rep._length = content.size();            
-             rep._status = http_reply::OK;
+              get_index( cheader, req ); // throw a 302 found if directory contains index.html
 
-             fc::string s = rep._location.string();
-             if( s.size() && s[s.size()-1] != '/' ) { throw http_found( "http://"+(req._domain/s).string()+"/" ); }
-             
-             send_header( rep );
-             send_body( content );
-          } else {
-             rep._length = cheader.size;
-             rep._status = http_reply::OK;
-             send_header( rep );
-             send_body( cheader );
-          }
+              auto content = get_directory_listing( cheader, req._domain, req._path );      
+              rep._length = content.size();            
+              rep._status = http_reply::OK;
 
+              fc::string s = rep._location.string();
+              if( s.size() && s[s.size()-1] != '/' ) { throw http_found( "http://"+(req._domain/s).string()+"/" ); }
+              
+              send_header( rep );
+              send_body( content );
+              return;
+          } 
+          rep._length = cheader.size;
+          rep._status = http_reply::OK;
+          send_header( rep );
+          send_body( cheader );
        } catch ( const http_invalid_domain& d ) { 
            send_invalid_domain(req,d); 
        } catch ( const http_found& d ) { 

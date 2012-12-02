@@ -1,7 +1,5 @@
 #include <tornet/tornet_app.hpp>
 #include <fc/ip.hpp>
-#include <fc/reflect_impl.hpp>
-#include <fc/reflect_vector.hpp>
 #include <fc/fwd_impl.hpp>
 #include <fc/exception.hpp>
 #include <tornet/node.hpp>
@@ -9,19 +7,15 @@
 #include <tornet/chunk_service.hpp>
 #include <tornet/name_service.hpp>
 
-FC_REFLECT( tn::tornet_app::config, 
-  (tornet_port)
-  (data_dir)
-  (bootstrap_hosts)
-)
-
 namespace tn {
 
   class tornet_app::impl {
     public:
+      impl():_thread("tornet_app"){}
       fc::shared_ptr<node>           _node;
       fc::shared_ptr<name_service>   _name_service;
       fc::shared_ptr<chunk_service>  _chunk_service;
+      fc::thread                     _thread;
   };
 
   tornet_app::tornet_app() {
@@ -45,6 +39,10 @@ namespace tn {
   }
 
   void  tornet_app::configure( const config& c ) {
+     if( !my->_thread.is_current() ) {
+      my->_thread.async( [=]() { configure(c); } );
+      return;
+     }
      my->_node.reset(          new tn::node() );
      my->_node->init( c.data_dir, c.tornet_port );
 
@@ -78,6 +76,7 @@ namespace tn {
                 fc::string(itr->first).c_str(), fc::string(itr->second.id).c_str(), fc::string(itr->second.ep).c_str() );
        ++itr;
      }
+     my->_chunk_service->enable_publishing(true);
   }
 
   const fc::shared_ptr<node>&          tornet_app::get_node()const {

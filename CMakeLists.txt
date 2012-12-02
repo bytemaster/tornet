@@ -59,11 +59,11 @@ add_subdirectory(context)
 
 
 SET( sources 
+    cafs/cafs.cpp
     src/db/chunk.cpp
     src/db/peer.cpp
     src/db/publish.cpp
     src/db/name.cpp
-    src/httpd.cpp
     src/chunk_service.cpp
     src/name_service_client.cpp
     src/archive.cpp
@@ -75,14 +75,12 @@ SET( sources
     src/channel.cpp
     src/kad.cpp
     src/kbucket.cpp
-    src/tornet_file.cpp
     src/name_service.cpp
     src/udt_test_service.cpp
     src/udt_channel.cpp
     src/miss_list.cpp
     src/chunk_search.cpp
     src/chunk_service_client.cpp
-    src/chunk_service_messages.cpp
     src/download_status.cpp
     src/tornet_app.cpp
     src/chisq.c

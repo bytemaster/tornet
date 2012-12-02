@@ -4,7 +4,7 @@
 #include <tornet/link.hpp>
 #include <fc/shared_ptr.hpp>
 #include <fc/filesystem.hpp>
-#include <fc/static_reflect.hpp>
+#include <fc/reflect.hpp>
 
 namespace tn { namespace db {
 
@@ -65,6 +65,6 @@ namespace tn { namespace db {
   
 } }
 
-FC_STATIC_REFLECT( tn::db::name::record_key, (pub_key)(priv_key) )
+FC_REFLECT( tn::db::name::record_key, (pub_key)(priv_key) )
 
 #endif // _TORNET_DB_NAME_HPP_

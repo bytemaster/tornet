@@ -4,7 +4,7 @@
 #include <fc/bigint.hpp>
 //#include <fc/signals.hpp>
 #include <fc/error.hpp>
-#include <fc/stream.hpp>
+#include <fc/fstream.hpp>
 
 namespace tn {
 

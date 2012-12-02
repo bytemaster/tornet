@@ -4,7 +4,7 @@
 #include <fc/vector.hpp>
 #include <fc/sha1.hpp>
 #include <fc/pke.hpp>
-#include <fc/static_reflect.hpp>
+#include <fc/reflect.hpp>
 #include <tornet/name_chain.hpp>
 
 namespace tn {
@@ -46,9 +46,9 @@ namespace tn {
 
 } // namespace tn
 
-FC_STATIC_REFLECT( tn::publish_name_request, (name)(key)(site_ref)(expires)(nonce)(sig) )
-FC_STATIC_REFLECT( tn::publish_name_reply, (status) )
-FC_STATIC_REFLECT( tn::resolve_name_request, (name) )
-FC_STATIC_REFLECT( tn::resolve_name_reply, (record) )
+FC_REFLECT( tn::publish_name_request, (name)(key)(site_ref)(expires)(nonce)(sig) )
+FC_REFLECT( tn::publish_name_reply, (status) )
+FC_REFLECT( tn::resolve_name_request, (name) )
+FC_REFLECT( tn::resolve_name_reply, (record) )
 
 #endif // _TORNET_NAME_SERVICE_MESSAGES_HPP_

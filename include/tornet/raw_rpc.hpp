@@ -3,7 +3,7 @@
 #include <fc/raw.hpp>
 #include <fc/fwd.hpp>
 #include <fc/future.hpp>
-#include <fc/static_reflect.hpp>
+#include <fc/reflect.hpp>
 
 namespace tn {
   class udt_channel;

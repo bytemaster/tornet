@@ -1,5 +1,4 @@
-#ifndef _TORNET_APP_HPP_
-#define _TORNET_APP_HPP_
+#pragma once
 #include <fc/shared_ptr.hpp>
 #include <fc/string.hpp>
 #include <fc/vector.hpp>
@@ -41,7 +40,7 @@ namespace tn {
 
     private:
       class impl;
-      fc::fwd<impl,24> my;
+      fc::fwd<impl,64> my;
   };
   inline const fc::shared_ptr<name_service>&  get_name_service(){ return tornet_app::instance()->get_name_service(); }
   inline const fc::shared_ptr<chunk_service>& get_chunk_service(){ return tornet_app::instance()->get_chunk_service(); }
@@ -51,7 +50,6 @@ namespace tn {
 
 } // namespace tn
 
-FC_REFLECTABLE( tn::tornet_app::config )
+FC_REFLECT( tn::tornet_app::config, (tornet_port)(data_dir)(bootstrap_hosts) )
 
 
-#endif //  _TORNET_APP_HPP_

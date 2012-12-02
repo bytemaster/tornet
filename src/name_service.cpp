@@ -50,23 +50,31 @@ namespace tn {
 
   void name_service::reserve_name( const fc::string& name, const tn::link& site_ref ) {
     tn::db::name::record rec;
-    if( my->_name_db->fetch( name, rec ) ) {
-      FC_THROW_MSG( "Name %s is already registered", name.c_str() );
+    tn::db::name::record_key rec_key;
+    bool update_domain = false;
+    if( my->_name_db->fetch( name, rec ) ) { // if already found
+      if( !my->_name_db->fetch( name, rec_key ) )  // and we don't have the key
+        FC_THROW_MSG( "Name %s is already registered to someone else", name.c_str() );
+      update_domain = true;
     }
 
     if( name.size() > 63 ) {
       FC_THROW_MSG( "Name '%s' is longer than 63 characters", name.c_str() );
     }
+    if( !update_domain ) { 
+        db::name::record_key pn;
+        fc::generate_keys( pn.pub_key, pn.priv_key ); 
 
-    db::name::record_key pn;
-    fc::generate_keys( pn.pub_key, pn.priv_key ); 
+        rec.pub_key = pn.pub_key;
+        rec.expires = fc::time_point::now().time_since_epoch().count() / 1000000;
+        rec.site_ref  = site_ref;
 
-    rec.pub_key = pn.pub_key;
-    rec.expires = fc::time_point::now().time_since_epoch().count() / 1000000;
-    rec.site_ref  = site_ref;
-
-    my->_name_db->store(name,rec);
-    my->_name_db->store(name,pn);
+        my->_name_db->store(name,pn);
+        my->_name_db->store(name,rec);
+    } else {
+      rec.site_ref = site_ref;
+      my->_name_db->store(name,rec);
+    }
     wlog( "reserved name %s for site %s", name.c_str() , fc::string(site_ref).c_str() );
   }
                          

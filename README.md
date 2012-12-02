@@ -77,6 +77,65 @@ Services built ontop of Overlay Network
 
 Distributed File System
 -------------------------------------
+An analogy can be made between a spinning hard disk and a distributed file system in that
+seek-times can be much slower than sequential read times.  Often files are small and the
+network costs of finding the file can signficantly exceed the cost of transfering the file 
+once found.
+
+To make the most effecient use of network bandwidth, small files are grouped together into
+chunks.  To address one of the files you need to know the chunk ID the start location and
+the size of the file.
+
+Some files are too big to fit into a single chunk, these files are divided among multiple chunks and
+a header is stored that describes how to re-assemble the file.
+
+A directory is just file that contains a mapping from a name to a file reference.  
+
+At the end of the day, we want a content addressable file system and to avoid storing duplicate
+data if at all possible. So we will refer to all files by the sha1() of their contents and then
+have a mapping of sha1(contents) to chunk+seed+offset+size.  So a directory file will look like
+this:
+
+    struct directory {
+      struct cname_to_content {
+        uint128 name_hash;
+        sha1    content_hash;
+      };
+      struct entry {
+        sha1      chunk;
+        uint64_t  seed;
+        uint32_t  start; 
+        uint64_t  length;
+        uint32_t  name_pos;
+      };
+      uint64           numfiles;
+      cname_to_content files[numfiles];
+      entry            entries[numfiles];
+      vector<string>   names;
+    }
+
+Everything is 'fixed-length' except the names which are stored at the end.  This enables us
+to easily index a directory without having to deserialize the whole thing.
+
+For each chunk we need to store a hash for every 32KB sub-chunk to allow partial retrieval.
+
+Each host can then maintain a 'file cache' with the decoded files so that if a directory 
+changes that it can still identify the files that are 'unchanged'.  
+
+If a file must be split among chunks, then it has a header that describes this split, otherwise,
+small files always fall within a given chunk.  Editing a single file should not cause subsequent
+runs of the same archive function to invalidate the entries for all subsequent files.  
+
+A user publishing a directory would maintain a DB of hash to entry and refer to this DB when packing
+a directory so that only new files are put into new chunks.  This will help optimize the caching on 
+the network by preventing small changes from 'cascading'.
+
+
+Files come in many sizes, but often they are can be orders of magnitude smaller than the
+network traffic required to locate the file.  To resolve this issue 
+
+
+
 Files are distributed across the network in 1MB (or less) chunks.  Each chunk is encrypted via
 blowfish using the hash of the unencrypted file as the key; therefore, you must know the
 unencrypted hash before you can decrypt the chunk and you must know the hash of the encrypted

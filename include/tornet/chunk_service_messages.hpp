@@ -1,7 +1,6 @@
 #ifndef _CHUNK_SERVICE_MESSAGES_HPP_
 #define _CHUNK_SERVICE_MESSAGES_HPP_
-#include <fc/static_reflect.hpp>
-#include <fc/reflect_fwd.hpp>
+#include <fc/reflect.hpp>
 #include <fc/sha1.hpp>
 #include <fc/vector.hpp>
 
@@ -101,10 +100,7 @@ namespace tn {
 
 }
 
-FC_STATIC_REFLECT( tn::fetch_request, (target)(length)(offset) )
-FC_STATIC_REFLECT( tn::fetch_response, (result)(offset)(total_size)(data)(balance)(query_interval)(deadend_count) )
-FC_STATIC_REFLECT( tn::store_response, (result) )
-FC_REFLECTABLE( tn::fetch_request )
-FC_REFLECTABLE( tn::fetch_response )
-FC_REFLECTABLE( tn::store_response )
+FC_REFLECT( tn::fetch_request, (target)(length)(offset) )
+FC_REFLECT( tn::fetch_response, (result)(offset)(total_size)(data)(balance)(query_interval)(deadend_count) )
+FC_REFLECT( tn::store_response, (result) )
 #endif // _CHUNK_SERVICE_MESSAGES_HPP_

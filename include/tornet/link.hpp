@@ -1,7 +1,7 @@
 #ifndef _TORNET_LINK_HPP_
 #define _TORNET_LINK_HPP_
 #include <fc/sha1.hpp>
-#include <fc/static_reflect.hpp>
+#include <fc/reflect.hpp>
 
 
 namespace tn {
@@ -16,13 +16,18 @@ namespace tn {
     link( const fc::sha1& i, uint64_t s )
     :id(i),seed(s){}
     link():seed(0){}
-
+    
+    friend bool operator==(const link& a, const link& b ) {
+      return a.seed == b.seed && a.id == b.id;
+    }
+    friend bool operator!=(const link& a, const link& b ) {
+      return !(a==b);
+    }
 
     fc::sha1   id;
     uint64_t   seed;
   };
 }
-FC_STATIC_REFLECT( tn::link,(id)(seed) )
-FC_REFLECTABLE( tn::link )
+FC_REFLECT( tn::link,(id)(seed) )
 
 #endif // _TORNET_LINK_HPP_

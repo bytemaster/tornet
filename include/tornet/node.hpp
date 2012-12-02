@@ -1,7 +1,8 @@
 #ifndef _TORNET_NODE_HPP_
 #define _TORNET_NODE_HPP_
 #include <fc/shared_ptr.hpp>
-#include <fc/function.hpp>
+//#include <fc/function.hpp>
+#include <functional>
 #include <fc/vector.hpp>
 #include <fc/sha1.hpp>
 #include <fc/ip.hpp>

@@ -15,6 +15,7 @@ namespace tn {
           _session.setConnection(_sql3);
           _sql3.setProperty( "show-queries", "true" );
           _session.mapClass<tn::PublishedResource>("PublishedResource");
+          _session.mapClass<tn::Domain>("Domain");
 
          {
             Wt::Dbo::Transaction trx(_session);

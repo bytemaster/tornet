@@ -142,14 +142,14 @@ void chunk_service::impl::publish_loop() {
        auto time_till_update = next_pub.next_update - fc::time_point::now().time_since_epoch().count();
 
        if( time_till_update > 0 ) {
-          slog( "waiting %lld us for next publish update.", time_till_update );
+          //slog( "waiting %llu us for next publish update.", time_till_update );
           fc::usleep( fc::microseconds(time_till_update) );
        }
 
        // TODO: increase parallism of search?? This should be a background task 
        // so latency is not an issue... 
 
-       slog( "Searching for chunk %s", fc::string(cid).c_str() );
+       //slog( "Searching for chunk %s", fc::string(cid).c_str() );
        tn::chunk_search::ptr csearch(new tn::chunk_search(_node,cid, 10, 1, true )); 
        csearch->start();
        csearch->wait();
@@ -165,7 +165,7 @@ void chunk_service::impl::publish_loop() {
        if( hn.size() < next_pub.desired_host_count ) {
             wlog( "Published chunk %s found on at least %d hosts, desired replication is %d",
                  to_string(cid).c_str(), hn.size(), next_pub.desired_host_count );
-
+/*
             slog( "Hosting nodes: " );
             auto itr = hn.begin();
             while( itr != hn.end() ) {
@@ -174,12 +174,12 @@ void chunk_service::impl::publish_loop() {
               ++itr;
             }
             slog( "Near nodes: " );
-
+*/
             fc::optional<fc::sha1> store_on_node;
 
             const chunk_map  nn = csearch->current_results();
             for( auto nitr = nn.begin(); nitr != nn.end(); ++nitr ) {
-              slog( "    node-dist: %s  node id: %s  %s", fc::string(nitr->first).c_str(), fc::string(nitr->second.id).c_str(), fc::string(nitr->second.ep).c_str() );
+ //             slog( "    node-dist: %s  node id: %s  %s", fc::string(nitr->first).c_str(), fc::string(nitr->second.id).c_str(), fc::string(nitr->second.ep).c_str() );
               if( hn.find( nitr->first ) == hn.end() && !store_on_node ) {
                 if( !store_on_node ) store_on_node = nitr->second.id; 
               }
@@ -187,17 +187,17 @@ void chunk_service::impl::publish_loop() {
 
             if( !store_on_node ) { wlog( "No new hosts available to store chunk" ); }
             else {
-                slog( "Storing chunk %s on node %s", fc::string(cid).c_str(), fc::string(*store_on_node).c_str() );
+  //              slog( "Storing chunk %s on node %s", fc::string(cid).c_str(), fc::string(*store_on_node).c_str() );
                 auto csc   = _node->get_client<tn::chunk_service_client>(*store_on_node);
                 store_response r = csc->store( _self.fetch_chunk(cid) ).wait();
                 if( r.result == 0 ) next_pub.host_count++;
-                slog( "Response: %d", int(r.result));
+  //              slog( "Response: %d", int(r.result));
             }
             next_pub.next_update = (fc::time_point::now() + fc::microseconds(30*1000*1000)).time_since_epoch().count();
             _pub_db->store( cid, next_pub );
        } else {
-            wlog( "Published chunk %s found on at least %d hosts, desired replication is %d",
-                 to_string(cid).c_str(), hn.size(), next_pub.desired_host_count );
+   //         wlog( "Published chunk %s found on at least %d hosts, desired replication is %d",
+   //              to_string(cid).c_str(), hn.size(), next_pub.desired_host_count );
 
          // TODO: calculate next update interval for this chunk based upon its current popularity
          //       and host count and how far away the closest host was found.
@@ -208,7 +208,7 @@ void chunk_service::impl::publish_loop() {
     
     } else {
       // TODO: do something smarter, like exit publish loop until there is something to publish
-      fc::usleep( fc::microseconds(1000 * 1000)  );
+      fc::usleep( fc::microseconds(1000 * 1000*3)  );
       wlog( "nothing to publish..." );
     }
 
@@ -446,8 +446,8 @@ fc::vector<char> chunk_service::download_chunk( const fc::sha1& chunk_id ) {
 }
 
 tornet_file chunk_service::download_tornet( const tn::link& ln ) {
+  auto chunk = get_node()->get_thread().async( [&]() { return download_chunk(ln.id); }).wait();
   slog( "download %s", fc::string(ln.id).c_str() );
-  auto chunk = download_chunk(ln.id);
   derandomize( ln.seed, chunk );
   slog( "unpacking chunk" );
   auto tf =  fc::raw::unpack<tornet_file>(chunk);
@@ -455,88 +455,6 @@ tornet_file chunk_service::download_tornet( const tn::link& ln ) {
   return tf;
 }
 
-
-/**
- *  Calculate how frequently each byte occurs in data.
- *  If every possible byte occurs with the same frequency then the
- *  data is perfectly random. 
- *
- *  The expected occurence of each possible byte is data.size / 256
- *
- *  If one byte occurs more often than another you get a small error
- *  (1*1) / expected.  If it occurs much more the error grows by
- *  the square.
- */
-bool is_random( const fc::vector<char>& data ) {
-   fc::vector<uint16_t> buckets(256);
-   memset( buckets.data(), 0, buckets.size() * sizeof(uint16_t) );
-   for( auto itr = data.begin(); itr != data.end(); ++itr )
-     buckets[(uint8_t)*itr]++;
-   
-   double expected = data.size() / 256;
-   
-   double x2 = 0;
-   for( auto itr = buckets.begin(); itr != buckets.end(); ++itr ) {
-       double de = *itr - expected;
-       x2 +=  (de*de) / expected;
-   } 
-   //slog( "%s", fc::to_hex( data.data(), 128 ).c_str() );
-   //slog( "%d", data.size() );
-   float prob = pochisq( x2, 255 );
-   //slog( "Prob %f", prob );
-
-   // smaller chunks have a higher chance of 'low' entrempy
-   return prob < .80 && prob > .20;
-}
-
-uint64_t randomize( fc::vector<char>& data, uint64_t seed ) {
-  fc::vector<char> tmp(data.size());
-  do {
-      ++seed;
-
-      boost::random::mt19937 gen(seed);
-      uint32_t* src = (uint32_t*)data.data();
-      uint32_t* end = src +(data.size()/sizeof(uint32_t)); 
-      uint32_t* dst = (uint32_t*)tmp.data();
-      gen.generate( dst, dst + (data.size()/sizeof(uint32_t)) );
-      while( src != end ) {
-        *dst = *src ^ *dst;
-        ++dst; 
-        ++src;
-      }
-  } while (!is_random(tmp) );
-  fc::swap(data,tmp);
-  return seed;
-}
-
-void derandomize( uint64_t seed, const fc::mutable_buffer& b ) {
-  boost::random::mt19937 gen(seed);
-  fc::vector<char> tmp(b.size);
-  uint32_t* src = (uint32_t*)b.data;
-  uint32_t* end = src +(b.size/sizeof(uint32_t)); 
-  uint32_t* dst = (uint32_t*)tmp.data();
-  gen.generate( dst, dst + (tmp.size()/sizeof(uint32_t)) );
-  while( src != end ) {
-    *src = *src ^ *dst;
-    ++dst; 
-    ++src;
-  }
-}
-
-void derandomize( uint64_t seed, fc::vector<char>& data ) {
-  boost::random::mt19937 gen(seed);
-  fc::vector<char> tmp(data.size());
-  uint32_t* src = (uint32_t*)data.data();
-  uint32_t* end = src +(data.size()/sizeof(uint32_t)); 
-  uint32_t* dst = (uint32_t*)tmp.data();
-  gen.generate( dst, dst + (data.size()/sizeof(uint32_t)) );
-  while( src != end ) {
-    *dst = *src ^ *dst;
-    ++dst; 
-    ++src;
-  }
-  fc::swap(data,tmp);
-}
 
 
 

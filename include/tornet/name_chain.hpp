@@ -1,6 +1,6 @@
 #ifndef _TORNET_NAME_CHAIN_HPP_
 #define _TORNET_NAME_CHAIN_HPP_
-#include <fc/static_reflect.hpp>
+#include <fc/reflect.hpp>
 #include <fc/pke.hpp>
 #include <fc/sha1.hpp>
 #include <fc/vector.hpp>
@@ -159,12 +159,12 @@ namespace tn {
 
 }
 
-FC_STATIC_REFLECT( tn::name_trx_header,   (base)(nonce)(type)(signature) )
-FC_STATIC_REFLECT( tn::name_reserve_trx,  (head)(pub_key)(res_id) )
-FC_STATIC_REFLECT( tn::name_publish_trx,  (head)(name)(rand)(site_ref) )
-FC_STATIC_REFLECT( tn::name_update_trx,   (head)(name_id)(update_count)(site_ref) )
-FC_STATIC_REFLECT( tn::name_transfer_trx, (head)(name_id)(to_pub_key) )
-FC_STATIC_REFLECT( tn::name_block,        (prev_block_id)(utc_us)(block_num)(transactions)(gen_transaction) )
+FC_REFLECT( tn::name_trx_header,   (base)(nonce)(type)(signature) )
+FC_REFLECT( tn::name_reserve_trx,  (head)(pub_key)(res_id) )
+FC_REFLECT( tn::name_publish_trx,  (head)(name)(rand)(site_ref) )
+FC_REFLECT( tn::name_update_trx,   (head)(name_id)(update_count)(site_ref) )
+FC_REFLECT( tn::name_transfer_trx, (head)(name_id)(to_pub_key) )
+FC_REFLECT( tn::name_block,        (prev_block_id)(utc_us)(block_num)(transactions)(gen_transaction) )
 
 
 #endif // _TORNET_NAME_CHAIN_HPP_

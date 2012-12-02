@@ -6,24 +6,18 @@
 namespace tn {
     template<typename Action>
     void PublishedResource::persist( Action& a ) {
-      dbo::field( a, local_path,       "local_path"  );
-      dbo::field( a, link_id,          "link_id"     );
-      dbo::field( a, link_seed,        "link_seed"   );
-      dbo::field( a, last_update,      "last_update" );
+      dbo::id( a, site_ref, "site_ref" );
+      dbo::field( a, local_path,       "local_path"       );
+      dbo::field( a, availability,     "availability"     );
+      dbo::field( a, last_update,      "last_update"      );
+      dbo::hasMany( a, domains, dbo::ManyToOne, "resource" );
     }
-
-    /*
     template<typename Action>
-    void Torsite::persist( Action& a ) {
-      dbo::field( a, domain,       "domain"       );
-      dbo::field( a, tid,          "tid"          );
-      dbo::field( a, check,        "check"        );
-      dbo::field( a, seed,         "seed"         );
-      dbo::field( a, local_dir,    "local_dir"    );
-      dbo::field( a, replicate,    "replicate"    );
-      dbo::field( a, availability, "availability" );
-      dbo::field( a, last_update,  "last_update"  );
+    void Domain::persist( Action& a ) {
+      dbo::id( a, name, "name" );
+      dbo::field( a, status, "status" );
+      dbo::field( a, expires, "expires" );
+      dbo::belongsTo( a, resource, "resource" );
     }
-    */
 }
 #endif // _DBO_PERSIST_HPP_

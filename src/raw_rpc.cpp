@@ -6,7 +6,7 @@
 #include <fc/thread.hpp>
 #include <fc/fwd_impl.hpp>
 
-FC_STATIC_REFLECT( tn::rpc_message, (id)(type)(method)(data) )
+FC_REFLECT( tn::rpc_message, (id)(type)(method)(data) )
 
 namespace tn { 
     class raw_rpc::impl {

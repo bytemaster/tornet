@@ -14,56 +14,58 @@ namespace fc {
 }
 
 namespace tn {
-  class TornetLink;
-  class Torsite;
+  class Domain;
+  class PublishedResource;
+  typedef dbo::collection<dbo::ptr<PublishedResource> >        PublishedResources;
+  typedef dbo::collection<dbo::ptr<Domain> >                   Domains;
 }
 
-/*
 namespace Wt { namespace Dbo {
   template<>
-  struct dbo_traits<tn::TornetLink> : public dbo_default_traits {
+  struct dbo_traits<tn::Domain> : public dbo_default_traits {
+    typedef std::string IdType;
+    static IdType invalidId() { return IdType(); }
+    static const char* surrogateIdField() { return 0; }
+  };
+  template<>
+  struct dbo_traits<tn::PublishedResource> : public dbo_default_traits {
     typedef std::string IdType;
     static IdType invalidId() { return IdType(); }
     static const char* surrogateIdField() { return 0; }
   };
 } }
-*/
 
 namespace tn {
-
-    /**
-     *  Sites that have been published
-    class Torsite : public dbo::Dbo<Torsite>, public dbo::ptr<Torsite> {
-      public:
-        Torsite();
-        std::string    domain;     // globaly unique domain! 
-        std::string    local_path; // local resource being published at name.
-                       
-        std::string    link_id;    // root chunk for the site (normally an archive)
-        long long      link_seed;        
-
-        Wt::WDateTime  last_update; // the last time the 'link' was updated.
-
-        template<typename Action>
-        void persist( Action& a );
-    };                  
-     */
 
     /**
      *
      */
     class PublishedResource : public dbo::Dbo<PublishedResource>, public dbo::ptr<PublishedResource> {
       public:
-        PublishedResource( const std::string& lpath, const std::string& lid, uint64_t sd );
+        PublishedResource( const std::string& lpath, const std::string& lid );
         PublishedResource(){}
 
         std::string         local_path;
-        std::string         link_id;            
-        long long           link_seed;   // random seed used to ensure data is random enough
+        std::string         site_ref;
+        std::string         status;
+        double              availability;
         Wt::WDateTime       last_update; // the last time the 'link' was updated.
+
+        Domains             domains; 
 
         template<typename Action>
         void persist( Action& a );
+    };
+
+    class Domain : public dbo::Dbo<Domain>, public dbo::ptr<Domain> {
+      public:
+          std::string                 name;    // domain name
+          std::string                 status;  // reserving, published, updating
+          Wt::WDateTime               expires; // the last time the 'link' was updated.
+          dbo::ptr<PublishedResource> resource; 
+
+          template<typename Action>
+          void persist( Action& a );
     };
 }
 

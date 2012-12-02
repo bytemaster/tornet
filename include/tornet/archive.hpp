@@ -3,7 +3,7 @@
 #include <fc/optional.hpp>
 #include <fc/sha1.hpp>
 #include <fc/vector.hpp>
-#include <fc/static_reflect.hpp>
+#include <fc/reflect.hpp>
 #include <tornet/link.hpp>
 
 namespace fc {
@@ -66,7 +66,7 @@ namespace tn {
 
 }
 
-FC_STATIC_REFLECT( tn::archive::entry, (name)(type)(size)(ref) )
-FC_STATIC_REFLECT( tn::archive, (version)(entries) )
+FC_REFLECT( tn::archive::entry, (name)(type)(size)(ref) )
+FC_REFLECT( tn::archive, (version)(entries) )
 
 #endif // _TORNET_ARCHIVE_HPP_

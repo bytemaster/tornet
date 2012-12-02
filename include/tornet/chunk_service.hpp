@@ -83,7 +83,7 @@ namespace tn {
        *  the file has been published, local changes are not reflected,
        *  it will have to be removed from the link DB.
        */
-      tn::link publish( const fc::path& file, uint32_t rep = 3 );
+      tn::link publish( const fc::path& p, uint32_t rep = 3 );
      
       /**
        *  Reads the data for the chunk from the cache or local database.

@@ -25,6 +25,7 @@ class WTornetApplication::impl {
     impl()
     :session(tn::tornet_app::instance()->get_node()->datadir() ){}
     
+    Wt::WContainerWidget* published_resources;
     Wt::WLineEdit*        path_edit;
     Wt::WLineEdit*        site_path_edit;
     Wt::WLineEdit*        site_domain_edit;
@@ -42,12 +43,10 @@ WTornetApplication::WTornetApplication( const Wt::WEnvironment& env )
     wlog("...");
   try {
     auto cont = new Wt::WContainerWidget(  );
-  //  new Wt::WText( WString::tr("Hello WOrld"), cont );
 
     Wt::WTableView* t = new Wt::WTableView(cont);
     t->setAlternatingRowColors(true);
     t->setSortingEnabled(true);
-
 
     WUserItemModel* uim = new WUserItemModel( tn::tornet_app::instance()->get_node()->get_peers(), t );
     
@@ -55,8 +54,9 @@ WTornetApplication::WTornetApplication( const Wt::WEnvironment& env )
     proxy->setSourceModel(uim);
     t->setModel( proxy );
 
-    root()->addWidget( new Wt::WText( "Publish File " ) );
+    root()->addWidget( new Wt::WText( "Publish File or Site" ) );
     my->path_edit = new Wt::WLineEdit(root());
+    my->path_edit->setWidth( 300 );
     my->path_edit->setFocus();
 
     auto publish = new Wt::WPushButton( "Publish", root() );
@@ -85,27 +85,26 @@ WTornetApplication::WTornetApplication( const Wt::WEnvironment& env )
 
     root()->addWidget( new Wt::WText( "Domain " ) );
     my->site_domain_edit = new Wt::WLineEdit(root());
+    my->site_domain_edit->setWidth(300);
 
     root()->addWidget( new Wt::WText( "Document Root  " ) );
     my->site_path_edit = new Wt::WLineEdit(root());
+    my->site_path_edit->setWidth(450);
 
 
     auto publish_site = new Wt::WPushButton( "Publish Site", root() );
     publish_site->clicked().connect(this, &WTornetApplication::onPublishSite ); 
     root()->addWidget( new Wt::WBreak() );
-  /*
 
-
-    auto ts_model = new Wt::Dbo::QueryModel< Wt::Dbo::ptr<tn::Torsite> >(this);
-    ts_model->setQuery( my->session.db().find<tn::Torsite>() );
+    auto ts_model = new Wt::Dbo::QueryModel< Wt::Dbo::ptr<tn::Domain> >(this);
+    ts_model->setQuery( my->session.db().find<tn::Domain>() );
     ts_model->addAllFieldsAsColumns();
 
     WTableView* tsv = new WTableView();
     tsv->setModel( ts_model );
     root()->addWidget( new Wt::WBreak() );
-    root()->addWidget( new WText( "Files" ) );
+    root()->addWidget( new WText( "Domains" ) );
     root()->addWidget(tsv);
-    */
 
   } catch ( ... ) {
     elog( "%s", fc::current_exception().diagnostic_information().c_str() );
@@ -125,7 +124,7 @@ void WTornetApplication::onPublish() {
           Wt::Dbo::Transaction trx(my->session.db());
       //    slog( "link fetch/%s/%llu", fc::string(ln.id).c_str(), ln.seed );
       wlog( "link %s.chunk", fc::string(ln).c_str() );
-          auto pr = new tn::PublishedResource( path.c_str(), fc::string(ln.id).c_str(), ln.seed );
+          auto pr = new tn::PublishedResource( path.c_str(), ("http://"+fc::string(ln)+".chunk").c_str()  );
           my->session.db().add(pr);
       }
       my->link_model->modelReset()();
@@ -140,19 +139,29 @@ void WTornetApplication::onPublishSite() {
   fc::string domain = my->site_domain_edit->text().toUTF8().c_str();
 
 
-  slog( ".............  Publish Tornet '%s'", path.c_str() );
+  slog( ".............  Publish Site '%s'", path.c_str() );
   auto ln =  tn::tornet_app::instance()->get_chunk_service()->publish( path, 3 );
   
   {
       Wt::Dbo::Transaction trx(my->session.db());
       wlog( "link %s", fc::string(ln).c_str() );
 
-      auto pr = new tn::PublishedResource( path.c_str(), fc::string(ln.id).c_str(), ln.seed );
-      my->session.db().add(pr);
+      auto pr = new tn::PublishedResource( path.c_str(),  ("http://"+fc::string(ln)+".chunk").c_str()  );
+      pr->availability = 0;
+      auto r = my->session.db().add(pr);
+
+      auto dn = new tn::Domain();
+      dn->name   = domain.c_str();
+      dn->status = "published";
+      dn->expires =  Wt::WDateTime();
+      dn->resource = r;
+      my->session.db().add(dn);
   }
   my->link_model->modelReset()();
 
   tn::tornet_app::instance()->get_name_service()->reserve_name(domain,ln);
+
+  tn::tornet_app::instance()->get_chunk_service()->enable_publishing(true);
 }
 
 

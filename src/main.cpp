@@ -1,4 +1,3 @@
-#include <tornet/tornet_app.hpp>
 #include <Wt/WApplication>
 #include <Wt/WServer>
 #include <Wt/Json/Value>
@@ -10,6 +9,7 @@
 #include "webgui/WTornetApplication.hpp"
 #include "webgui/WTornetResource.hpp"
 #include <tornet/httpd.hpp>
+#include <tornet/tornet_app.hpp>
 
 Wt::WApplication* create_application( const Wt::WEnvironment& env ) {
   return new WTornetApplication(env);

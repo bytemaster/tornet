@@ -33,7 +33,7 @@ namespace tn {
          *  Price is  (100 + bytes returned) * (160-log2((id^local_node_id)*10)) 
          */
         fetch_response fetch( const fetch_request& r ) {
-          slog( "fetch %s", fc::json::to_string(r).c_str() );
+      //    slog( "fetch %s", fc::json::to_string(r).c_str() );
           fetch_response reply;
           tn::db::chunk::meta met;
           bool found = _cs.get_cache_db()->fetch_meta( r.target, met, true );
