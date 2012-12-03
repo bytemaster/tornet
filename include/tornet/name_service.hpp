@@ -1,5 +1,5 @@
-#ifndef _TORNET_NAMESERVICE_HPP_
-#define _TORNET_NAMESERVICE_HPP_
+#pragma once
+
 #include <fc/string.hpp>
 #include <fc/sha1.hpp>
 #include <fc/optional.hpp>
@@ -7,7 +7,7 @@
 #include <fc/fwd.hpp>
 #include <fc/filesystem.hpp>
 #include <fc/shared_ptr.hpp>
-#include <tornet/link.hpp>
+#include <cafs.hpp>
 
 namespace tn {
   namespace db{ class name; }
@@ -44,7 +44,7 @@ namespace tn {
        *  Instructs the names service to attempt to reserve a given name.  Returns the
        *  state of the reservation process.
        */
-      void   reserve_name( const fc::string& name, const tn::link& ln );
+      void   reserve_name( const fc::string& name, const cafs::link& ln );
 
       /**
        *  This will make the name available to other users.
@@ -54,7 +54,7 @@ namespace tn {
       /**
        *  Return the value assigned to a given name.
        */
-      tn::link   get_link_for_name( const fc::string& name );
+      cafs::link   get_link_for_name( const fc::string& name );
 
       /**
        *  Get the name record.
@@ -76,7 +76,7 @@ namespace tn {
       /**
        *  Updates the value associated with the name.
        */
-      void         update_link_for_name( const fc::string& name, const tn::link& l );
+      void         update_link_for_name( const fc::string& name, const cafs::link& l );
       void         transfer_name( const fc::string& name, const fc::public_key_t& to_key );
 
       /**
@@ -176,4 +176,3 @@ namespace tn {
  *
  *  Each name has two values associated with it, a public key and a sha1 hash.
 */
-#endif // _TORNET_NAMESERVICE_HPP_

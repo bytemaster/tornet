@@ -61,6 +61,7 @@ add_subdirectory(context)
 
 SET( sources 
     cafs/cafs.cpp
+    cafs/cafs_file_db.cpp
     src/db/chunk.cpp
     src/db/peer.cpp
     src/db/publish.cpp
@@ -69,7 +70,6 @@ SET( sources
     src/name_service_client.cpp
     src/archive.cpp
     src/main.cpp
-    src/link.cpp
     src/node.cpp
     src/connection.cpp
     src/buffer.cpp
@@ -157,11 +157,11 @@ SET( libraries
 
     SET( MACOSX_BUNDLE_INFO_STRING "TornetInfoString" )
     SET( MACOSX_BUNDLE_BUNDLE_NAME "TornetBundleName"  )
-#add_executable( tornet 
-#  MACOSX_BUNDLE 
-#  ${sources} )
-#target_link_libraries( tornet ${libraries} )
+add_executable( tornet 
+  MACOSX_BUNDLE 
+  ${sources} )
+target_link_libraries( tornet ${libraries} )
 
-add_executable( cafst  cafs_main.cpp cafs/cafs.cpp src/chisq.c)
+add_executable( cafst  cafs_main.cpp cafs/cafs.cpp cafs/cafs_file_db.cpp src/chisq.c)
 target_link_libraries( cafst ${libraries}  )
 

@@ -66,7 +66,7 @@ namespace tn {
               }
               if(reply.result != chunk_session_result::invalid_range ) {
                   slog( "%s size %d  off %d ", fc::string( r.target ).c_str(), reply.data.size(), r.offset );
-                  _cs.get_cache_db()->fetch_chunk( r.target, fc::mutable_buffer( reply.data.data(), reply.data.size() ), r.offset ); 
+  // TODO replace with CAFS                _cs.get_cache_db()->fetch_chunk( r.target, fc::mutable_buffer( reply.data.data(), reply.data.size() ), r.offset ); 
                   slog( "fetched %s from DB", fc::string(fc::sha1::hash(reply.data.data(), reply.data.size() ) ).c_str() );
               }
           }
@@ -105,8 +105,8 @@ namespace tn {
             //       much we will charge the individual uploading the chunk for the 
             //       storage.  
             
-            if( met.size == 0 )
-                cdb->store_chunk( cid, fc::const_buffer(data.data(), data.size() ) );
+   //         if( met.size == 0 )
+  // TODO replace with CAFS              cdb->store_chunk( cid, fc::const_buffer(data.data(), data.size() ) );
             
             return store_response( chunk_session_result::ok );
         }

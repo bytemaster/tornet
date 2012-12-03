@@ -1,10 +1,11 @@
 #ifndef _TORNET_DB_NAME_HPP_
 #define _TORNET_DB_NAME_HPP_
 #include <tornet/name_chain.hpp>
-#include <tornet/link.hpp>
 #include <fc/shared_ptr.hpp>
 #include <fc/filesystem.hpp>
 #include <fc/reflect.hpp>
+
+#include <cafs.hpp>
 
 namespace tn { namespace db {
 
@@ -20,7 +21,7 @@ namespace tn { namespace db {
       struct record {
          record()
          :expires(0),revision(0),nonce(0){}
-         tn::link            site_ref;
+         cafs::link          site_ref;
          uint32_t            expires;
          uint32_t            revision;  // how many times has this record been updated
          fc::public_key_t    pub_key;

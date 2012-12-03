@@ -7,6 +7,7 @@
 #include <fc/json.hpp>
 #include <fc/hex.hpp>
 #include <fc/thread.hpp>
+#include "cafs_file_db.hpp"
 
 #include <boost/random.hpp>
 
@@ -34,6 +35,7 @@ cafs::file_ref::file_ref()
 
 struct cafs::impl : public fc::retainable {
   fc::path datadir;
+  cafs_file_db file_db;
 
   // @pre p is a regular file > 2MB
   cafs::file_ref import_large_file( const fc::path& p );
@@ -45,10 +47,12 @@ cafs::cafs()
 }
 
 cafs::~cafs() {
+  my->file_db.close();
 }
 
 void cafs::open( const fc::path& dir ) {
   my->datadir  = dir;
+  my->file_db.open( dir / "file_db" );
 }
 
 void cafs::close() {
@@ -234,6 +238,7 @@ void cafs::export_link( const cafs::link& l, const fc::path& d ) {
       slog( "%s", fc::json::to_string( d ).c_str() );
       for( auto itr = d.entries.begin(); itr != d.entries.end(); ++itr ) {
         slog( "entry: %s", itr->name.c_str() );
+        /*
         fc::vector<char> fdat = get_file( itr->ref );
         switch( itr->ref.type ) {
           case file_data_type: {
@@ -250,6 +255,7 @@ void cafs::export_link( const cafs::link& l, const fc::path& d ) {
           default:
             wlog( "Unknown Type %d", int(itr->ref.type) );
         }
+        */
       }
 
       break;
@@ -273,34 +279,6 @@ void cafs::export_link( const cafs::link& l, const fc::path& d ) {
     default:
       FC_THROW_MSG( "Unknown File Type %s", int(ch[0]) );
   }
-}
-fc::vector<char> cafs::get_file( const file_ref& r ) {
-    fc::vector<char> rd = get_chunk( r.chunk );
-    wlog( "rand  %lld %s", rd.size(), fc::to_hex(rd.data()+r.pos,r.size).c_str() );
-    derandomize( r.seed, rd );
-    wlog( "derand  %lld %s", rd.size(), fc::to_hex(rd.data()+r.pos,r.size).c_str() );
-    fc::vector<char> tmp( rd.data() + r.pos, rd.data()+r.pos+r.size );
-    wlog( "file %lld %s", tmp.size(), fc::to_hex(tmp.data(),tmp.size()).c_str() );
-    return tmp;
-/*
-    fc::vector<char> rand_data =  get_chunk( r.chunk, r.pos, r.size );
-    // derandomize it here...
-    fc::vector<char> tmp(r.pos + r.size + 3 ); 
-    uint32_t* dst = (uint32_t*)tmp.data();
-    uint32_t* end = dst + tmp.size() / 4;
-
-    boost::random::mt19937 gen(r.seed);
-    gen.generate( dst, end );
-
-    auto rp = tmp.begin() + r.pos;
-    for( auto i = rand_data.begin(); i != rand_data.end(); ++i ) {
-      *i ^= *rp;
-      ++rp;
-    }
-    wlog( "rand_data %lld  %s", rand_data.size(), fc::to_hex( rand_data.data(), rand_data.size()).c_str() );
-
-    return rand_data;
-    */
 }
 
 fc::vector<char> cafs::get_chunk( const fc::sha1& id, uint32_t pos, uint32_t s ) {
@@ -396,8 +374,17 @@ cafs::directory cafs::import_directory( const fc::path& p ) {
            }
        }
        ++itr;
+
+       fc::sha1 h = fc::sha1::hash(cur_file.data(),cur_file.size());
+       fc::optional<file_ref> ofr = my->file_db.fetch(h);
+       slog( "                                               %s", fc::string(h).c_str() );
+       if( ofr ) {
+         wlog( "We already have a file ref for this..." );
+         dir.entries.push_back( directory::entry(name) );
+         dir.entries.back().ref = *ofr;
+       }
       
-       if( !add_to_chunk( cur_chunk_ds, cur_file, name, dir, cur_file_type ) ) {
+       if( !ofr && !add_to_chunk( cur_chunk_ds, cur_file, name, dir, cur_file_type ) ) {
           // save cur chunk... 
           cur_chunk_data.resize(cur_chunk_ds.tellp());
           save_chunk( *this, dir, cur_chunk_data );
@@ -409,6 +396,9 @@ cafs::directory cafs::import_directory( const fc::path& p ) {
        if( itr == end ) {
           save_chunk( *this, dir, cur_chunk_data );
        }
+   }
+   for( auto itr = dir.entries.begin(); itr != dir.entries.end(); ++itr ) {
+     my->file_db.store( itr->ref );
    }
    return dir;
 }
@@ -522,5 +512,73 @@ void derandomize( uint64_t seed, fc::vector<char>& data ) {
   }
   fc::swap(data,tmp);
 }
+cafs::resource::resource(){}
+cafs::resource::resource( fc::vector<char>&& r ):_data(fc::move(r)){}
+cafs::resource::resource( const resource& r ):_data(r._data){}
+cafs::resource::resource( resource&& r ):_data(fc::move(r._data)){}
+cafs::resource& cafs::resource::operator = ( const cafs::resource& c ) {
+  _data = c._data;
+  return *this;
+}
+cafs::resource& cafs::resource::operator = ( cafs::resource&& c ) {
+  fc::swap(c._data,_data);
+  return *this;
+}
 
+fc::optional<cafs::directory>   cafs::resource::get_directory() {
+  if( _data.size() && _data[0] == cafs::directory_type ) {
+      directory d;
+      fc::datastream<const char*> ds(_data.data()+1,_data.size()-1);
+      fc::raw::unpack( ds, d );
+      return d;
+  }
+  return fc::optional<directory>();
+}
+char*                     cafs::resource::get_file_data() {
+  if( _data.size() && _data[0] == cafs::file_data_type ) 
+    return _data.data()+1;
+  return nullptr;
+}
+size_t                    cafs::resource::get_file_size() {
+  if( _data.size() && _data[0] == cafs::file_data_type ) 
+    return _data.size()-1;
+  return 0;
+}
+fc::optional<cafs::file_header> cafs::resource::get_file_header() {
+  if( _data.size() && _data[0] == cafs::file_header_type ) {
+      file_header d;
+      fc::datastream<const char*> ds(_data.data()+1,_data.size()-1);
+      fc::raw::unpack( ds, d );
+      return d;
+  }
+  return fc::optional<file_header>();
+}
+
+fc::optional<cafs::resource> cafs::get_resource( const fc::sha1& h ) {
+   auto ofr = my->file_db.fetch(h);
+   if( ofr ) {
+       return get_resource( *ofr );
+   }
+   return fc::optional<cafs::resource>();
+}
+fc::optional<cafs::resource> cafs::get_resource( const file_ref& r ) {
+    fc::vector<char> rd = get_chunk( r.chunk );
+    //wlog( "rand  %lld %s", rd.size(), fc::to_hex(rd.data()+r.pos,r.size).c_str() );
+    derandomize( r.seed, rd );
+    //wlog( "derand  %lld %s", rd.size(), fc::to_hex(rd.data()+r.pos,r.size).c_str() );
+    fc::vector<char> tmp( r.size+1 );//rd.data() + r.pos, rd.data()+r.pos+r.size );
+    tmp[0] = r.type;
+    memcpy( tmp.data()+1, rd.data()+r.pos, r.size );
+    return cafs::resource( fc::move(tmp) );
+}
+fc::optional<cafs::resource> cafs::get_resource( const cafs::link& l ) {
+  try {
+      fc::vector<char> ch = get_chunk( l.id );
+      derandomize( l.seed, ch  );
+      return cafs::resource(fc::move(ch));
+  } catch( ... ) {
+      wlog( "%s", fc::except_str().c_str() );
+  }
+  return fc::optional<cafs::resource>();
+}
 

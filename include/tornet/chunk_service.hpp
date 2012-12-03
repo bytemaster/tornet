@@ -1,10 +1,6 @@
-#ifndef _TN_CHUNK_SERVICE_HPP_
-#define _TN_CHUNK_SERVICE_HPP_
+#pragma once
 #include <fc/shared_ptr.hpp>
-#include <fc/fwd.hpp>
-#include <fc/vector_fwd.hpp>
-#include <tornet/tornet_file.hpp>
-#include <tornet/link.hpp>
+#include <fc/vector.hpp>
 
 namespace fc {
   class path;
@@ -53,6 +49,7 @@ namespace tn {
        
       fc::shared_ptr<tn::db::chunk>&    get_cache_db();
       fc::shared_ptr<tn::db::chunk>&    get_local_db();
+      fc::shared_ptr<cafs>              get_cafs();
       fc::shared_ptr<tn::db::publish>&  get_publish_db();
       fc::shared_ptr<tn::node>&         get_node();
 
@@ -65,21 +62,22 @@ namespace tn {
        *  the file has been published, local changes are not reflected,
        *  it will have to be removed from the link DB.
        */
-      tn::link publish( const fc::path& p, uint32_t rep = 3 );
+      cafs::link publish( const fc::path& p, uint32_t rep = 3 );
      
       /**
        *  Reads the data for the chunk from the cache or local database.
        *
        *  @return an empty vector if no chunk was found
-       */
+       *  This data can be gotten directly from the cafs... 
       fc::vector<char> fetch_chunk( const fc::sha1& chunk_id );
+       */
 
       /**
        *  Assuming the data is stored locally, returns a tornet file,
        *  otherwise throws an exception if the chunk has not been 
        *  downloaded.
-       */
       tornet_file fetch_tornet( const tn::link& ln );
+       */
 
       /**
        *  Performs a synchronous download of the specified chunk
@@ -88,17 +86,15 @@ namespace tn {
 
       /**
        *  Effectively the same as download_chunk(); fetch_tornet();
-       */
       tornet_file download_tornet( const tn::link& ln );
+       */
 
       void enable_publishing( bool state );
       bool is_publishing()const;
     private:
       class impl;
-      fc::fwd<impl,408> my;
+      fc::shared_ptr<impl> my;
   };
 
 }
 
-
-#endif // _CHUNK_SERVICE_HPP_

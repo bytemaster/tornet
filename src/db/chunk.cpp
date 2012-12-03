@@ -54,7 +54,7 @@ namespace tn { namespace db {
       fc::sha1            m_node_id;
       fc::path            m_envdir;
       DbEnv               m_env;
-      Db*                 m_chunk_db;
+//      Db*                 m_chunk_db;
       Db*                 m_meta_db;
       Db*                 m_meta_rev_idx;
   };
@@ -177,7 +177,7 @@ namespace tn { namespace db {
   }
 
   chunk_private::chunk_private( const fc::sha1& node_id, const fc::path& envdir ) 
-  :m_thread("db::chunk"), m_node_id(node_id), m_envdir(envdir), m_env(0), m_chunk_db(0), m_meta_db(0)
+  :m_thread("db::chunk"), m_node_id(node_id), m_envdir(envdir), m_env(0), m_meta_db(0)
   {
   }
   int compare_i64(Db *db, const Dbt *key1, const Dbt *key2) {
@@ -206,7 +206,7 @@ namespace tn { namespace db {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );
       fc::rethrow_exception( fc::current_exception() );
     }
-
+/*
     try { 
       my->m_chunk_db = new Db(&my->m_env, 0);
       my->m_chunk_db->open( NULL, "chunk_data", "chunk_data", DB_BTREE, DB_CREATE | DB_AUTO_COMMIT, 0 );
@@ -217,7 +217,7 @@ namespace tn { namespace db {
       elog( "%s", fc::current_exception().diagnostic_information().c_str() );
       fc::rethrow_exception( fc::current_exception() );
     }
-
+*/
     try { 
       my->m_meta_db = new Db(&my->m_env, 0);
       my->m_meta_db->set_flags( DB_RECNUM );
@@ -244,12 +244,14 @@ namespace tn { namespace db {
         return;
     }
     try {
+        /*
         if( my->m_chunk_db ){
           slog( "closing chunk db" );
           my->m_chunk_db->close(0);    
           delete my->m_chunk_db;
           my->m_chunk_db = 0;
         }
+        */
         if( my->m_meta_db ) {
           slog( "closing chunk meta db" );
           my->m_meta_db->close(0);    
@@ -265,6 +267,7 @@ namespace tn { namespace db {
 
 
 
+ #if 0 
   bool chunk::store_chunk( const fc::sha1& id, const fc::vector<char>& b ) {
     return store_chunk( id, fc::const_buffer( b.data(), b.size() ) );
   }
@@ -375,6 +378,7 @@ namespace tn { namespace db {
     }
     return true;
   }
+  #endif 
 
   bool chunk::store_meta( const fc::sha1& id, const meta& m ) {
     if( &fc::thread::current() != &my->m_thread ) {
@@ -397,7 +401,7 @@ namespace tn { namespace db {
     return true;
   }
 
-
+#if 0
   bool chunk::fetch_chunk( const fc::sha1& id, const fc::mutable_buffer& b, uint64_t offset ) {
     if( &fc::thread::current() != &my->m_thread ) {
         return my->m_thread.async( [=](){ return fetch_chunk(id,b,offset); } ).wait();
@@ -432,6 +436,7 @@ namespace tn { namespace db {
     //wlog( "fetch return data '%s'", fc::to_hex( b.data, 64 ).c_str() );
     return true;
   }
+  #endif
 
   bool chunk::fetch_meta( const fc::sha1& id, chunk::meta& m, bool auto_inc ) {
     if( &fc::thread::current() != &my->m_thread ) {
@@ -539,7 +544,7 @@ namespace tn { namespace db {
         return;
     }
     my->m_meta_db->sync(0);
-    my->m_chunk_db->sync(0);
+//    my->m_chunk_db->sync(0);
   }
 
 } } // tornet::db

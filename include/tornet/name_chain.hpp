@@ -8,7 +8,7 @@
 #include <fc/array.hpp>
 #include <fc/raw.hpp>
 
-#include <tornet/link.hpp>
+#include <cafs.hpp>
 
 namespace tn {
 
@@ -42,7 +42,7 @@ namespace tn {
     fc::sha1               reserve_trx_id; 
     fc::array<char,128>    name; // null term name (max width 128 chars)
     fc::array<uint64_t,2>  rand; 
-    tn::link               site_ref;
+    cafs::link             site_ref;
   };
 
   struct name_update_trx {
@@ -51,7 +51,7 @@ namespace tn {
     fc::sha1           name_id;       // hash(name)
     fc::public_key_t   pub_key;       // 256
     uint32_t           update_count;  // increments every time the name updates
-    tn::link           site_ref;
+    cafs::link           site_ref;
   };
 
   struct name_transfer_trx {

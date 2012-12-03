@@ -7,6 +7,7 @@
 #include <fc/filesystem.hpp>
 #include <fc/sha1.hpp>
 #include <fc/buffer.hpp>
+#include <fc/optional.hpp>
 
 /**
  *  Content Addressable File System
@@ -114,6 +115,23 @@ class cafs  {
         fc::vector<entry>  entries; // sorted by name
     };
 
+    struct resource {
+        resource();
+        resource( fc::vector<char>&& r );
+        resource( const resource& r );
+        resource( resource&& r );
+        resource& operator = ( const resource& c );
+        resource& operator = ( resource&& c );
+
+        fc::optional<directory>   get_directory();
+        char*                     get_file_data();
+        size_t                    get_file_size();
+        fc::optional<file_header> get_file_header();
+
+        private:
+          fc::vector<char> _data;
+    };
+
 
     void open( const fc::path& dir );
     void close();
@@ -128,6 +146,7 @@ class cafs  {
      *  Given a link, download the file to the given directory
      */
     void         export_link( const link& l, const fc::path& dir );
+
 
     /**
      *  Creates chunks for the file located at p.
@@ -173,17 +192,18 @@ class cafs  {
     /**
      *  Given the hash of a file, return its contents.
      */
-    fc::vector<char> get_file( const fc::sha1& fhash );
+    fc::optional<resource> get_resource( const fc::sha1& fhash );
+    fc::optional<resource> get_resource( const file_ref& r );
+    fc::optional<resource> get_resource( const link& r );
+
+    // TODO: define a get_file_stream(file_ref | link) to support
+    //       streaming the contents of a file.
 
     /**
      *  Return the contents of a raw chunk.
      */
     fc::vector<char> get_chunk( const fc::sha1& id, uint32_t pos = 0, uint32_t size = -1 );
 
-    /**
-     *  Retrieves a derandomized file data... type will depend upon r.type
-     */
-    fc::vector<char> get_file( const file_ref& r );
 
   private:
     struct impl;

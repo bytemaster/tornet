@@ -88,16 +88,18 @@ namespace tn { namespace db {
       void init();
       void close();
 
+      /*
       bool store_chunk( const fc::sha1& id, const fc::vector<char>& b  );
       bool store_chunk( const fc::sha1& id, const fc::const_buffer& b  );
       bool fetch_chunk( const fc::sha1& id, const fc::mutable_buffer& b, uint64_t offset = 0 );
+      */
 
       bool fetch_meta( const fc::sha1& id, meta& m, bool auto_inc );
       bool store_meta( const fc::sha1& id, const meta& m );
 
-      bool del_data( const fc::sha1& id );
+   //   bool del_data( const fc::sha1& id );
       bool del_meta( const fc::sha1& id );
-      bool del( const fc::sha1& id );
+  //    bool del( const fc::sha1& id );
 
       uint32_t count();
       bool fetch_index( uint32_t recnum, fc::sha1& id, meta& m );

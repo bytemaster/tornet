@@ -5,7 +5,6 @@
 #include <tornet/chunk_service_client.hpp>
 #include <tornet/tornet_file.hpp>
 #include <tornet/download_status.hpp>
-#include <tornet/archive.hpp>
 #include <fc/fwd_impl.hpp>
 #include <fc/buffer.hpp>
 #include <fc/raw.hpp>
@@ -122,15 +121,15 @@ fc::vector<char> chunk_service::fetch_chunk( const fc::sha1& chunk_id ) {
   try {
   if( my->_local_db->fetch_meta( chunk_id, met, false ) ) {
       d.resize(met.size);
-      if( my->_local_db->fetch_chunk( chunk_id, fc::mutable_buffer(d.data(),met.size) ) )
-        return d;
+// TODO: replace with CAFS      if( my->_local_db->fetch_chunk( chunk_id, fc::mutable_buffer(d.data(),met.size) ) )
+//        return d;
   }
   } catch(...) {}
   try {
   if( my->_cache_db->fetch_meta( chunk_id, met, false ) ) {
-      d.resize(met.size);
-      if( my->_cache_db->fetch_chunk( chunk_id, fc::mutable_buffer(d.data(),met.size) ) )
-        return d;
+ //     d.resize(met.size);
+// TODO replace with CAFS      if( my->_cache_db->fetch_chunk( chunk_id, fc::mutable_buffer(d.data(),met.size) ) )
+//        return d;
   }
   } catch(...) {}
   FC_THROW_MSG( "Unknown chunk %s", chunk_id );
@@ -321,7 +320,7 @@ tornet_file import_file( chunk_service& self, const fs::path& infile ) {
         s += ss;
       }
       // store the chunk
-      self.get_local_db()->store_chunk( chunk_id, fc::const_buffer( chunk.data(), chunk.size() ) );
+// TODO: replace with CAFS      self.get_local_db()->store_chunk( chunk_id, fc::const_buffer( chunk.data(), chunk.size() ) );
 
       rpos += csize;
     }
@@ -357,7 +356,7 @@ tn::link publish_tornet_file( tn::chunk_service& self, const tornet_file& tf, in
   ln.id   = fc::sha1::hash( chunk.data(), chunk.size() );
 
   // TODO: this could be performed without blocking on the DB thread
-  self.get_local_db()->store_chunk( ln.id, fc::const_buffer( chunk.data(), chunk.size() ) );
+  // TODO: replace with CAFS self.get_local_db()->store_chunk( ln.id, fc::const_buffer( chunk.data(), chunk.size() ) );
 
   for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
     tn::db::publish::record rec;
@@ -378,38 +377,8 @@ tn::link publish_tornet_file( tn::chunk_service& self, const tornet_file& tf, in
 
 
 
-tn::link chunk_service::publish( const fc::path& file, uint32_t rep  ) {
-  if( !fs::exists( file ) )
-    FC_THROW_MSG( "File '%s' does not exist.", file.string() ); 
-  
-  if( fs::is_regular_file( file ) ) {
-     tornet_file tf = import_file( *this, file );
-     return publish_tornet_file( *this, tf, rep );
-  } else if( fs::is_directory( file ) ) {
-     fs::directory_iterator itr(file);
-     fs::directory_iterator end;
-
-     tn::archive adir;
-
-     while( itr != end ) {
-        if( fs::path(*itr).filename().string()[0] != '.' )
-            adir.add( fs::path(*itr).filename(), publish( fs::path(*itr), rep ) );  
-        ++itr;
-     }
-     tornet_file tf;
-     
-     tf.inline_data = fc::raw::pack( adir );
-     tf.version     = 0;
-     tf.compression = 0;
-     tf.name        = file.filename().string().c_str();
-     tf.size        = tf.inline_data.size();
-     tf.mime        = "tn::archive";
-     tf.checksum    = fc::sha1::hash( tf.inline_data.data(), tf.size );
-
-     return publish_tornet_file( *this, tf, rep );
-  }
-  FC_THROW_MSG( "File '%s' is not regular or directory", file.string() ); 
-  return tn::link(); // hide warnings
+cafs::link chunk_service::publish( const fc::path& file, uint32_t rep  ) {
+  cafs::link l = my->_cfs->import( file );
 }
 
 
@@ -442,7 +411,7 @@ fc::vector<char> chunk_service::download_chunk( const fc::sha1& chunk_id ) {
 
             auto fhash = fc::sha1::hash( fr.data.data(), fr.data.size() );
             if( fhash == chunk_id ) {
-               get_local_db()->store_chunk(chunk_id,fr.data);
+               // TODO: replace with CAFS get_local_db()->store_chunk(chunk_id,fr.data);
                fc::vector<char> tmp = fc::move(fr.data);
                return tmp;
             } else {
