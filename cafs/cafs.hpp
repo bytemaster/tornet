@@ -26,7 +26,8 @@ class cafs  {
     enum file_type {
       file_data_type   = 0, // the chunks comprise a regular file
       directory_type   = 1, // the chunks comprise a directory file
-      file_header_type = 2  // the chunks comprise an even bigger file_header structure
+      file_header_type = 2, // the chunks comprise an even bigger file_header structure
+      unknown          = 3
     };
   
 
@@ -178,6 +179,11 @@ class cafs  {
      *  Return the contents of a raw chunk.
      */
     fc::vector<char> get_chunk( const fc::sha1& id, uint32_t pos = 0, uint32_t size = -1 );
+
+    /**
+     *  Retrieves a derandomized file data... type will depend upon r.type
+     */
+    fc::vector<char> get_file( const file_ref& r );
 
   private:
     struct impl;

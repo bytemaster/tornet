@@ -226,10 +226,34 @@ void cafs::export_link( const cafs::link& l, const fc::path& d ) {
       ofile.write( ch.data()+1, ch.size()-1 );
       break;
     }
-    case directory_type:
+    case directory_type: {
       slog( "directory data..." );
+      fc::datastream<const char*> ds(ch.data()+1, ch.size()-1);
+      directory d;
+      fc::raw::unpack( ds, d );
+      slog( "%s", fc::json::to_string( d ).c_str() );
+      for( auto itr = d.entries.begin(); itr != d.entries.end(); ++itr ) {
+        slog( "entry: %s", itr->name.c_str() );
+        fc::vector<char> fdat = get_file( itr->ref );
+        switch( itr->ref.type ) {
+          case file_data_type: {
+            break;
+          }
+          case directory_type: {
+            slog( "%s", fc::json::to_string( fc::raw::unpack<directory>(fdat) ).c_str() );
+            break;
+          }
+          case file_header_type: {
+            slog( "%s", fc::json::to_string( fc::raw::unpack<file_header>(fdat) ).c_str() );
+            break;
+          }
+          default:
+            wlog( "Unknown Type %d", int(itr->ref.type) );
+        }
+      }
 
       break;
+    }
     case file_header_type: {
       slog( "file header..." );
       fc::datastream<const char*> ds(ch.data()+1, ch.size()-1);
@@ -250,6 +274,34 @@ void cafs::export_link( const cafs::link& l, const fc::path& d ) {
       FC_THROW_MSG( "Unknown File Type %s", int(ch[0]) );
   }
 }
+fc::vector<char> cafs::get_file( const file_ref& r ) {
+    fc::vector<char> rd = get_chunk( r.chunk );
+    wlog( "rand  %lld %s", rd.size(), fc::to_hex(rd.data()+r.pos,r.size).c_str() );
+    derandomize( r.seed, rd );
+    wlog( "derand  %lld %s", rd.size(), fc::to_hex(rd.data()+r.pos,r.size).c_str() );
+    fc::vector<char> tmp( rd.data() + r.pos, rd.data()+r.pos+r.size );
+    wlog( "file %lld %s", tmp.size(), fc::to_hex(tmp.data(),tmp.size()).c_str() );
+    return tmp;
+/*
+    fc::vector<char> rand_data =  get_chunk( r.chunk, r.pos, r.size );
+    // derandomize it here...
+    fc::vector<char> tmp(r.pos + r.size + 3 ); 
+    uint32_t* dst = (uint32_t*)tmp.data();
+    uint32_t* end = dst + tmp.size() / 4;
+
+    boost::random::mt19937 gen(r.seed);
+    gen.generate( dst, end );
+
+    auto rp = tmp.begin() + r.pos;
+    for( auto i = rand_data.begin(); i != rand_data.end(); ++i ) {
+      *i ^= *rp;
+      ++rp;
+    }
+    wlog( "rand_data %lld  %s", rand_data.size(), fc::to_hex( rand_data.data(), rand_data.size()).c_str() );
+
+    return rand_data;
+    */
+}
 
 fc::vector<char> cafs::get_chunk( const fc::sha1& id, uint32_t pos, uint32_t s ) {
   fc::string cid(id);
@@ -263,16 +315,48 @@ fc::vector<char> cafs::get_chunk( const fc::sha1& id, uint32_t pos, uint32_t s )
   fc::raw::unpack( in, ch );
 //  slog( "get chunk header: %s", fc::json::to_string( ch ).c_str() );
   in.seekg( pos, fc::ifstream::cur );
-  if( s == -1 ) {
+  if( s == uint32_t(-1) ) {
     s = ch.calculate_size();
   }
- // slog( "size %llu", s );
-  //slog( "pos %llu", pos );
+  slog( "size %llu", s );
+  slog( "pos %llu", pos );
   fc::vector<char> v(s);
   in.read(v.data(),s);
   //slog( "data %llu  %s", v.size(), fc::to_hex( v.data(), 16 ).c_str() );
 
   return v;
+}
+
+bool add_to_chunk( fc::datastream<char*>& chunk_ds, 
+                   const fc::vector<char>& cur_file, 
+                   const fc::string& name,
+                   cafs::directory& dir,
+                   cafs::file_type cur_file_type) {
+   if( chunk_ds.remaining() > cur_file.size() ) {
+      int  cur_file_pos = chunk_ds.tellp();
+      chunk_ds.write( cur_file.data(), cur_file.size() );
+      dir.entries.push_back( cafs::directory::entry( name ) );
+      dir.entries.back().ref.content = fc::sha1::hash( cur_file.data(), cur_file.size() );
+      dir.entries.back().ref.pos     = cur_file_pos;
+      dir.entries.back().ref.size    = cur_file.size();
+      dir.entries.back().ref.type    = cur_file_type;
+      dir.entries.back().ref.seed    = 0;
+      return true;
+   }
+   return false;
+}
+
+void save_chunk( cafs& self, cafs::directory& dir, fc::vector<char>& cdata ) {
+   uint64_t seed = randomize(cdata, rand() );
+   cafs::chunk_header  chead    = slice_chunk( cdata );
+   fc::sha1            chunk_id = self.store_chunk( chead, cdata );
+
+   for( auto itr = dir.entries.begin(); itr != dir.entries.end(); ++itr ) {
+      if( itr->ref.chunk == fc::sha1() ) {
+        itr->ref.seed  = seed;
+        itr->ref.chunk = chunk_id;
+      }
+   }
 }
 
 /**
@@ -284,138 +368,52 @@ cafs::directory cafs::import_directory( const fc::path& p ) {
    fc::directory_iterator itr(p);
    fc::directory_iterator end;
 
-   chunk_header cur_chunk;
-   fc::vector<char> cur_data(MAX_CHUNK_SIZE);
-   char*            cur_pos = cur_data.data();
-   char*            cur_end = cur_pos + cur_data.size();
-
-   int last_dir_entry = 0;
+   chunk_header            cur_chunk;
+   fc::vector<char>        cur_chunk_data(MAX_CHUNK_SIZE);
+   fc::datastream<char*>   cur_chunk_ds(cur_chunk_data.data(),cur_chunk_data.size());
 
    while( itr != end ) {
        fc::path    cur_path = *itr;
        slog( "%s", cur_path.generic_string().c_str() );
        fc::string  name = cur_path.filename().string();
+       file_type   cur_file_type = unknown;
 
-      if( name[0] != '.' ) {
-         fc::vector<char>         file_data;
-         file_type                file_t;
+       fc::vector<char> cur_file;
 
-         if( fc::is_regular_file(cur_path) ) {
-             uint64_t fsize = fc::file_size(cur_path); 
-
-             // large files do not get stored 'inline'
-             if( fsize > IMBED_THRESHOLD  ) {
-                file_header head = import_file( cur_path );
-             //   slog( "import file %s", fc::json::to_string(head).c_str() );
-                fc::vector<char> head_data = fc::raw::pack(head);
-                if( head_data.size() > IMBED_THRESHOLD ) {
-                  assert( !"Not implemented" );
-                  wlog( "!not implemented!" );
-                  // must be a very big file!
-                  // we need to push it off to its own chunk
-                  // create a file_header_type and chunk head_data
-
-                  file_t = file_header_type;
-                } else {
-                  file_data = fc::move(head_data);
-                  file_t = file_header_type;
-                }
-             } else {
-                fc::ifstream in( cur_path, fc::ifstream::binary );
-                file_data.resize(fsize);
-                in.read( file_data.data(), fsize );
-                file_t     = file_data_type;
-             }
-         } else if ( fc::is_directory(cur_path) ) {
-              directory d = fc::async( [=](){ return import_directory(cur_path); } );
-              file_data   = fc::raw::pack(d);
-              file_t      = cafs::directory_type;
-              if( file_data.size() > IMBED_THRESHOLD ) {
-                // really big directory object you got there!  
-                assert( !"Large Directory Not implemented" );
-                // TODO encode this directory as a file_header with directory_data flag. 
-                // Make the file_data the packed file_header and the file_type a file_header_type
-              }
-         }
-         
-
-         // calculate he hash for this slice
-
-         // TODO: DO WE ALREADY KNOW A FILE_REF for this file_hash, if so we can use it 
-         // instead of inserting the data into a new chunk.
-         if( false ) { // we already have this chunk
-            // what about two files in the same directory with the same contents but
-            // different names??  We would have to check dir.files since the last_dir_entry
-            
-            
-            // dir.insert( name, fhash, existing_file_ref );
-         } else { // we don't have this chunk yet
-
-             // if we don't have room in the current chunk, close it out and start a new one
-             if( file_data.size() >= uint64_t(cur_end-cur_pos ) ) {
-                // finish current chunk, start next chunk
-                wlog( "Finish current chunk... so we can start next chunk  file_data %llu  left %llu  size: %llu",file_data.size(), (cur_end-cur_pos), cur_data.size()); 
-                cur_data.resize(cur_pos - cur_data.data());
-                cur_end = cur_data.data() + cur_data.size();
-                uint64_t seed = randomize(cur_data, *((uint64_t*)fc::sha1::hash(cur_data.data(),cur_data.size()).data() ));
-                cur_pos = cur_data.data();
-                
-                // update header with sha1 of randomized slices
-
-                auto itr = cur_chunk.slices.begin();
-                for( ;itr != cur_chunk.slices.end(); ++itr ) {
-                  itr->hash = fc::sha1::hash( cur_pos, itr->size );
-                  cur_pos += itr->size;
-                }
-
-                // store the chunk on disk
-                fc::sha1 chunk_id = store_chunk( cur_chunk, cur_data );
-
-                for( uint32_t i = last_dir_entry; i < dir.entries.size(); ++i ) {
-                  // -1 is reserved for uninit seed, TODO: ensure randomize() method never uses -1
-                  if( dir.entries[i].ref.seed == uint64_t(-1) ) { 
-                      dir.entries[i].ref.chunk = chunk_id;
-                      dir.entries[i].ref.seed  = seed;
-
-                      // TODO: store this file ref in our DB so that we
-                      // can reuse it if we see it again.
-                  }
-                }
-                last_dir_entry = dir.entries.size();
-                
-                // reset the data
-                cur_data.resize(MAX_CHUNK_SIZE);
-                cur_pos = cur_data.data();
-                cur_end = cur_pos + cur_data.size();
-                cur_chunk.slices.resize(0);
-             }
-             // ASSERT there is room for the data now.
-
-             // push the data into the current chunk
-
-             //slog( "copy file data into current chunk... file_data.size %llu", file_data.size() ); 
-             // copy the slice into the chunk
-             //slog( "... pos %llu fiel_Data.size %llu", (cur_pos - cur_data.data() ), file_data.size() );
-             memcpy( cur_pos, file_data.data(), file_data.size() );
-             // add the slice to the chunk slices table
-             cur_chunk.slices.push_back( chunk_header::slice(file_data.size()) ); // we will calc the hash later
-
-             // move the position in the current chunk.
-             cur_pos += file_data.size();
-
-             // add the partial file hash to the directory
-             dir.entries.push_back( directory::entry( name ) );
-             dir.entries.back().ref.content = fc::sha1::hash(file_data.data(),file_data.size() );
-             dir.entries.back().ref.type = file_t;
-             dir.entries.back().ref.pos = cur_pos - cur_data.data(); 
-             dir.entries.back().ref.size = cur_data.size();
-             // chunk_id + seed to be set at the end of the current chunk.
-         }
-      }
-      ++itr;
+       if( fc::is_directory( cur_path ) && name[0] != '.' ) {
+           directory d = import_directory( cur_path );
+           cur_file = fc::raw::pack( d );
+           cur_file_type = directory_type;
+       } else if( fc::is_regular_file( cur_path ) ) {
+           if( fc::file_size(cur_path) > IMBED_THRESHOLD ) {
+              cur_file = fc::raw::pack( import_file(cur_path) );
+              cur_file_type = file_header_type;
+           } else {
+              cur_file.resize( fc::file_size(cur_path) ); 
+              fc::ifstream inf( cur_path, fc::ifstream::binary );
+              inf.read(cur_file.data(), cur_file.size() );
+              cur_file_type = file_data_type;
+           }
+       }
+       ++itr;
+      
+       if( !add_to_chunk( cur_chunk_ds, cur_file, name, dir, cur_file_type ) ) {
+          // save cur chunk... 
+          cur_chunk_data.resize(cur_chunk_ds.tellp());
+          save_chunk( *this, dir, cur_chunk_data );
+          cur_chunk_data.resize(MAX_CHUNK_SIZE);
+          cur_chunk_ds = fc::datastream<char*>(cur_chunk_data.data(),
+                                               cur_chunk_data.size());
+          add_to_chunk( cur_chunk_ds, cur_file, name, dir, cur_file_type );
+       } 
+       if( itr == end ) {
+          save_chunk( *this, dir, cur_chunk_data );
+       }
    }
    return dir;
 }
+
+
 
 /**
  *  Calculate how frequently each byte occurs in data.
@@ -454,16 +452,17 @@ uint64_t randomize( fc::vector<char>& data, uint64_t seed ) {
   fc::vector<char> tmp(data.size());
   do {
       ++seed;
-
       boost::random::mt19937 gen(seed);
       uint32_t* src = (uint32_t*)data.data();
       uint32_t* end = src +(data.size()/sizeof(uint32_t)); 
       uint32_t* dst = (uint32_t*)tmp.data();
-      gen.generate( dst, dst + (tmp.size()/sizeof(uint32_t)) );
-      while( src != end ) {
-        *dst = *src ^ *dst;
-        ++dst; 
-        ++src;
+      if( data.size() > 3 ) {
+          gen.generate( dst, dst + (tmp.size()/sizeof(uint32_t)) );
+          while( src != end ) {
+            *dst = *src ^ *dst;
+            ++dst; 
+            ++src;
+          }
       }
       if( int extra = data.size() % 4 ) {
         int t = 0;
@@ -473,7 +472,7 @@ uint64_t randomize( fc::vector<char>& data, uint64_t seed ) {
         t ^= r;
         memcpy( dst, &t, extra );
       }
-  } while (!is_random(tmp) );
+  } while (tmp.size() > 64 && !is_random(tmp) );
   fc::swap(data,tmp);
   return seed;
 }
