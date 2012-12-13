@@ -66,31 +66,30 @@ SET( sources
     src/db/peer.cpp
     src/db/publish.cpp
     src/db/name.cpp
-    src/chunk_service.cpp
-    src/name_service_client.cpp
-    src/archive.cpp
-    src/main.cpp
+#    src/chunk_service.cpp
+#    src/name_service_client.cpp
+#    src/archive.cpp
+#    src/main.cpp
+    src/tprox.cpp
     src/node.cpp
     src/connection.cpp
     src/buffer.cpp
     src/channel.cpp
     src/kad.cpp
     src/kbucket.cpp
-    src/name_service.cpp
+#    src/name_service.cpp
     src/udt_test_service.cpp
     src/udt_channel.cpp
     src/miss_list.cpp
     src/chunk_search.cpp
     src/chunk_service_client.cpp
-    src/download_status.cpp
-    src/tornet_app.cpp
+#    src/download_status.cpp
+#    src/tornet_app.cpp
     src/chisq.c
     src/raw_rpc.cpp
-
-    src/main.cpp
-    src/webgui/WTornetApplication.cpp
-    src/webgui/WTornetResource.cpp
-    src/webgui/WUserItemModel.cpp
+#    src/webgui/WTornetApplication.cpp
+#    src/webgui/WTornetResource.cpp
+#    src/webgui/WUserItemModel.cpp
     src/webgui/dbo.cpp
     src/webgui/sql_session.cpp
 
@@ -157,11 +156,14 @@ SET( libraries
 
     SET( MACOSX_BUNDLE_INFO_STRING "TornetInfoString" )
     SET( MACOSX_BUNDLE_BUNDLE_NAME "TornetBundleName"  )
-add_executable( tornet 
-  MACOSX_BUNDLE 
-  ${sources} )
-target_link_libraries( tornet ${libraries} )
+#add_executable( tornet 
+#  MACOSX_BUNDLE 
+#  ${sources} )
+#target_link_libraries( tornet ${libraries} )
 
-add_executable( cafst  cafs_main.cpp cafs/cafs.cpp cafs/cafs_file_db.cpp src/chisq.c)
-target_link_libraries( cafst ${libraries}  )
+add_executable( tprox ${sources} )
+target_link_libraries( tprox ${libraries} )
+
+#add_executable( cafst  cafs_main.cpp cafs/cafs.cpp cafs/cafs_file_db.cpp src/chisq.c)
+#target_link_libraries( cafst ${libraries}  )
 

@@ -3,6 +3,7 @@
 #include <fc/shared_ptr.hpp>
 #include <fc/vector.hpp>
 #include <fc/fwd.hpp>
+#include <cafs.hpp>
 
 namespace fc {
   class sha1;
@@ -13,7 +14,6 @@ namespace fc {
 namespace tn {
   class chunk_service;
   class tornet_file;
-  class link;
 
 
   class download_delegate : virtual public fc::retainable {
@@ -36,7 +36,7 @@ namespace tn {
       typedef fc::shared_ptr<download_status> ptr;
 
       download_status( const fc::shared_ptr<chunk_service>& cs, 
-                       const tn::link& ln,
+                       const cafs::link& ln,
                        const download_delegate::ptr& dd );
 
       ~download_status();
@@ -48,7 +48,7 @@ namespace tn {
       const fc::string& fail_string()const; // return the reason for any failure
 
       
-      const tn::link&  get_link()const;
+      const cafs::link&  get_link()const;
 
       /**
        *  If the tornet description file has been fetched, this will return it.

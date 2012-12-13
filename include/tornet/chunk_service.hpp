@@ -2,6 +2,8 @@
 #include <fc/shared_ptr.hpp>
 #include <fc/vector.hpp>
 
+#include <cafs.hpp>
+
 namespace fc {
   class path;
   class sha1;

@@ -6,6 +6,7 @@
 #include <fc/pke.hpp>
 #include <fc/reflect.hpp>
 #include <tornet/name_chain.hpp>
+#include <cafs.hpp>
 
 namespace tn {
 
@@ -18,7 +19,7 @@ namespace tn {
      uint8_t           level;
      fc::string        name;
      fc::public_key_t  key;
-     tn::link          site_ref;
+     cafs::link        site_ref;
      uint32_t          expires;
      uint64_t          nonce;
      fc::signature_t   sig;

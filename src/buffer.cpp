@@ -77,7 +77,7 @@ namespace tn {
         FC_THROW_MSG( "Attempt to grow buffer!" );
     }
     buffer& buffer::operator=( buffer&& b ) {
-      fc::swap(shared_data,b.shared_data);
+      fc_swap(shared_data,b.shared_data);
       return *this;
     }
     buffer& buffer::operator=( const buffer& b ) {

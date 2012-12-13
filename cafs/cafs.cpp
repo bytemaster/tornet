@@ -463,7 +463,7 @@ uint64_t randomize( fc::vector<char>& data, uint64_t seed ) {
         memcpy( dst, &t, extra );
       }
   } while (tmp.size() > 64 && !is_random(tmp) );
-  fc::swap(data,tmp);
+  fc_swap(data,tmp);
   return seed;
 }
 
@@ -510,7 +510,7 @@ void derandomize( uint64_t seed, fc::vector<char>& data ) {
     memcpy( dst, &t, extra );
     wlog( "Extra %d", extra );
   }
-  fc::swap(data,tmp);
+  fc_swap(data,tmp);
 }
 cafs::resource::resource(){}
 cafs::resource::resource( fc::vector<char>&& r ):_data(fc::move(r)){}
@@ -521,7 +521,7 @@ cafs::resource& cafs::resource::operator = ( const cafs::resource& c ) {
   return *this;
 }
 cafs::resource& cafs::resource::operator = ( cafs::resource&& c ) {
-  fc::swap(c._data,_data);
+  fc_swap(c._data,_data);
   return *this;
 }
 

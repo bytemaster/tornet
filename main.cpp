@@ -13,7 +13,7 @@
 #include <tornet/rpc/client.hpp>
 
 #include <tornet/net/kad.hpp>
-#include <tornet/services/chunk_search.hpp>
+//#include <tornet/services/chunk_search.hpp>
 #include <scrypt/bigint.hpp>
 
 #include <fc/thread.hpp>
@@ -23,7 +23,7 @@
 
 //#include <ltl/rpc/reflect.hpp>
 
-#include <tornet/services/chunk_service.hpp>
+//#include <tornet/services/chunk_service.hpp>
 
 void handle_sigint( int si );
 

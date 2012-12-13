@@ -657,7 +657,7 @@ namespace tn {
     return my->chan.remote_rank();
    }
    udt_channel& udt_channel::operator=( udt_channel&& u ) {
-    fc::swap(my,u.my);
+    fc_swap(my,u.my);
     return *this;
    }
    udt_channel& udt_channel::operator=( const udt_channel& u ) {

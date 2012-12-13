@@ -48,7 +48,7 @@ namespace tn {
   }
 
 
-  void name_service::reserve_name( const fc::string& name, const tn::link& site_ref ) {
+  void name_service::reserve_name( const fc::string& name, const cafs::link& site_ref ) {
     tn::db::name::record rec;
     tn::db::name::record_key rec_key;
     bool update_domain = false;
@@ -81,14 +81,14 @@ namespace tn {
   void                   name_service::release_name( const fc::string& name ){
   }            
                          
-  tn::link   name_service::get_link_for_name( const fc::string& name ) {
+  cafs::link   name_service::get_link_for_name( const fc::string& name ) {
     // check the public data base first
     db::name::record rec;
     if( my->_name_db->fetch( name, rec ) ) {
       return rec.site_ref;
     }
     FC_THROW_MSG( "No site reference registered for name '%s'", name.c_str() );
-    return tn::link();
+    return cafs::link();
   }
                          
   //name_service::record   name_service::get_record_for_name( const fc::string& name ){
@@ -112,7 +112,7 @@ namespace tn {
     return false;  
   }
                          
-  void                   name_service::update_link_for_name( const fc::string& name, const tn::link& val ){
+  void                   name_service::update_link_for_name( const fc::string& name, const cafs::link& val ){
   #if 0
     // then check my private database
     db::name::record_key prec;

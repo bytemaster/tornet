@@ -22,7 +22,7 @@ namespace tn {
       udt_channel      _chan;
   };
 
-  class udt_test_service::impl {
+  class udt_test_service::impl : public fc::retainable{
     public:
       float         _effort;      
       fc::path      _dir;
@@ -38,7 +38,8 @@ namespace tn {
   };
 
 
-  udt_test_service::udt_test_service( const fc::shared_ptr<tn::node>& n ) {
+  udt_test_service::udt_test_service( const fc::shared_ptr<tn::node>& n )
+  :my(new impl()){
     my->_node = n;
 
     my->_node->start_service( udt_test_port, "udt_test", [=]( const channel& c ) { this->my->on_new_connection(c); }  );

@@ -26,7 +26,7 @@ namespace tn {
 
     private:
       class impl;
-      fc::fwd<impl,40> my;
+      fc::shared_ptr<impl> my;
   };
 
 }

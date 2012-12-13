@@ -25,7 +25,7 @@ namespace tn {
       fc::string                 _status;
       double                     _per_comp;
       chunk_service::ptr         _cs;
-      tn::link                   _link;
+      cafs::link                 _link;
       fc::optional<tornet_file>  _tf;
       fc::string                 _fail_str;
 
@@ -139,7 +139,7 @@ namespace tn {
       }
   };
 
-  download_status::download_status( const fc::shared_ptr<chunk_service>& cs, const tn::link& ln, const download_delegate::ptr&  del )
+  download_status::download_status( const fc::shared_ptr<chunk_service>& cs, const cafs::link& ln, const download_delegate::ptr&  del )
   :my(*this) {
     my->_cs = cs;
     my->_link = ln;
@@ -168,7 +168,7 @@ namespace tn {
     my->_download_fiber_complete.cancel();
   }
   
- const tn::link&  download_status::get_link()const { return my->_link; }
+ const cafs::link&  download_status::get_link()const { return my->_link; }
 
  const fc::string& download_status::fail_string()const { return my->_fail_str; }
 
