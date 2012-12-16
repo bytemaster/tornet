@@ -1,4 +1,6 @@
 #include "cafs.hpp"
+#include <fc/base58.hpp>
+#include <fc/error_report.hpp>
 #include <fc/iostream.hpp>
 #include <fc/exception.hpp>
 #include <fc/raw.hpp>
@@ -21,6 +23,7 @@
 // file headers allow us to download the file from 
 // multiple sources by including 'sub-hashes' for slices.
 #define IMBED_THRESHOLD (1024*1024)
+#define RAND_THRESHOLD (1024*4)
 
 
 extern "C" {
@@ -107,6 +110,7 @@ cafs::link cafs::import( const fc::path& p ) {
       //file_header tmp;
       //fc::raw::unpack( ds2, tmp );
       //slog( "test unpack %s", fc::json::to_string( tmp ).c_str() );
+      data.resize( ds.tellp() );
 
       //slog( "pre randomized... '%s'", fc::to_hex( data.data(), 16 ).c_str() );
       size_t seed = randomize(data, *((uint64_t*)fc::sha1::hash(data.data(),data.size()).data()) );
@@ -135,6 +139,7 @@ cafs::link cafs::import( const fc::path& p ) {
     fc::datastream<char*> ds(data.data()+1, data.size()-1);
     fc::raw::pack( ds, dir );
     data[0] = directory_type;
+    data.resize( ds.tellp()+1 );
 
     size_t seed = randomize(data, *((uint64_t*)fc::sha1::hash(data.data(),data.size()).data()) );
     auto chunk_head = slice_chunk( data );
@@ -203,82 +208,103 @@ fc::sha1 cafs::store_chunk( const chunk_header& head, const fc::vector<char>& da
       wlog( "store chunk %s already exists", cfile.string().c_str() );
       return h;
   }
-  slog( "store chunk %s", cfile.string().c_str() );
+  slog( "store chunk %s size %d", cfile.string().c_str(), data.size() );
   fc::ofstream out( cfile.string(), fc::ofstream::binary );
   fc::raw::pack( out, head );
-  slog( "data %llu  %s", data.size(), fc::to_hex( data.data(), 16 ).c_str() );
+//  slog( "header size %d", fc::raw::pack(head).size() );
+//  slog( "data %llu  %s", data.size(), fc::to_hex( data.data(), 16 ).c_str() );
   out.write( data.data(), data.size() );
   return h;
 }
 
+cafs::link::link( const fc::string& s ) {
+  try {
+    fc::vector<char> bin(16+40);
+    size_t ns = fc::from_hex( s, bin.data(), bin.size() );
+    bin.resize(ns);
+    *this = fc::raw::unpack<link>( bin );
+  } catch ( fc::error_report& er ) {
+    seed = 0;
+    throw FC_REPORT_PUSH( er, "Unable to decode link ${link}", fc::value().set("link",s) ); 
+  }
+}
+cafs::link::operator fc::string()const {
+  fc::vector<char> bin = fc::raw::pack( *this );
+  return fc::to_hex( bin.data(), bin.size() );
+}
+
 void cafs::export_link( const cafs::link& l, const fc::path& d ) {
-  if( !fc::exists( d.parent_path() ) ) { 
-    slog( "create '%s'", d.generic_string().c_str() );
-    fc::create_directories(d.parent_path()); 
-  }
-  fc::vector<char> ch = get_chunk( l.id );
-  derandomize( l.seed, ch  );
-//  slog( "derandomized... '%s'", fc::to_hex( ch.data(), 16 ).c_str() );
-  if( ch.size() == 0 ) {
-    FC_THROW_MSG( "Empty Chunk!" );
-  }
-  switch( ch[0] ) {
-    case file_data_type: {
-      slog( "file data..." );
-  //    slog( "post randomized... '%s'", fc::to_hex( ch.data(), ch.size() ).c_str() );
-      fc::ofstream ofile( d, fc::ofstream::binary );
-      ofile.write( ch.data()+1, ch.size()-1 );
-      break;
+ try {
+    if( !fc::exists( d.parent_path() ) ) { 
+      slog( "create '%s'", d.generic_string().c_str() );
+      fc::create_directories(d.parent_path()); 
     }
-    case directory_type: {
-      slog( "directory data..." );
-      fc::datastream<const char*> ds(ch.data()+1, ch.size()-1);
-      directory d;
-      fc::raw::unpack( ds, d );
-      slog( "%s", fc::json::to_string( d ).c_str() );
-      for( auto itr = d.entries.begin(); itr != d.entries.end(); ++itr ) {
-        slog( "entry: %s", itr->name.c_str() );
-        /*
-        fc::vector<char> fdat = get_file( itr->ref );
-        switch( itr->ref.type ) {
-          case file_data_type: {
-            break;
+    fc::vector<char> ch = get_chunk( l.id );
+    derandomize( l.seed, ch  );
+    //  slog( "derandomized... '%s'", fc::to_hex( ch.data(), 16 ).c_str() );
+    if( ch.size() == 0 ) {
+      FC_THROW_MSG( "Empty Chunk!" );
+    }
+    switch( ch[0] ) {
+      case file_data_type: {
+        slog( "file data..." );
+    //    slog( "post randomized... '%s'", fc::to_hex( ch.data(), ch.size() ).c_str() );
+        fc::ofstream ofile( d, fc::ofstream::binary );
+        ofile.write( ch.data()+1, ch.size()-1 );
+        break;
+      }
+      case directory_type: {
+        slog( "directory data..." );
+        fc::datastream<const char*> ds(ch.data()+1, ch.size()-1);
+        directory d;
+        fc::raw::unpack( ds, d );
+        slog( "%s", fc::json::to_string( d ).c_str() );
+        for( auto itr = d.entries.begin(); itr != d.entries.end(); ++itr ) {
+          slog( "entry: %s", itr->name.c_str() );
+          /*
+          fc::vector<char> fdat = get_file( itr->ref );
+          switch( itr->ref.type ) {
+            case file_data_type: {
+              break;
+            }
+            case directory_type: {
+              slog( "%s", fc::json::to_string( fc::raw::unpack<directory>(fdat) ).c_str() );
+              break;
+            }
+            case file_header_type: {
+              slog( "%s", fc::json::to_string( fc::raw::unpack<file_header>(fdat) ).c_str() );
+              break;
+            }
+            default:
+              wlog( "Unknown Type %d", int(itr->ref.type) );
           }
-          case directory_type: {
-            slog( "%s", fc::json::to_string( fc::raw::unpack<directory>(fdat) ).c_str() );
-            break;
-          }
-          case file_header_type: {
-            slog( "%s", fc::json::to_string( fc::raw::unpack<file_header>(fdat) ).c_str() );
-            break;
-          }
-          default:
-            wlog( "Unknown Type %d", int(itr->ref.type) );
+          */
         }
-        */
+  
+        break;
       }
-
-      break;
-    }
-    case file_header_type: {
-      slog( "file header..." );
-      fc::datastream<const char*> ds(ch.data()+1, ch.size()-1);
-      slog( "data %s", fc::to_hex( ch.data(), 16 ).c_str() );
-      file_header fh;
-      fc::raw::unpack( ds, fh);
-      slog( "%s", fc::json::to_string( fh ).c_str() );
-
-      fc::ofstream ofile( d, fc::ofstream::binary );
-      for( auto i = fh.chunks.begin(); i != fh.chunks.end(); ++i ) {
-        fc::vector<char> c = get_chunk( i->hash );
-        derandomize( i->seed, c );
-        ofile.write( c.data(), c.size() );
+      case file_header_type: {
+        slog( "file header..." );
+        fc::datastream<const char*> ds(ch.data()+1, ch.size()-1);
+        slog( "data %s", fc::to_hex( ch.data(), 16 ).c_str() );
+        file_header fh;
+        fc::raw::unpack( ds, fh);
+        slog( "%s", fc::json::to_string( fh ).c_str() );
+  
+        fc::ofstream ofile( d, fc::ofstream::binary );
+        for( auto i = fh.chunks.begin(); i != fh.chunks.end(); ++i ) {
+          fc::vector<char> c = get_chunk( i->hash );
+          derandomize( i->seed, c );
+          ofile.write( c.data(), c.size() );
+        }
+        break;
       }
-      break;
+      default:
+        FC_THROW_MSG( "Unknown File Type %s", int(ch[0]) );
     }
-    default:
-      FC_THROW_MSG( "Unknown File Type %s", int(ch[0]) );
-  }
+ } catch ( fc::error_report& e ) {
+   throw FC_REPORT_PUSH( e, "Unable to export link ${link} to ${path}", fc::value().set("link", fc::string(l)).set("path", d.generic_string() ) );
+ }
 }
 
 fc::vector<char> cafs::get_chunk( const fc::sha1& id, uint32_t pos, uint32_t s ) {
@@ -296,8 +322,8 @@ fc::vector<char> cafs::get_chunk( const fc::sha1& id, uint32_t pos, uint32_t s )
   if( s == uint32_t(-1) ) {
     s = ch.calculate_size();
   }
-  slog( "size %llu", s );
-  slog( "pos %llu", pos );
+  //slog( "size %llu", s );
+  //slog( "pos %llu", pos );
   fc::vector<char> v(s);
   in.read(v.data(),s);
   //slog( "data %llu  %s", v.size(), fc::to_hex( v.data(), 16 ).c_str() );
@@ -312,6 +338,7 @@ bool add_to_chunk( fc::datastream<char*>& chunk_ds,
                    cafs::file_type cur_file_type) {
    if( chunk_ds.remaining() > cur_file.size() ) {
       int  cur_file_pos = chunk_ds.tellp();
+      slog( "add to chunk at pos %d", cur_file_pos );
       chunk_ds.write( cur_file.data(), cur_file.size() );
       dir.entries.push_back( cafs::directory::entry( name ) );
       dir.entries.back().ref.content = fc::sha1::hash( cur_file.data(), cur_file.size() );
@@ -359,7 +386,7 @@ cafs::directory cafs::import_directory( const fc::path& p ) {
        fc::vector<char> cur_file;
 
        if( fc::is_directory( cur_path ) && name[0] != '.' ) {
-           directory d = import_directory( cur_path );
+           directory d = fc::async( [=]() { return import_directory( cur_path ); } );
            cur_file = fc::raw::pack( d );
            cur_file_type = directory_type;
        } else if( fc::is_regular_file( cur_path ) ) {
@@ -377,15 +404,16 @@ cafs::directory cafs::import_directory( const fc::path& p ) {
 
        fc::sha1 h = fc::sha1::hash(cur_file.data(),cur_file.size());
        fc::optional<file_ref> ofr = my->file_db.fetch(h);
-       slog( "                                               %s", fc::string(h).c_str() );
+       //slog( "                                               %s", fc::string(h).c_str() );
        if( ofr ) {
-         wlog( "We already have a file ref for this..." );
+       //  wlog( "We already have a file ref for this..." );
          dir.entries.push_back( directory::entry(name) );
          dir.entries.back().ref = *ofr;
        }
       
        if( !ofr && !add_to_chunk( cur_chunk_ds, cur_file, name, dir, cur_file_type ) ) {
           // save cur chunk... 
+        //  wlog( "                           save chunk size %llu", cur_chunk_ds.tellp() );
           cur_chunk_data.resize(cur_chunk_ds.tellp());
           save_chunk( *this, dir, cur_chunk_data );
           cur_chunk_data.resize(MAX_CHUNK_SIZE);
@@ -393,7 +421,9 @@ cafs::directory cafs::import_directory( const fc::path& p ) {
                                                cur_chunk_data.size());
           add_to_chunk( cur_chunk_ds, cur_file, name, dir, cur_file_type );
        } 
-       if( itr == end ) {
+       if( itr == end && cur_chunk_ds.tellp() > 0 ) {
+        //  wlog( "                            save chunk size %llu", cur_chunk_ds.tellp() );
+          cur_chunk_data.resize(cur_chunk_ds.tellp());
           save_chunk( *this, dir, cur_chunk_data );
        }
    }
@@ -417,6 +447,8 @@ cafs::directory cafs::import_directory( const fc::path& p ) {
  *  the square.
  */
 bool is_random( const fc::vector<char>& data ) {
+   if( data.size() < RAND_THRESHOLD ) 
+      return true;
    fc::vector<uint16_t> buckets(256);
    memset( buckets.data(), 0, buckets.size() * sizeof(uint16_t) );
    for( auto itr = data.begin(); itr != data.end(); ++itr )
@@ -462,7 +494,7 @@ uint64_t randomize( fc::vector<char>& data, uint64_t seed ) {
         t ^= r;
         memcpy( dst, &t, extra );
       }
-  } while (tmp.size() > 64 && !is_random(tmp) );
+  } while ( !is_random(tmp) );
   fc_swap(data,tmp);
   return seed;
 }
@@ -508,7 +540,6 @@ void derandomize( uint64_t seed, fc::vector<char>& data ) {
     memcpy( &t, src, extra );
     t ^= r;
     memcpy( dst, &t, extra );
-    wlog( "Extra %d", extra );
   }
   fc_swap(data,tmp);
 }
@@ -526,13 +557,17 @@ cafs::resource& cafs::resource::operator = ( cafs::resource&& c ) {
 }
 
 fc::optional<cafs::directory>   cafs::resource::get_directory() {
-  if( _data.size() && _data[0] == cafs::directory_type ) {
-      directory d;
-      fc::datastream<const char*> ds(_data.data()+1,_data.size()-1);
-      fc::raw::unpack( ds, d );
-      return d;
+  try {
+      if( _data.size() && _data[0] == cafs::directory_type ) {
+          directory d;
+          fc::datastream<const char*> ds(_data.data()+1,_data.size()-1);
+          fc::raw::unpack( ds, d );
+          return d;
+      }
+      return fc::optional<directory>();
+  } catch ( fc::error_report& e ) {
+     throw FC_REPORT_PUSH( e, "Unable to read directory header" );
   }
-  return fc::optional<directory>();
 }
 char*                     cafs::resource::get_file_data() {
   if( _data.size() && _data[0] == cafs::file_data_type ) 
@@ -545,13 +580,17 @@ size_t                    cafs::resource::get_file_size() {
   return 0;
 }
 fc::optional<cafs::file_header> cafs::resource::get_file_header() {
-  if( _data.size() && _data[0] == cafs::file_header_type ) {
-      file_header d;
-      fc::datastream<const char*> ds(_data.data()+1,_data.size()-1);
-      fc::raw::unpack( ds, d );
-      return d;
+  try {
+    if( _data.size() && _data[0] == cafs::file_header_type ) {
+        file_header d;
+        fc::datastream<const char*> ds(_data.data()+1,_data.size()-1);
+        fc::raw::unpack( ds, d );
+        return d;
+    }
+    return fc::optional<file_header>();
+  } catch ( fc::error_report& e ) {
+     throw FC_REPORT_PUSH( e, "Unable to read file header" );
   }
-  return fc::optional<file_header>();
 }
 
 fc::optional<cafs::resource> cafs::get_resource( const fc::sha1& h ) {

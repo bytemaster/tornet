@@ -89,7 +89,7 @@ void                          cafs_file_db::store( const cafs::file_ref& r ) {
   try {
       if( DB_KEYEXIST ==  my->_db->put( txn, &key, &val, DB_NOOVERWRITE ) ) {
         // TODO: enable multiple stores?
-        wlog( "key already exists, ignoring store command" );
+//        wlog( "key already exists, ignoring store command" );
         txn->abort();
         return;
       }
