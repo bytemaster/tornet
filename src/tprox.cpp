@@ -9,9 +9,17 @@
 #include <fc/url.hpp>
 #include <fc/http/server.hpp>
 #include <fc/sstream.hpp>
+#include <fc/time.hpp>
+#include <fc/thread.hpp>
+#include <fc/fstream.hpp>
+#include <tornet/kad.hpp>
+#include <tornet/chunk_service.hpp>
 
 
 #include <fc/json.hpp>
+#include <fc/pke.hpp>
+
+#include <tornet/node.hpp>
 
 struct published_link {
   fc::string link;
@@ -22,32 +30,93 @@ struct published_link {
 FC_REFLECT( published_link, (link)(domain)(last_update) )
 
 
+/**
+ *  To publish a name, it must provide a nonce such that its hash is
+ *  sufficiently (TBD) low and the expiration date must be within
+ *  the next 6 months.  A name must be updated from time to time or
+ *  it expires.
+ *
+ *  When it comes time to resolve a name, the client will perform a
+ *  kad lookup on the
+ *  
+ *
+ */
+struct name_entry {
+  bool     is_valid()const;                     // validates the hash + signature
+  fc::sha1 calc_hash( uint64_t nonce )const;    // given a nonce, calculate the hash
+  void     sign();                              // calculates the hash + signature
+
+  fc::string                        name;         // may only contain [a-z0-9_-], 30 bytes
+  fc::public_key_t                  public_key;   // base58 encoded
+  fc::string                        link;         // hex encoded cafs link
+  fc::time_point                    expires;      // date/time upon which this expires
+  uint64_t                          nonce;        // used to determine rank
+  fc::sha1                          hash;         // sha1::hash( nonce + name + key + link + expires  ) -> hex
+  fc::signature_t                   signature;    // private_key.sign(hash)
+  fc::optional<fc::private_key_t>   private_key;  // private_key base
+};
+
+FC_REFLECT( name_entry, (name)(public_key)(link)(expires)(nonce)(hash)(signature)(private_key) )
+
+
 class tproxy {
   public:
     struct config {
-      fc::string data_dir;
-      uint16_t   http_proxy_port;
+      fc::string             data_dir;
+      uint16_t               http_proxy_port;
+      uint16_t               tornet_port;
+      fc::vector<fc::string> bootstrap_hosts;
     };
 
+    config _cfg;
+
     void configure( const config& c ) {
+      _cfg = c;
       links_dir = fc::path(c.data_dir) / "links";
+      links_dir = fc::path(c.data_dir) / "names";
       fc::create_directories(links_dir);
 
       cache.open( c.data_dir );
       httpd.listen( c.http_proxy_port );
+
+
+      tnode.reset( new tn::node() );
+      tnode->init( fc::path(c.data_dir) / "nodes", c.tornet_port );
 
       httpd.on_request( 
         [this]( const fc::http::request& r, const fc::http::server::response& s ) {
           on_http_request( r, s );
         }
       );
+
+      chunk_serv.reset( new tn::chunk_service( fc::path(c.data_dir) / "chunk_service", cache, tnode ) );
+      fc::async( [=](){ bootstrap(); } ); // TODO: wait for this to finish before destructing..
     }
+    void bootstrap() {
+      for( uint32_t i = 0; i < _cfg.bootstrap_hosts.size(); ++i ) {
+        try {
+            wlog( "Attempting to connect to %s", _cfg.bootstrap_hosts[i].c_str() );
+            fc::sha1 id = tnode->connect_to( fc::ip::endpoint::from_string( _cfg.bootstrap_hosts[i]) );
+            wlog( "Connected to %s", fc::string(id).c_str() );
+        } catch ( ... ) {
+            wlog( "Unable to connect to node %s, %s", 
+                  _cfg.bootstrap_hosts[i].c_str(), fc::current_exception().diagnostic_information().c_str() );
+        }
+      }
+      
+      fc::sha1 target = tnode->get_id();
+      target.data()[19] += 1;
+      slog( "Bootstrap, searching for self...", fc::string(tnode->get_id()).c_str(), fc::string(target).c_str()  );
+      tn::kad_search::ptr ks( new tn::kad_search( tnode, target ) );
+      ks->start();
+      ks->wait();
+      slog( "Bootstrap complete" );
+   }
 
     void on_http_request( const fc::http::request& r, const fc::http::server::response& s ) {
        fc::stringstream ss;
        try {
           if( r.domain.size() >= 38 ) { // cafs::link...
-              wlog( "domain... handle link...%s" );
               cafs::link l( r.domain );
               fc::url u(r.path);
               fc::string p;
@@ -247,7 +316,23 @@ class tproxy {
                               fc::value().set( "path", fpath ) );
           }
           auto l = cache.import( fpath );
-          ss << "<a href=\"http://tornet/"<<fc::string( l ) <<"\">";
+
+          {  // save published link...
+             published_link pl;
+             pl.link   = l;
+             pl.domain = dom;
+             pl.last_update = fc::time_point::now();
+             
+             fc::string jpl = fc::json::to_string(pl);
+             fc::string jpl_filename(fc::sha1::hash( jpl.c_str(), jpl.size() ));
+             
+             fc::path jpl_path = links_dir / jpl_filename;
+             fc::ofstream jplf( jpl_path.generic_string().c_str() );
+             jplf.write( jpl.c_str(), jpl.size() );
+          }
+
+
+          ss << "<a href=\"http://"<<fc::string( l ) <<"\">";
           ss << fc::string( l ) <<"</a>\n";
 
           fc::string body = ss.str();
@@ -263,16 +348,19 @@ class tproxy {
           ss<<"Domain: <input type=\"text\" name=\"domain\"/><br/>\n";
           ss<<"<input type=\"submit\" value=\"Publish\"><br/>\n";
           ss<<"</form><p/>\n";
+          ss<<"<pre>\n";
           // list all of the known links that are being published.
           // links are stored as json objects in files named after the link...
           fc::vector<published_link> links;
           while( d != e ) {
             fc::string fn = (*d).filename().generic_string();
+            published_link pl = fc::json::from_file<published_link>( (*d).generic_string() );
             if( fn.size() > 2 && fn[0] != '.' ) {
-              ss << "<a href=\"/"<<fn<<"\">"<<fn<<"</a><br/>\n"; 
+              ss << "<a href=\"http://"<<pl.link<<"/\">"<<pl.domain<<"</a><br/>\n"; 
             }
             ++d;
           }
+          ss<<"</pre>\n";
 
           fc::string body = ss.str();
           s.set_status( fc::http::reply::OK );
@@ -283,14 +371,17 @@ class tproxy {
        }
     }
 
-    fc::http::server httpd;
-    cafs             cache;
-    fc::path         links_dir;
+    fc::shared_ptr<tn::node>       tnode;
+    fc::http::server               httpd;
+    cafs                           cache;
+    fc::path                       links_dir;
+    fc::path                       names_dir;
+    tn::chunk_service::ptr         chunk_serv;
 };
 
 
 
-FC_REFLECT( tproxy::config, (data_dir)(http_proxy_port) )
+FC_REFLECT( tproxy::config, (data_dir)(http_proxy_port)(tornet_port)(bootstrap_hosts) )
 int main( int argc, char** argv ) {
   if( argc < 2 ) {
     fc::cout<<"Usage "<<argv[0]<<" CONFIG\n";

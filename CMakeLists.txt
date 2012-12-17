@@ -65,8 +65,8 @@ SET( sources
     src/db/chunk.cpp
     src/db/peer.cpp
     src/db/publish.cpp
-    src/db/name.cpp
-#    src/chunk_service.cpp
+#    src/db/name.cpp
+    src/chunk_service.cpp
 #    src/name_service_client.cpp
 #    src/archive.cpp
 #    src/main.cpp
@@ -90,8 +90,8 @@ SET( sources
 #    src/webgui/WTornetApplication.cpp
 #    src/webgui/WTornetResource.cpp
 #    src/webgui/WUserItemModel.cpp
-    src/webgui/dbo.cpp
-    src/webgui/sql_session.cpp
+#    src/webgui/dbo.cpp
+#    src/webgui/sql_session.cpp
 
  #   main.cpp
  #   gui/QBind.cpp

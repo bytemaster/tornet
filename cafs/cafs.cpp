@@ -37,6 +37,10 @@ cafs::file_ref::file_ref()
 :seed(0),pos(0),size(0),type(0){}
 
 struct cafs::impl : public fc::retainable {
+
+  ~impl(){
+    file_db.close();
+  }
   fc::path datadir;
   cafs_file_db file_db;
 
@@ -45,20 +49,30 @@ struct cafs::impl : public fc::retainable {
   cafs::file_ref import_small_file( const fc::path& p );
 };
 
-cafs::cafs()
-:my( new impl() ){ 
-}
+cafs::cafs(){}
 
+cafs::cafs( const cafs& c )
+:my(c.my){}
+cafs::cafs( cafs&& c ):my(fc::move(c.my)){}
+cafs& cafs::operator = ( const cafs& c ) {
+  my = c.my;
+  return *this;
+}
+cafs& cafs::operator = ( cafs&& c ) {
+  fc_swap(my,c.my);
+  return *this;
+}
 cafs::~cafs() {
-  my->file_db.close();
 }
 
 void cafs::open( const fc::path& dir ) {
+  my.reset( new impl() );
   my->datadir  = dir;
   my->file_db.open( dir / "file_db" );
 }
 
 void cafs::close() {
+  my.reset( nullptr );
 }
 
 fc::sha1 cafs::chunk_header::calculate_id()const {
@@ -308,27 +322,63 @@ void cafs::export_link( const cafs::link& l, const fc::path& d ) {
 }
 
 fc::vector<char> cafs::get_chunk( const fc::sha1& id, uint32_t pos, uint32_t s ) {
-  fc::string cid(id);
-  fc::path cdir = my->datadir / cid.substr(0,2) / cid.substr(2,2) / cid.substr(4, 2);
-  fc::path cfile = cdir / cid.substr( 6 );
-  if( !fc::exists( cfile ) ) {
-    FC_THROW_MSG( "Unknown Chunk %s", cid );
-  }
-  fc::ifstream in( cfile, fc::ifstream::binary );
-  chunk_header ch;
-  fc::raw::unpack( in, ch );
-//  slog( "get chunk header: %s", fc::json::to_string( ch ).c_str() );
-  in.seekg( pos, fc::ifstream::cur );
-  if( s == uint32_t(-1) ) {
-    s = ch.calculate_size();
-  }
-  //slog( "size %llu", s );
-  //slog( "pos %llu", pos );
-  fc::vector<char> v(s);
-  in.read(v.data(),s);
-  //slog( "data %llu  %s", v.size(), fc::to_hex( v.data(), 16 ).c_str() );
+  try {
+    fc::string cid(id);
+    fc::path cdir = my->datadir / cid.substr(0,2) / cid.substr(2,2) / cid.substr(4, 2);
+    fc::path cfile = cdir / cid.substr( 6 );
+    if( !fc::exists( cfile ) ) {
+      FC_THROW_REPORT( "File ${path} does not exist", fc::value().set( "path", cfile ) );
+    }
+    fc::ifstream in( cfile, fc::ifstream::binary );
+    chunk_header ch;
+    fc::raw::unpack( in, ch );
+    //  slog( "get chunk header: %s", fc::json::to_string( ch ).c_str() );
+    if( s == uint32_t(-1) ) {
+      s = ch.calculate_size();
+    }
+    // TODO: validate size is not too big... potential for crash allocating size read from disk
+    //slog( "size %llu", s );
+    //slog( "pos %llu", pos );
+    fc::vector<char> v(s);
+  //  in.read(v.data(),s);
 
-  return v;
+    // validate that we actually have the data for the range pos -> pos +s
+    fc::datastream<char*> ds(v.data(),s);
+  #if 1
+    uint32_t cpos = 0;
+    for( auto itr = ch.slices.begin(); itr != ch.slices.end(); ++itr ) {
+      if( pos >= cpos && pos < cpos + itr->size ) {
+          fc::vector<char> tmp(itr->size);
+          in.read(tmp.data(),itr->size);
+
+          if( fc::sha1::hash( tmp.data(), tmp.size() ) != itr->hash ) {
+            FC_THROW_REPORT( "Slice hash does not match header for chunk ${chunk_id}",
+               fc::value().set( "chunk_id", id ).set("pos", pos).set("size",s).set("chunk_header",ch));
+          }
+          //slog( "pos %d   cpos %d  size %d  remain %d", pos, cpos, s, ds.remaining() );
+
+          int start  = (pos-cpos);
+          int left   = tmp.size()-start;
+          int cbytes = (fc::min)(size_t(left),size_t(ds.remaining()));
+          ds.write( tmp.data() + start, cbytes );
+          pos += cbytes;
+          s   -= cbytes;
+      } else {
+          in.seekg( itr->size, fc::ifstream::cur );
+      }
+      cpos += itr->size;
+      if( ds.remaining() == 0 )
+        return v;
+    }
+
+    //slog( "data %llu  %s", v.size(), fc::to_hex( v.data(), 16 ).c_str() );
+  #endif
+
+    return v;
+  } catch ( fc::error_report& er ) {
+    throw FC_REPORT_PUSH( er, "Unable to get chunk id ${chunk_id}", 
+                              fc::value().set( "chunk_id", id ).set("pos", pos).set("size",s) );
+  }
 }
 
 bool add_to_chunk( fc::datastream<char*>& chunk_ds, 
@@ -499,9 +549,11 @@ uint64_t randomize( fc::vector<char>& data, uint64_t seed ) {
   return seed;
 }
 
-void derandomize( uint64_t seed, const fc::mutable_buffer& b ) {
+void derandomize( uint64_t seed, const fc::mutable_buffer& b, uint64_t offset ) {
+  FC_THROW_REPORT( "this version of derandomize has not been updated yet" );
+/*
   boost::random::mt19937 gen(seed);
-  fc::vector<char> tmp(b.size);
+  fc::vector<char> tmp(b.size+offset);
   uint32_t* src = (uint32_t*)b.data;
   uint32_t* end = src +(b.size/sizeof(uint32_t)); 
   uint32_t* dst = (uint32_t*)tmp.data();
@@ -519,29 +571,28 @@ void derandomize( uint64_t seed, const fc::mutable_buffer& b ) {
     t ^= r;
     memcpy( src, &t, extra );
   }
+  */
 }
 
-void derandomize( uint64_t seed, fc::vector<char>& data ) {
+void derandomize( uint64_t seed, fc::vector<char>& data, uint64_t offset ) {
   boost::random::mt19937 gen(seed);
-  fc::vector<char> tmp(data.size());
+  fc::vector<char> tmp(data.size()+offset+3);
   uint32_t* src = (uint32_t*)data.data();
   uint32_t* end = src +(data.size()/sizeof(uint32_t)); 
-  uint32_t* dst = (uint32_t*)tmp.data();
-  gen.generate( dst, dst + (data.size()/sizeof(uint32_t)) );
+  uint32_t* dst1 = (uint32_t*)(tmp.data());
+  gen.generate( dst1, dst1 + (tmp.size()/sizeof(uint32_t)) );
+  uint32_t* dst = (uint32_t*)(tmp.data()+offset);
   while( src != end ) {
-    *dst = *src ^ *dst;
+    *src = *src ^ *dst;
     ++dst; 
     ++src;
   }
   if( int extra = data.size() % 4 ) {
     uint32_t t = 0;
-    uint32_t r;
-    gen.generate( &r, (&r) + 1 );
     memcpy( &t, src, extra );
-    t ^= r;
-    memcpy( dst, &t, extra );
+    t ^= *dst;
+    memcpy( src, &t, extra );
   }
-  fc_swap(data,tmp);
 }
 cafs::resource::resource(){}
 cafs::resource::resource( fc::vector<char>&& r ):_data(fc::move(r)){}
@@ -601,14 +652,40 @@ fc::optional<cafs::resource> cafs::get_resource( const fc::sha1& h ) {
    return fc::optional<cafs::resource>();
 }
 fc::optional<cafs::resource> cafs::get_resource( const file_ref& r ) {
+#if 0
     fc::vector<char> rd = get_chunk( r.chunk );
     //wlog( "rand  %lld %s", rd.size(), fc::to_hex(rd.data()+r.pos,r.size).c_str() );
-    derandomize( r.seed, rd );
+    derandomize( r.seed, rd );//, r.pos );
     //wlog( "derand  %lld %s", rd.size(), fc::to_hex(rd.data()+r.pos,r.size).c_str() );
     fc::vector<char> tmp( r.size+1 );//rd.data() + r.pos, rd.data()+r.pos+r.size );
     tmp[0] = r.type;
     memcpy( tmp.data()+1, rd.data()+r.pos, r.size );
     return cafs::resource( fc::move(tmp) );
+
+#else
+  try {
+    fc::vector<char> rd = get_chunk( r.chunk, r.pos, r.size );
+//    fc::vector<char> rd2 = get_chunk( r.chunk );
+//    if( 0 != memcmp( rd.data(), rd2.data()+r.pos, r.size )  ) {
+//      FC_THROW_REPORT( "get_chunk failed to match");
+//    }
+    //wlog( "rand  %lld %s", rd.size(), fc::to_hex(rd.data()+r.pos,r.size).c_str() );
+    derandomize( r.seed, rd, r.pos );
+//    derandomize( r.seed, rd2 );
+//    if( 0 != memcmp( rd.data(), rd2.data()+r.pos, r.size )  ) {
+//      slog( "r.pos %d, \n%s\n%s", r.pos, fc::to_hex( rd.data(), rd.size() ).c_str(), 
+//                        fc::to_hex( rd2.data()+r.pos, r.size ).c_str() );
+//      FC_THROW_REPORT( "derandomize failed to match", fc::value().set("r.size", r.size).set("rd.size",rd.size()));
+//    }
+    //wlog( "derand  %lld %s", rd.size(), fc::to_hex(rd.data()+r.pos,r.size).c_str() );
+    fc::vector<char> tmp( r.size+1 );//rd.data() + r.pos, rd.data()+r.pos+r.size );
+    tmp[0] = r.type;
+    memcpy( tmp.data()+1, rd.data(), r.size );
+    return cafs::resource( fc::move(tmp) );
+  } catch ( fc::error_report& e ) {
+    throw FC_REPORT_PUSH( e, "Error getting resource", fc::value().set("file_ref",r) );
+  }
+#endif
 }
 fc::optional<cafs::resource> cafs::get_resource( const cafs::link& l ) {
   try {

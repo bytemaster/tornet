@@ -1,5 +1,4 @@
-#ifndef _TORNET_NAME_CHAIN_HPP_
-#define _TORNET_NAME_CHAIN_HPP_
+#pragma once
 #include <fc/reflect.hpp>
 #include <fc/pke.hpp>
 #include <fc/sha1.hpp>
@@ -11,55 +10,18 @@
 #include <cafs.hpp>
 
 namespace tn {
-
-
   /**
-   *  There are several transaction types:
+   *   The name block chain never stores transactions for blocks over 6 months old which
+   *   means only the block headers must be stored.
    *
-   *  1) reserve   public_key + hash( name + rand )              + signature
-   *  2) publish   name + rand + value_sha1 + key_sha1           + signature 
-   *  3) update    hash( name + rand ) + value_sha1 + key_sha1   + signature 
-   *  4) transfer  hash( name + rand ) + new_public_key          + signature
+   *   All names / updates / revisions older than 6 months automatically expire.  In order
+   *   to publish an update or transfer a name, 
+   *
+   *
    */
-  struct name_trx_header {
-    uint8_t               type;
-    fc::sha1              prev_block_id;
-    fc::sha1              base;      // hash( prev_block_id + block_num + other trx )
-    uint64_t              nonce;
-    fc::signature_t       signature; // 256
-  };
 
-  struct name_reserve_trx {
-    enum type_num { id = 1 };
-    name_trx_header    head;      // 300
-    fc::sha1           res_id;    // 40
-    fc::public_key_t   pub_key;   // 256
-  };
 
-  struct name_publish_trx {
-    enum type_num { id = 2 };
-    name_trx_header        head; // 300
-    fc::sha1               reserve_trx_id; 
-    fc::array<char,128>    name; // null term name (max width 128 chars)
-    fc::array<uint64_t,2>  rand; 
-    cafs::link             site_ref;
-  };
 
-  struct name_update_trx {
-    enum type_num { id = 3 };
-    name_trx_header    head;
-    fc::sha1           name_id;       // hash(name)
-    fc::public_key_t   pub_key;       // 256
-    uint32_t           update_count;  // increments every time the name updates
-    cafs::link           site_ref;
-  };
-
-  struct name_transfer_trx {
-    enum type_num { id = 4 };
-    name_trx_header    head;
-    fc::sha1           name_id; // hash(name)
-    fc::public_key_t   to_pub_key;
-  };
 
   /**
    *  Before a user can publish a transaction, the
@@ -77,6 +39,20 @@ namespace tn {
    *  transactions from other users.  Failure to do so means that
    *  someone else could 'bump' your block and you would have to
    *  restart solving for your transaction.
+   *
+   *  The difficulty of finding a block is adjusted every block such
+   *  that on average a new block is found every 10 minutes.  
+   *
+   *  The difficulty of finding a block is never less than the difficluty
+   *  of solving a transaction which for an average computer should take
+   *  1 hour of CPU time.   In effect, until the user base grows, a new
+   *  block will be issued for every transaction.
+   *
+   *  The timestamp on the block must be more than 8 minutes after the 
+   *  previous block timestamp AND must be less than current UTC for the
+   *  block to be accepted.   So you cannot game the system by calculating
+   *  on a 'future time' nor create a block faster than every 8 minutes.
+   *  
    */
   struct name_block {
     name_block()
@@ -84,19 +60,19 @@ namespace tn {
 
     /// hash of these values form the base
     fc::sha1              prev_block_id;
-    uint64_t              utc_us;  // approx time the block was generated  
+    fc::time_point        utc_us;  // approx time the block was generated  
     uint64_t              block_num; 
-    uint64_t              block_date;
     fc::vector<fc::sha1>  transactions; 
 
     fc::sha1 base_hash()const {
       fc::sha1::encoder enc;
-      enc.write( prev_block_id.data(), sizeof(prev_block_id) );
-      enc.write( (char*)&utc_us, sizeof(utc_us) );
-      enc.write( (char*)&block_num, sizeof(block_num) );
+      fc::raw::pack( enc, prev_block_id );
+      fc::raw::pack( enc, utc_us );
+      fc::raw::pack( enc, block_num );
       fc::raw::pack( enc, transactions );
       return enc.result();
     }
+    
     uint64_t difficulty() {
       return transactions.size();
     }
@@ -116,7 +92,7 @@ namespace tn {
   /**
    *  For a block hash to be valid, the gen_transaction must use 
    *  the hash of the base header fields for is 'base' and the
-   *  hash of the transaction must be below thresh
+   *  hash of the transaction must be below block thresh
    */
   template<typename Trx>
   bool validate_block_hash( const name_block& b, const Trx& gen, const fc::sha1& block_thresh, const fc::sha1& trx_thresh ) {
@@ -166,5 +142,4 @@ FC_REFLECT( tn::name_update_trx,   (head)(name_id)(update_count)(site_ref) )
 FC_REFLECT( tn::name_transfer_trx, (head)(name_id)(to_pub_key) )
 FC_REFLECT( tn::name_block,        (prev_block_id)(utc_us)(block_num)(transactions)(gen_transaction) )
 
-
-#endif // _TORNET_NAME_CHAIN_HPP_
+#endif

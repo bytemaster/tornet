@@ -1,5 +1,4 @@
-#ifndef _CHUNK_SERVICE_CONNECTION_HPP_
-#define _CHUNK_SERVICE_CONNECTION_HPP_
+#pragma once
 #include <fc/shared_ptr.hpp>
 #include <tornet/udt_channel.hpp>
 #include <tornet/chunk_service.hpp>
@@ -7,12 +6,6 @@
 #include <tornet/chunk_service_messages.hpp>
 #include <tornet/db/chunk.hpp>
 #include <fc/json.hpp>
-extern "C" {
-double pochisq(
-    	const double ax,    /* obtained chi-square value */
-     	const int df	    /* degrees of freedom */
-     	);
-}
 
   bool      is_random( const fc::vector<char>& data );
 namespace tn {
@@ -121,4 +114,3 @@ namespace tn {
 }
 
 
-#endif// _CHUNK_SERVICE_CONNECTION_HPP_

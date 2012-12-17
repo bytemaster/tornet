@@ -2,7 +2,6 @@
 #include <tornet/channel.hpp>
 #include "node_impl.hpp"
 #include <fc/bigint.hpp>
-//#include <fc/signals.hpp>
 #include <fc/error.hpp>
 #include <fc/fstream.hpp>
 

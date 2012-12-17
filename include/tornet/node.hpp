@@ -1,7 +1,5 @@
-#ifndef _TORNET_NODE_HPP_
-#define _TORNET_NODE_HPP_
+#pragma once
 #include <fc/shared_ptr.hpp>
-//#include <fc/function.hpp>
 #include <functional>
 #include <fc/vector.hpp>
 #include <fc/sha1.hpp>
@@ -191,4 +189,3 @@ namespace tn {
 
 };
 
-#endif

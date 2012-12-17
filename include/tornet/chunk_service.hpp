@@ -44,14 +44,13 @@ namespace tn {
     public:
       typedef fc::shared_ptr<chunk_service> ptr;
 
-      chunk_service( const fc::path&      dbdir, const fc::shared_ptr<tn::node>& n );
+      chunk_service( const fc::path& dbdir, const cafs& c, const fc::shared_ptr<tn::node>& n );
       virtual ~chunk_service();
 
       void shutdown();
        
+      cafs                              get_cafs()const;
       fc::shared_ptr<tn::db::chunk>&    get_cache_db();
-      fc::shared_ptr<tn::db::chunk>&    get_local_db();
-      fc::shared_ptr<cafs>              get_cafs();
       fc::shared_ptr<tn::db::publish>&  get_publish_db();
       fc::shared_ptr<tn::node>&         get_node();
 
@@ -63,16 +62,16 @@ namespace tn {
        *  All published files show up in the link database. Once
        *  the file has been published, local changes are not reflected,
        *  it will have to be removed from the link DB.
-       */
       cafs::link publish( const fc::path& p, uint32_t rep = 3 );
+       */
      
       /**
        *  Reads the data for the chunk from the cache or local database.
        *
        *  @return an empty vector if no chunk was found
        *  This data can be gotten directly from the cafs... 
-      fc::vector<char> fetch_chunk( const fc::sha1& chunk_id );
        */
+      fc::vector<char> fetch_chunk( const fc::sha1& chunk_id );
 
       /**
        *  Assuming the data is stored locally, returns a tornet file,

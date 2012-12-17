@@ -56,13 +56,14 @@
 
 namespace tn {
 
-  class chunk_service::impl {
+  class chunk_service::impl : public fc::retainable {
     public:
       impl(chunk_service& cs, const tn::node::ptr& n)
       :_self(cs),_node(n) {
         _publishing = false;
       }
       chunk_service&   _self;
+      cafs             _cafs;
       tn::node::ptr    _node;
       db::chunk::ptr   _cache_db;
       db::chunk::ptr   _local_db;
@@ -82,14 +83,13 @@ namespace tn {
   }
 
 
-chunk_service::chunk_service( const fc::path& dbdir, const tn::node::ptr& node )
-:my(*this,node) {
+chunk_service::chunk_service( const fc::path& dbdir, const cafs& c, const tn::node::ptr& node )
+:my( new impl(*this,node) ) {
+    my->_cafs = c;
     fc::create_directories(dbdir/"cache_db");
     fc::create_directories(dbdir/"local_db");
     my->_cache_db.reset( new db::chunk( node->get_id(), dbdir/"cache_db" ) );
     my->_cache_db->init();
-    my->_local_db.reset( new db::chunk( node->get_id(), dbdir/"local_db" ) );
-    my->_local_db->init();
     my->_pub_db.reset( new db::publish( dbdir/"publish_db" ) );
     my->_pub_db->init();
 
@@ -100,7 +100,6 @@ void chunk_service::shutdown() {
     enable_publishing( false );
     my->_node->close_service( chunk_service_udt_port );
     my->_cache_db.reset();
-    my->_local_db.reset();
     my->_pub_db.reset();
 }
 
@@ -109,31 +108,31 @@ chunk_service::~chunk_service(){
 //  slog( "%p", this );
 } 
 
-db::chunk::ptr&   chunk_service::get_cache_db() { return my->_cache_db; }
-db::chunk::ptr&   chunk_service::get_local_db() { return my->_local_db; }
+db::chunk::ptr&     chunk_service::get_cache_db() { return my->_cache_db; }
 db::publish::ptr&   chunk_service::get_publish_db() { return my->_pub_db; }
 node::ptr&          chunk_service::get_node() { return my->_node; }
+cafs                chunk_service::get_cafs()const { return my->_cafs; }
 
 
 fc::vector<char> chunk_service::fetch_chunk( const fc::sha1& chunk_id ) {
+  try {
+    // TODO: should I increment the 'fetch count'??
+    return my->_cafs.get_chunk( chunk_id );
+  } catch ( fc::error_report& er ) {
+    throw FC_REPORT_PUSH( er, "Unable to fetch chunk id ${chunk_id}", 
+                              fc::value().set( "chunk_id", chunk_id ) );
+  }
+#if 0
   fc::vector<char> d;
   tn::db::chunk::meta met;
   try {
-  if( my->_local_db->fetch_meta( chunk_id, met, false ) ) {
-      d.resize(met.size);
-// TODO: replace with CAFS      if( my->_local_db->fetch_chunk( chunk_id, fc::mutable_buffer(d.data(),met.size) ) )
-//        return d;
-  }
-  } catch(...) {}
-  try {
-  if( my->_cache_db->fetch_meta( chunk_id, met, false ) ) {
- //     d.resize(met.size);
-// TODO replace with CAFS      if( my->_cache_db->fetch_chunk( chunk_id, fc::mutable_buffer(d.data(),met.size) ) )
-//        return d;
-  }
+    if( my->_cache_db->fetch_meta( chunk_id, met, false ) ) {
+       return my->_cafs.fetch_chunk( chunk_id ); 
+    }
   } catch(...) {}
   FC_THROW_MSG( "Unknown chunk %s", chunk_id );
   return fc::vector<char>();
+#endif
 }
 
 
@@ -234,216 +233,50 @@ void chunk_service::impl::publish_loop() {
 }
 
 
-namespace fs = boost::filesystem;
-tornet_file import_file( chunk_service& self, const fs::path& infile ) {
-  // the file we are creating
-  tornet_file tf; 
-  tf.name = infile.filename().c_str();
-  tf.size = fs::file_size(infile);
-  if( !tf.size ) return tf;
-
-  slog( "Importing %s of %lld bytes", infile.string().c_str(), tf.size );
-
-  // map the file to memory for quick access
-  fc::file_mapping  in_mfile(infile.string().c_str(), fc::read_only );
-  fc::mapped_region in_mregion(in_mfile,fc::read_only,0,tf.size);
-
-  const char* rpos = (const char*)in_mregion.get_address();
-  const char* rend = rpos + tf.size;
-
-  tf.checksum = fc::sha1::hash( rpos, in_mregion.get_size() );
-
-  tf.mime = "TODO"; // TODO: use libmagic to determine mime type
-
-
-  // we will be encrypting the file using blowfish
-  // the key is the sha1() of the original file.
-  fc::blowfish bf;
-  bf.start( (unsigned char*)tf.checksum.data(), sizeof(tf.checksum) );
-  bf.reset_chain();
-
-  // round the file size up to the nearest 8 byte boundry  
-  uint64_t rfile_size = ((tf.size+7)/8)*8; // needs to be a power of 8 for FB
-
-  // the chunk_size is constant 1MB
-  const uint64_t max_chunk_size = 1024*1024;
-
-  // this is the temporary buffer used for storing each chunk
-  fc::vector<char> chunk( (fc::min)(max_chunk_size,rfile_size) );
-
-
-  // small files are kept 'inline'
-  if( tf.size < (1024 * 1000) ) {
-    tf.inline_data.resize(tf.size);
-    memcpy( tf.inline_data.data(), rpos, tf.size );
-  } else { 
-    // large files are broken into chunks
-    while( rpos < rend ) {
-       // this size of this chunk
-      uint64_t csize = (fc::min)( uint64_t(rend-rpos), max_chunk_size );
-      
-      // we need to pad out small chunks to ensure randomness 
-      uint64_t rcsize = csize;
-      while( rcsize < 1024*4 ) rcsize += 1024*4; //rand()%(1024*16);
-
-      // round the chunk up to nearest 8 byte bounds for BF encryption
-      rcsize = ((rcsize+7)/8)*8;
-
-      // reserve the space
-      chunk.resize(rcsize);
-
-      // reset the blowfish chain for each chunk, this will allow
-      // us to decode large files in parallel and potentially eliminate
-      // the need for 2x the storage space.
-      bf.reset_chain();
-
-      // encrypt the chunk, avoding a memcpy if possible
-      if( rcsize == csize ) {
-        // encrypt the chunk
-        bf.encrypt( (const unsigned char*)rpos, (unsigned char*)chunk.data(), rcsize, fc::blowfish::CBC );
-      } else {
-        memcpy( chunk.data(), rpos, csize );
-        memset( chunk.data() + csize, 0, (rcsize-csize) );
-        bf.encrypt( (unsigned char*)chunk.data(), rcsize, fc::blowfish::CBC );
-      }
-      
-      // ensure that the chunk has proper randomness to be accepted
-      uint64_t seed = randomize(chunk,*((uint64_t*)chunk.data()));
-
-      fc::sha1 chunk_id = fc::sha1::hash(chunk.data(), chunk.size() );
-      tf.chunks.push_back( tornet_file::chunk_data( csize, seed, chunk_id ) );
-
-      // calculate 64KB slices for partial requests
-      for( uint64_t s = 0; s < rcsize; ) {
-        uint64_t ss = (fc::min)( uint64_t(64*1024), uint64_t(rcsize-s) ); 
-        tf.chunks.back().slices.push_back( fc::super_fast_hash( chunk.data()+s, ss ) );
-        s += ss;
-      }
-      // store the chunk
-// TODO: replace with CAFS      self.get_local_db()->store_chunk( chunk_id, fc::const_buffer( chunk.data(), chunk.size() ) );
-
-      rpos += csize;
-    }
-  }
-  tf.version     = 0;
-  tf.compression = 0;
-  return tf;
-}
-
-tn::link publish_tornet_file( tn::chunk_service& self, const tornet_file& tf, int rep ) {
-  tn::link ln;
-  
-//  slog( "%s", fc::json::to_string( tf ).c_str() );
-  auto chunk = fc::raw::pack( tf );
-
-  if( chunk.size() > 1024*1024 ) {
-    FC_THROW_MSG( "Tornet file size(%lld) is larger than 1MB", chunk.size() ); 
-  }
-
-  // round the size up
-  auto old_size = chunk.size();
-  uint64_t rcsize = old_size;
-  while( rcsize < 1024*4 ) rcsize += 1024*4; //rand()%(1024*16);
-
-  rcsize = ((rcsize+7)/8)*8;
-
-  if( rcsize != old_size ) {
-      chunk.resize( rcsize );
-      memset( chunk.data() + old_size, 0, rcsize - old_size );
-  }
-
-  ln.seed = randomize(chunk,*((uint64_t*)tf.checksum.data()));
-  ln.id   = fc::sha1::hash( chunk.data(), chunk.size() );
-
-  // TODO: this could be performed without blocking on the DB thread
-  // TODO: replace with CAFS self.get_local_db()->store_chunk( ln.id, fc::const_buffer( chunk.data(), chunk.size() ) );
-
-  for( uint32_t i = 0; i < tf.chunks.size(); ++i ) {
-    tn::db::publish::record rec;
-    self.get_publish_db()->fetch( tf.chunks[i].id, rec );
-    rec.desired_host_count = rep;
-    rec.next_update         = 0;
-    self.get_publish_db()->store( tf.chunks[i].id, rec );
-  }
-
-  tn::db::publish::record rec;
-  self.get_publish_db()->fetch( ln.id, rec );
-  rec.desired_host_count = rep;
-  rec.next_update        = 0;
-  self.get_publish_db()->store( ln.id, rec );
-  
-  return ln;
-}
-
-
-
-cafs::link chunk_service::publish( const fc::path& file, uint32_t rep  ) {
-  cafs::link l = my->_cfs->import( file );
-}
-
-
-tornet_file chunk_service::fetch_tornet( const tn::link& ln ) {
-  auto chunk = fetch_chunk( ln.id );
-  derandomize( ln.seed, chunk );
-  auto tf = fc::raw::unpack<tornet_file>(chunk);
-
-//  slog( "%s", fc::json::to_string( tf ).c_str() );
-  return tf;
-}
 
 fc::vector<char> chunk_service::download_chunk( const fc::sha1& chunk_id ) {
   try {
-    return fetch_chunk( chunk_id );
-  } catch ( ... ) {
-    wlog( "Unable to fetch %s, searching for it..", fc::string(chunk_id).c_str() );
-     tn::chunk_search::ptr csearch( new tn::chunk_search( get_node(), chunk_id, 5, 1, true ) );  
-     csearch->start();
-     csearch->wait();
-
-     auto hn = csearch->hosting_nodes().begin();
-     while( hn != csearch->hosting_nodes().end() ) {
-        auto csc = get_node()->get_client<chunk_service_client>(hn->second);
-
-        try {
-            // give the node 5 minutes to send 1 MB
-            fetch_response fr = csc->fetch( chunk_id, -1 ).wait( fc::microseconds( 1000*1000*300 ) );
-            slog( "Response size %d", fr.data.size() );
-
-            auto fhash = fc::sha1::hash( fr.data.data(), fr.data.size() );
-            if( fhash == chunk_id ) {
-               // TODO: replace with CAFS get_local_db()->store_chunk(chunk_id,fr.data);
-               fc::vector<char> tmp = fc::move(fr.data);
-               return tmp;
-            } else {
-                wlog( "Node failed to return expected chunk" );
-                wlog( "Received %s of size %d  expected  %s",
-                       fc::string( fhash ).c_str(), fr.data.size(),
-                       fc::string( chunk_id ).c_str() );
-            }
-        } catch ( ... ) {
-           wlog( "Exception thrown while attempting to fetch %s from %s", 
-                    fc::string(chunk_id).c_str(), fc::string(hn->second).c_str() );
-           wlog( "%s", fc::current_exception().diagnostic_information().c_str() );
-        }
-       ++hn;
-     }
+    try {
+      return fetch_chunk( chunk_id );
+    } catch ( fc::error_report& er ) {
+       wlog( "Unable to fetch %s, searching for it..", fc::string(chunk_id).c_str() );
+       tn::chunk_search::ptr csearch( new tn::chunk_search( get_node(), chunk_id, 5, 1, true ) );  
+       csearch->start();
+       csearch->wait();
+    
+       auto hn = csearch->hosting_nodes().begin();
+       while( hn != csearch->hosting_nodes().end() ) {
+          auto csc = get_node()->get_client<chunk_service_client>(hn->second);
+    
+          try {
+              // give the node 5 minutes to send 1 MB
+              fetch_response fr = csc->fetch( chunk_id, -1 ).wait( fc::microseconds( 1000*1000*300 ) );
+              slog( "Response size %d", fr.data.size() );
+    
+              auto fhash = fc::sha1::hash( fr.data.data(), fr.data.size() );
+              if( fhash == chunk_id ) {
+                 // TODO: replace with CAFS get_local_db()->store_chunk(chunk_id,fr.data);
+                 //my->_cafs.store( 
+                 fc::vector<char> tmp = fc::move(fr.data);
+                 return tmp;
+              } else {
+                  wlog( "Node failed to return expected chunk" );
+                  wlog( "Received %s of size %d  expected  %s",
+                         fc::string( fhash ).c_str(), fr.data.size(),
+                         fc::string( chunk_id ).c_str() );
+              }
+          } catch ( ... ) {
+             wlog( "Exception thrown while attempting to fetch %s from %s", 
+                      fc::string(chunk_id).c_str(), fc::string(hn->second).c_str() );
+             wlog( "%s", fc::current_exception().diagnostic_information().c_str() );
+          }
+         ++hn;
+       }
+    }
+  } catch ( fc::error_report& er ) {
+    throw FC_REPORT_PUSH( er, "Unable to download chunk ${chunk_id}", fc::value().set("chunk_id", chunk_id) );
   }
-  FC_THROW_MSG( "Unable to download chunk %s", chunk_id );
-  return fc::vector<char>(); // hide warnings
 }
-
-tornet_file chunk_service::download_tornet( const tn::link& ln ) {
-  auto chunk = get_node()->get_thread().async( [&]() { return download_chunk(ln.id); }).wait();
-  slog( "download %s", fc::string(ln.id).c_str() );
-  derandomize( ln.seed, chunk );
-  slog( "unpacking chunk" );
-  auto tf =  fc::raw::unpack<tornet_file>(chunk);
-//  slog( "%s", fc::json::to_string( tf ).c_str() );
-  return tf;
-}
-
-
-
 
 } // namespace tn
 

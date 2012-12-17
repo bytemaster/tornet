@@ -1,5 +1,4 @@
-#ifndef _CAFS_HPP_
-#define _CAFS_HPP_
+#pragma once
 #include <fc/vector.hpp>
 #include <fc/string.hpp>
 #include <fc/shared_ptr.hpp>
@@ -22,6 +21,10 @@
 class cafs  {
   public:
     cafs();
+    cafs( const cafs& c );
+    cafs( cafs&& c );
+    cafs& operator = ( const cafs& c );
+    cafs& operator = ( cafs&& c );
     ~cafs();
 
     enum file_type {
@@ -212,8 +215,8 @@ class cafs  {
 
 bool     is_random( const fc::vector<char>& data );
 uint64_t randomize( fc::vector<char>& data, uint64_t seed );
-void     derandomize( uint64_t seed, fc::vector<char>& data );
-void     derandomize( uint64_t seed, const fc::mutable_buffer& b );
+void     derandomize( uint64_t seed, fc::vector<char>& data, uint64_t offset = 0 );
+void     derandomize( uint64_t seed, const fc::mutable_buffer& b, uint64_t offset = 0 );
 
 FC_REFLECT( cafs::link,                (id)(seed)                              )
 FC_REFLECT( cafs::chunk_header::slice, (size)(hash)                            )
@@ -226,4 +229,3 @@ FC_REFLECT( cafs::directory,           (entries)                               )
 
 
 
-#endif // _CAFS_HPP_
