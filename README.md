@@ -160,7 +160,7 @@ of content and then opportunistically cache content that would be 'profitable' f
 based upon access frequency and distance from the node ID.
 
 On the other hand, nodes that are willing to pay a 'high price' for low-latency can short-circuit 
-the lookup process and start their query much closer to the target node.  This short-circut of the
+the lookup process and start their query much closer to the target node.  This short-circuit of the
 lookup process 'harms' the network by hindering the ability of nodes further away to cache the
 content.  If every node did this then they could DOS the target node.  Fortunately, because it is
 more expensive it naturally self-limiting.  
